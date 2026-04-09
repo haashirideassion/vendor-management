@@ -2,149 +2,187 @@ import { useState } from "react"
 import { Link, useLocation, Outlet } from "react-router-dom"
 import { useAuth } from "@/contexts/AuthContext"
 import { Button } from "@/components/ui/button"
-import { Separator } from "@/components/ui/separator"
-import { Sheet, SheetContent, SheetHeader } from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { ThemeToggle } from "@/components/shared/ThemeToggle"
 import { StatusBadge } from "@/components/shared/StatusBadge"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { useVendor } from "@/hooks/useVendor"
 import { cn } from "@/lib/utils"
+import { HugeiconsIcon } from "@hugeicons/react"
 import {
-  LayoutDashboard, User, FileText, Wrench, Tag, RefreshCw,
-  Menu, LogOut, Building2, AlertCircle
-} from "lucide-react"
+  DashboardSquare01Icon,
+  UserCircleIcon,
+  File01Icon,
+  Settings01Icon,
+  Tag01Icon,
+  Refresh01Icon,
+  Logout01Icon,
+  Menu01Icon,
+  Building06Icon,
+  Alert01Icon,
+} from "@hugeicons/core-free-icons"
 
 const baseNavItems = [
-  { label: "Dashboard", to: "/vendor/dashboard", icon: LayoutDashboard },
-  { label: "Profile", to: "/vendor/profile", icon: User },
-  { label: "Documents", to: "/vendor/documents", icon: FileText },
-  { label: "Services", to: "/vendor/services", icon: Wrench },
-  { label: "Categories", to: "/vendor/categories", icon: Tag },
+  { label: "Dashboard", to: "/vendor/dashboard", icon: DashboardSquare01Icon },
+  { label: "Profile", to: "/vendor/profile", icon: UserCircleIcon },
+  { label: "Documents", to: "/vendor/documents", icon: File01Icon },
+  { label: "Services", to: "/vendor/services", icon: Settings01Icon },
+  { label: "Categories", to: "/vendor/categories", icon: Tag01Icon },
 ]
 
-function NavLinks({
+function SidebarContent({
   pathname,
-  showRenewal,
-  onClick,
+  onNavClick,
+  email,
 }: {
   pathname: string
-  showRenewal: boolean
-  onClick?: () => void
+  onNavClick?: () => void
+  email?: string
 }) {
+  const { signOut } = useAuth()
+  const { data: vendor } = useVendor()
+  const showRenewal = vendor?.status === "action_required"
+
   return (
-    <nav className="flex-1 p-2 space-y-0.5">
-      {baseNavItems.map(({ label, to, icon: Icon }) => (
-        <Link
-          key={to}
-          to={to}
-          onClick={onClick}
-          className={cn(
-            "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent",
-            pathname === to
-              ? "bg-accent text-accent-foreground"
-              : "text-muted-foreground hover:text-foreground"
-          )}
+    <div className="flex flex-col h-full">
+      {/* Logo + vendor info */}
+      <div className="px-4 pt-5 pb-4">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+            <HugeiconsIcon icon={Building06Icon} size={18} className="text-primary" strokeWidth={1.8} />
+          </div>
+          <div>
+            <p className="text-sm font-semibold leading-none tracking-tight">Vendor Portal</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5 leading-none">Self-Service</p>
+          </div>
+        </div>
+        {vendor && (
+          <div className="rounded-xl bg-muted/60 px-3 py-2.5 space-y-1">
+            <p className="text-xs font-semibold truncate leading-snug">{vendor.company_name}</p>
+            {vendor.vendor_id_code && (
+              <p className="text-[10px] text-muted-foreground font-mono">{vendor.vendor_id_code}</p>
+            )}
+            <StatusBadge status={vendor.status} />
+          </div>
+        )}
+      </div>
+
+      {/* Nav */}
+      <nav className="flex-1 px-3 space-y-0.5">
+        {baseNavItems.map(({ label, to, icon }) => {
+          const active = pathname === to
+          return (
+            <Link
+              key={to}
+              to={to}
+              onClick={onNavClick}
+              className={cn(
+                "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150",
+                active
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:bg-accent hover:text-foreground"
+              )}
+            >
+              <HugeiconsIcon icon={icon} size={18} strokeWidth={active ? 2 : 1.5} />
+              {label}
+            </Link>
+          )
+        })}
+
+        {showRenewal && (
+          <Link
+            to="/vendor/renewal"
+            onClick={onNavClick}
+            className={cn(
+              "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all duration-150 mt-2",
+              pathname === "/vendor/renewal"
+                ? "bg-orange-500 text-white shadow-sm"
+                : "bg-orange-100 text-orange-800 hover:bg-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:hover:bg-orange-900/50"
+            )}
+          >
+            <HugeiconsIcon icon={Alert01Icon} size={18} strokeWidth={2} />
+            Renewal Required
+          </Link>
+        )}
+      </nav>
+
+      {/* Footer */}
+      <div className="px-3 pb-4 pt-3 border-t border-border/60 mt-2">
+        <div className="flex items-center gap-3 px-2 py-2 rounded-xl">
+          <Avatar className="h-7 w-7 shrink-0">
+            <AvatarFallback className="text-xs bg-primary/10 text-primary">
+              {email?.[0]?.toUpperCase() ?? "V"}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-medium truncate">{email ?? "Vendor"}</p>
+            <p className="text-[10px] text-muted-foreground">Vendor Account</p>
+          </div>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full justify-start gap-2.5 mt-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-9 rounded-xl"
+          onClick={signOut}
         >
-          <Icon className="h-4 w-4 shrink-0" />
-          {label}
-        </Link>
-      ))}
-      {showRenewal && (
-        <Link
-          to="/vendor/renewal"
-          onClick={onClick}
-          className={cn(
-            "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-semibold transition-colors mt-1",
-            pathname === "/vendor/renewal"
-              ? "bg-orange-200 text-orange-900 dark:bg-orange-900/40 dark:text-orange-200"
-              : "bg-orange-100 text-orange-800 hover:bg-orange-200 dark:bg-orange-900/20 dark:text-orange-300"
-          )}
-        >
-          <AlertCircle className="h-4 w-4 shrink-0" />
-          Renewal Required
-        </Link>
-      )}
-    </nav>
+          <HugeiconsIcon icon={Logout01Icon} size={16} strokeWidth={1.5} />
+          Sign out
+        </Button>
+      </div>
+    </div>
   )
 }
 
 export function VendorLayout() {
-  const { profile, signOut } = useAuth()
+  const { profile } = useAuth()
   const { pathname } = useLocation()
   const { data: vendor } = useVendor()
   const [mobileOpen, setMobileOpen] = useState(false)
   const showRenewal = vendor?.status === "action_required"
   const currentLabel = baseNavItems.find((n) => pathname === n.to)?.label ?? "Vendor Portal"
 
-  const sidebarHeader = (
-    <div className="px-4 py-4 border-b">
-      <div className="flex items-center gap-2">
-        <Building2 className="h-5 w-5 text-primary shrink-0" />
-        <p className="text-sm font-semibold leading-none">Vendor Portal</p>
-      </div>
-      {vendor && (
-        <div className="mt-3 space-y-1">
-          <p className="text-sm font-medium truncate">{vendor.company_name}</p>
-          {vendor.vendor_id_code && (
-            <p className="text-xs text-muted-foreground font-mono">{vendor.vendor_id_code}</p>
-          )}
-          <StatusBadge status={vendor.status} />
-        </div>
-      )}
-    </div>
-  )
-
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      {/* Desktop Sidebar */}
-      <aside className="hidden w-60 flex-col border-r bg-card md:flex">
-        {sidebarHeader}
-        <NavLinks pathname={pathname} showRenewal={showRenewal} />
-        <Separator />
-        <div className="p-3 flex flex-col gap-2">
-          <p className="text-xs text-muted-foreground truncate px-1">{profile?.email}</p>
-          <Button variant="outline" size="sm" className="w-full justify-start gap-2" onClick={signOut}>
-            <LogOut className="h-3.5 w-3.5" /> Sign out
-          </Button>
-        </div>
+      {/* Desktop Sidebar - inset */}
+      <aside className="hidden md:flex flex-col w-[220px] shrink-0 m-3 rounded-2xl bg-card border border-border/60 shadow-sm overflow-hidden">
+        <SidebarContent pathname={pathname} email={profile?.email} />
       </aside>
 
       {/* Mobile Sidebar */}
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-        <SheetContent side="left" className="w-60 p-0 flex flex-col">
-          <SheetHeader className="p-0">
-            {sidebarHeader}
+        <SheetContent side="left" className="w-[220px] p-0 bg-card">
+          <SheetHeader className="sr-only">
+            <SheetTitle>Navigation</SheetTitle>
           </SheetHeader>
-          <NavLinks pathname={pathname} showRenewal={showRenewal} onClick={() => setMobileOpen(false)} />
-          <Separator />
-          <div className="p-3 flex flex-col gap-2">
-            <p className="text-xs text-muted-foreground truncate px-1">{profile?.email}</p>
-            <Button variant="outline" size="sm" className="w-full justify-start gap-2" onClick={signOut}>
-              <LogOut className="h-3.5 w-3.5" /> Sign out
-            </Button>
-          </div>
+          <SidebarContent
+            pathname={pathname}
+            onNavClick={() => setMobileOpen(false)}
+            email={profile?.email}
+          />
         </SheetContent>
       </Sheet>
 
       {/* Main column */}
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex flex-1 flex-col overflow-hidden min-w-0 my-3 mr-3">
         {/* Top bar */}
-        <header className="flex h-12 items-center justify-between border-b bg-card px-4 shrink-0">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="md:hidden"
-            onClick={() => setMobileOpen(true)}
-            aria-label="Open navigation"
-          >
-            <Menu className="h-5 w-5" />
-          </Button>
-          <span className="md:hidden text-sm font-medium">{currentLabel}</span>
-          <span className="hidden md:block" />
-          <div className="flex items-center gap-1">
+        <header className="flex h-12 items-center justify-between rounded-2xl bg-card border border-border/60 shadow-sm px-4 mb-3 shrink-0">
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="md:hidden h-8 w-8"
+              onClick={() => setMobileOpen(true)}
+            >
+              <HugeiconsIcon icon={Menu01Icon} size={18} strokeWidth={1.5} />
+            </Button>
+            <span className="text-sm font-semibold">{currentLabel}</span>
+          </div>
+          <div className="flex items-center gap-2">
             {showRenewal && (
               <Link to="/vendor/renewal">
-                <Button size="sm" variant="destructive" className="h-7 text-xs gap-1.5 mr-1">
-                  <RefreshCw className="h-3 w-3" /> Renew Now
+                <Button size="sm" variant="destructive" className="h-7 text-xs gap-1.5 rounded-lg">
+                  <HugeiconsIcon icon={Refresh01Icon} size={13} strokeWidth={2} />
+                  Renew Now
                 </Button>
               </Link>
             )}
@@ -153,7 +191,7 @@ export function VendorLayout() {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto rounded-2xl bg-card border border-border/60 shadow-sm">
           <Outlet />
         </main>
       </div>

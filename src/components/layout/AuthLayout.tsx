@@ -1,21 +1,28 @@
+import { Outlet } from "react-router-dom"
 import { ThemeToggle } from "@/components/shared/ThemeToggle"
+import { HugeiconsIcon } from "@hugeicons/react"
+import { Building06Icon } from "@hugeicons/core-free-icons"
 
-export function AuthLayout({ children }: { children: React.ReactNode }) {
+export function AuthLayout() {
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center bg-muted/40 p-4">
-      <div className="absolute top-4 right-4">
-        <ThemeToggle />
-      </div>
-      <div className="mb-8 text-center">
-        <div className="flex items-center justify-center gap-2 mb-2">
-          <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-            <span className="text-primary-foreground font-bold text-sm">V</span>
+    <div className="min-h-screen bg-background flex flex-col">
+      {/* Top bar */}
+      <header className="flex items-center justify-between px-6 py-4">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+            <HugeiconsIcon icon={Building06Icon} size={18} className="text-primary" strokeWidth={1.8} />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight">Vendor Portal</h1>
+          <span className="text-sm font-semibold tracking-tight">Vendor Portal</span>
         </div>
-        <p className="text-sm text-muted-foreground">Powered by Ideasion</p>
+        <ThemeToggle />
+      </header>
+
+      {/* Content */}
+      <div className="flex-1 flex items-center justify-center p-6">
+        <div className="w-full max-w-sm">
+          <Outlet />
+        </div>
       </div>
-      {children}
     </div>
   )
 }

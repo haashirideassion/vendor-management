@@ -1,14 +1,23 @@
 import { useState } from "react"
+import { Link } from "react-router-dom"
 import { useVendor } from "@/hooks/useVendor"
 import { useDocumentSignedUrl } from "@/hooks/useDocuments"
-import { PageHeader } from "@/components/shared/PageHeader"
+import { AnimatedPage } from "@/components/shared/AnimatedPage"
 import { DocumentUploader } from "@/components/shared/DocumentUploader"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { DOCUMENT_TYPE_LABELS } from "@/lib/constants"
+import { HugeiconsIcon } from "@hugeicons/react"
+import {
+  File01Icon,
+  CheckmarkCircle01Icon,
+  Clock01Icon,
+  Upload01Icon,
+  EyeIcon,
+  UserCircleIcon,
+} from "@hugeicons/core-free-icons"
 import { format } from "date-fns"
-import { CheckCircle2, Clock, ExternalLink } from "lucide-react"
 import { toast } from "sonner"
 
 export function VendorDocuments() {
@@ -27,50 +36,121 @@ export function VendorDocuments() {
     }
   }
 
-  if (isLoading) return <div className="p-6 text-sm text-muted-foreground">Loading…</div>
-  if (!vendor) return null
+  if (isLoading) {
+    return (
+      <div className="p-6 space-y-4">
+        <div className="h-8 w-48 rounded-md bg-muted animate-pulse" />
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="h-20 rounded-xl bg-muted animate-pulse" />
+        ))}
+      </div>
+    )
+  }
+
+  if (!vendor) {
+    return (
+      <AnimatedPage>
+        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 p-6 text-center">
+          <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
+            <HugeiconsIcon icon={UserCircleIcon} size={32} strokeWidth={1.5} className="text-muted-foreground" />
+          </div>
+          <div className="space-y-1">
+            <p className="text-sm font-medium">No vendor account found</p>
+            <p className="text-sm text-muted-foreground">Complete your onboarding first to manage documents.</p>
+          </div>
+          <Button asChild>
+            <Link to="/onboarding">Complete onboarding</Link>
+          </Button>
+        </div>
+      </AnimatedPage>
+    )
+  }
 
   return (
-    <div>
-      <PageHeader title="Documents" description="Manage your uploaded documents.">
-        <Button onClick={() => setSheetOpen(true)} size="sm">Upload document</Button>
-      </PageHeader>
+    <AnimatedPage>
+      <div className="p-6 space-y-6">
+        {/* Page header */}
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-bold tracking-tight">Documents</h1>
+            <p className="text-sm text-muted-foreground">Manage your uploaded documents.</p>
+          </div>
+          <Button size="sm" onClick={() => setSheetOpen(true)}>
+            <HugeiconsIcon icon={Upload01Icon} size={15} strokeWidth={1.5} className="mr-1.5" />
+            Upload document
+          </Button>
+        </div>
 
-      <div className="p-6 flex flex-col gap-4">
+        {/* Document list */}
         {docs.length === 0 ? (
-          <div className="rounded-lg border border-dashed p-8 text-center">
-            <p className="text-sm text-muted-foreground">No documents uploaded yet.</p>
+          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed p-12 text-center gap-4">
+            <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
+              <HugeiconsIcon icon={File01Icon} size={24} strokeWidth={1.5} className="text-muted-foreground" />
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm font-medium">No documents uploaded yet</p>
+              <p className="text-sm text-muted-foreground">Upload your required documents to complete verification.</p>
+            </div>
+            <Button size="sm" onClick={() => setSheetOpen(true)}>
+              <HugeiconsIcon icon={Upload01Icon} size={15} strokeWidth={1.5} className="mr-1.5" />
+              Upload your first document
+            </Button>
           </div>
         ) : (
-          docs.map((doc) => (
-            <Card key={doc.id}>
-              <CardContent className="flex items-center justify-between gap-4 py-4">
-                <div className="flex items-center gap-3">
-                  {doc.verified ? (
-                    <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
-                  ) : (
-                    <Clock className="h-5 w-5 text-yellow-500 shrink-0" />
-                  )}
-                  <div>
-                    <p className="text-sm font-medium">{DOCUMENT_TYPE_LABELS[doc.document_type]}</p>
-                    <p className="text-xs text-muted-foreground">{doc.file_name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Uploaded {format(new Date(doc.uploaded_at), "dd MMM yyyy")}
-                      {doc.expires_at && ` · Expires ${format(new Date(doc.expires_at), "dd MMM yyyy")}`}
-                    </p>
+          <div className="space-y-3">
+            {docs.map((doc) => (
+              <Card key={doc.id} className="hover:shadow-sm transition-shadow">
+                <CardContent className="flex items-center justify-between gap-4 py-4">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div
+                      className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 ${
+                        doc.verified ? "bg-green-100" : "bg-yellow-100"
+                      }`}
+                    >
+                      <HugeiconsIcon
+                        icon={doc.verified ? CheckmarkCircle01Icon : Clock01Icon}
+                        size={20}
+                        strokeWidth={1.5}
+                        className={doc.verified ? "text-green-600" : "text-yellow-600"}
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold truncate">
+                        {DOCUMENT_TYPE_LABELS[doc.document_type]}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">{doc.file_name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Uploaded {format(new Date(doc.uploaded_at), "dd MMM yyyy")}
+                        {doc.expires_at &&
+                          ` · Expires ${format(new Date(doc.expires_at), "dd MMM yyyy")}`}
+                      </p>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${doc.verified ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>
-                    {doc.verified ? "Verified" : "Pending"}
-                  </span>
-                  <Button variant="ghost" size="sm" onClick={() => openDoc(doc.storage_path)}>
-                    <ExternalLink className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span
+                      className={`text-xs px-2.5 py-1 rounded-full font-medium ${
+                        doc.verified
+                          ? "bg-green-100 text-green-700"
+                          : "bg-yellow-100 text-yellow-700"
+                      }`}
+                    >
+                      {doc.verified ? "Verified" : "Pending"}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      onClick={() => openDoc(doc.storage_path)}
+                      title="View document"
+                    >
+                      <HugeiconsIcon icon={EyeIcon} size={16} strokeWidth={1.5} />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         )}
       </div>
 
@@ -87,6 +167,6 @@ export function VendorDocuments() {
           </div>
         </SheetContent>
       </Sheet>
-    </div>
+    </AnimatedPage>
   )
 }

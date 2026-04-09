@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { useCategories, useCreateCategory, useUpdateCategory, useDeleteCategory } from "@/hooks/useCategories"
-import { PageHeader } from "@/components/shared/PageHeader"
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
+import { AnimatedPage } from "@/components/shared/AnimatedPage"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,8 +9,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Switch } from "@/components/ui/switch"
+import { Edit01Icon, Delete01Icon, Add01Icon, Tag01Icon } from "@hugeicons/core-free-icons"
+import { HugeiconsIcon } from "@hugeicons/react"
 import type { ServiceCategory } from "@/lib/types"
-import { Pencil, Trash2, Plus } from "lucide-react"
 import { toast } from "sonner"
 
 interface CategoryForm {
@@ -60,46 +61,105 @@ export function CategoryManagement() {
 
   const saving = createCategory.isPending || updateCategory.isPending
 
-  if (isLoading) return <div className="p-6 text-sm text-muted-foreground">Loading…</div>
+  if (isLoading) return (
+    <div className="p-6 flex items-center gap-2 text-sm text-muted-foreground">
+      <div className="h-4 w-4 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
+      Loading…
+    </div>
+  )
 
   return (
-    <div>
-      <PageHeader title="Service Categories" description="Manage the categories vendors can be registered under.">
-        <Button size="sm" onClick={openCreate}>
-          <Plus className="h-4 w-4 mr-1" />
-          Add category
-        </Button>
-      </PageHeader>
+    <AnimatedPage>
+      <div className="p-6 space-y-6">
+        {/* Header */}
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-bold tracking-tight">Service Categories</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Manage the categories vendors can be registered under.
+            </p>
+          </div>
+          <Button size="sm" onClick={openCreate} className="gap-1.5 shrink-0">
+            <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={1.5} />
+            Add category
+          </Button>
+        </div>
 
-      <div className="p-6 flex flex-col gap-3">
+        {/* Stats bar */}
+        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+          <span className="flex items-center gap-1.5">
+            <HugeiconsIcon icon={Tag01Icon} size={14} strokeWidth={1.5} />
+            <span>{categories.length} total</span>
+          </span>
+          <span className="text-border">·</span>
+          <span>{categories.filter((c) => c.is_active).length} active</span>
+          <span className="text-border">·</span>
+          <span>{categories.filter((c) => !c.is_active).length} inactive</span>
+        </div>
+
+        {/* Categories list */}
         {categories.length === 0 ? (
-          <div className="rounded-lg border border-dashed p-8 text-center">
-            <p className="text-sm text-muted-foreground">No categories yet.</p>
+          <div className="rounded-xl border border-dashed p-12 text-center">
+            <HugeiconsIcon icon={Tag01Icon} size={32} strokeWidth={1.5} className="text-muted-foreground/30 mx-auto mb-3" />
+            <p className="text-sm font-medium text-muted-foreground">No categories yet</p>
+            <p className="text-xs text-muted-foreground/70 mt-1">Create your first category to get started.</p>
+            <Button size="sm" className="mt-4 gap-1.5" onClick={openCreate}>
+              <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={1.5} />
+              Add category
+            </Button>
           </div>
         ) : (
-          categories.map((cat) => (
-            <Card key={cat.id}>
-              <CardContent className="flex items-center justify-between gap-3 py-4">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium">{cat.name}</p>
-                    <span className={`text-xs px-1.5 py-0.5 rounded ${cat.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}`}>
-                      {cat.is_active ? "Active" : "Inactive"}
-                    </span>
+          <div className="flex flex-col gap-2">
+            {categories.map((cat, idx) => (
+              <Card key={cat.id} className={`shadow-none transition-colors hover:bg-accent/30 group ${idx % 2 === 0 ? "" : "bg-muted/15"}`}>
+                <CardContent className="flex items-center justify-between gap-4 py-4 px-5">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`p-1.5 rounded-lg shrink-0 ${cat.is_active ? "bg-primary/10" : "bg-muted"}`}>
+                      <HugeiconsIcon
+                        icon={Tag01Icon}
+                        size={15}
+                        strokeWidth={1.5}
+                        className={cat.is_active ? "text-primary" : "text-muted-foreground"}
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-medium">{cat.name}</p>
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
+                          cat.is_active
+                            ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                            : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"
+                        }`}>
+                          {cat.is_active ? "Active" : "Inactive"}
+                        </span>
+                      </div>
+                      {cat.description && (
+                        <p className="text-xs text-muted-foreground mt-0.5 truncate">{cat.description}</p>
+                      )}
+                    </div>
                   </div>
-                  {cat.description && <p className="text-xs text-muted-foreground mt-0.5">{cat.description}</p>}
-                </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <Button variant="ghost" size="sm" onClick={() => openEdit(cat)}>
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(cat.id)}>
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))
+                  <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                      onClick={() => openEdit(cat)}
+                    >
+                      <HugeiconsIcon icon={Edit01Icon} size={14} strokeWidth={1.5} />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                      onClick={() => setDeleteTarget(cat.id)}
+                    >
+                      <HugeiconsIcon icon={Delete01Icon} size={14} strokeWidth={1.5} />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         )}
       </div>
 
@@ -111,7 +171,7 @@ export function CategoryManagement() {
           </SheetHeader>
           <div className="mt-6 flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
-              <Label>Name *</Label>
+              <Label>Name <span className="text-destructive">*</span></Label>
               <Input
                 placeholder="e.g. IT & Software"
                 value={form.name}
@@ -128,16 +188,19 @@ export function CategoryManagement() {
               />
             </div>
             {editTarget && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center justify-between rounded-lg border p-3 bg-muted/30">
+                <div>
+                  <Label htmlFor="is_active" className="text-sm font-medium cursor-pointer">Active</Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">Vendors can be assigned to active categories</p>
+                </div>
                 <Switch
                   id="is_active"
                   checked={form.is_active}
                   onCheckedChange={(v) => setForm((f) => ({ ...f, is_active: v }))}
                 />
-                <Label htmlFor="is_active">Active</Label>
               </div>
             )}
-            <Button onClick={handleSave} disabled={saving}>
+            <Button onClick={handleSave} disabled={saving} className="w-full mt-2">
               {saving ? "Saving…" : editTarget ? "Save changes" : "Create category"}
             </Button>
           </div>
@@ -160,6 +223,6 @@ export function CategoryManagement() {
         }}
         loading={deleteCategory.isPending}
       />
-    </div>
+    </AnimatedPage>
   )
 }

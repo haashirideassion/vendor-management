@@ -1,13 +1,16 @@
 import { useState } from "react"
+import { Link } from "react-router-dom"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { useVendor, useUpdateVendor } from "@/hooks/useVendor"
-import { PageHeader } from "@/components/shared/PageHeader"
+import { AnimatedPage } from "@/components/shared/AnimatedPage"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { HugeiconsIcon } from "@hugeicons/react"
+import { UserCircleIcon, Edit01Icon, Cancel01Icon, CheckmarkCircle01Icon, Building06Icon } from "@hugeicons/core-free-icons"
 import { toast } from "sonner"
 
 const schema = z.object({
@@ -43,7 +46,12 @@ export function VendorProfile() {
   const updateVendor = useUpdateVendor()
   const [editing, setEditing] = useState(false)
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<FormData>({
     resolver: zodResolver(schema),
     values: vendor
       ? {
@@ -74,66 +82,122 @@ export function VendorProfile() {
     setEditing(false)
   }
 
-  if (isLoading) return <div className="p-6 text-sm text-muted-foreground">Loading…</div>
-  if (!vendor) return null
+  if (isLoading) {
+    return (
+      <div className="p-6 space-y-6">
+        <div className="h-8 w-48 rounded-md bg-muted animate-pulse" />
+        <div className="h-48 rounded-xl bg-muted animate-pulse" />
+        <div className="h-48 rounded-xl bg-muted animate-pulse" />
+      </div>
+    )
+  }
+
+  if (!vendor) {
+    return (
+      <AnimatedPage>
+        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 p-6 text-center">
+          <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
+            <HugeiconsIcon icon={UserCircleIcon} size={32} strokeWidth={1.5} className="text-muted-foreground" />
+          </div>
+          <div className="space-y-1">
+            <p className="text-sm font-medium">No profile found</p>
+            <p className="text-sm text-muted-foreground">
+              Complete your onboarding to set up your vendor profile.
+            </p>
+          </div>
+          <Button asChild>
+            <Link to="/onboarding">Complete onboarding</Link>
+          </Button>
+        </div>
+      </AnimatedPage>
+    )
+  }
 
   const vendorAsMap = vendor as unknown as Record<string, string | null>
 
   return (
-    <div>
-      <PageHeader title="Company Profile" description="View and update your company information.">
-        {!editing && <Button size="sm" onClick={() => setEditing(true)}>Edit</Button>}
-      </PageHeader>
-
+    <AnimatedPage>
       <form onSubmit={handleSubmit(onSubmit)}>
-        <div className="p-6 flex flex-col gap-6">
+        <div className="p-6 space-y-6">
+          {/* Page header */}
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h1 className="text-xl font-bold tracking-tight">Company Profile</h1>
+              <p className="text-sm text-muted-foreground">View and update your company information.</p>
+            </div>
+            {!editing ? (
+              <Button size="sm" variant="outline" onClick={() => setEditing(true)} type="button">
+                <HugeiconsIcon icon={Edit01Icon} size={15} strokeWidth={1.5} className="mr-1.5" />
+                Edit
+              </Button>
+            ) : (
+              <div className="flex gap-2">
+                <Button type="button" size="sm" variant="outline" onClick={handleCancel}>
+                  <HugeiconsIcon icon={Cancel01Icon} size={15} strokeWidth={1.5} className="mr-1.5" />
+                  Cancel
+                </Button>
+                <Button type="submit" size="sm" disabled={updateVendor.isPending}>
+                  <HugeiconsIcon icon={CheckmarkCircle01Icon} size={15} strokeWidth={1.5} className="mr-1.5" />
+                  {updateVendor.isPending ? "Saving…" : "Save changes"}
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {/* Company Details */}
           <Card>
-            <CardHeader><CardTitle className="text-base">Company Details</CardTitle></CardHeader>
-            <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <CardHeader className="pb-4">
+              <div className="flex items-center gap-2">
+                <HugeiconsIcon icon={UserCircleIcon} size={16} strokeWidth={1.5} className="text-primary" />
+                <CardTitle className="text-base">Company Details</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               {fields.map(({ id, label }) => (
                 <div key={id} className="flex flex-col gap-1.5">
-                  <Label>{label}</Label>
+                  <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    {label}
+                  </Label>
                   {editing ? (
                     <>
-                      <Input {...register(id)} />
+                      <Input {...register(id)} className="h-9" />
                       {errors[id] && (
                         <p className="text-xs text-destructive">{errors[id]?.message}</p>
                       )}
                     </>
                   ) : (
-                    <p className="text-sm">{vendorAsMap[id] ?? "—"}</p>
+                    <p className="text-sm font-medium">{vendorAsMap[id] ?? "—"}</p>
                   )}
                 </div>
               ))}
             </CardContent>
           </Card>
 
+          {/* Tax & Banking */}
           <Card>
-            <CardHeader><CardTitle className="text-base">Tax & Banking</CardTitle></CardHeader>
-            <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <CardHeader className="pb-4">
+              <div className="flex items-center gap-2">
+                <HugeiconsIcon icon={Building06Icon} size={16} strokeWidth={1.5} className="text-primary" />
+                <CardTitle className="text-base">Tax & Banking</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               {bankFields.map(({ id, label }) => (
                 <div key={id} className="flex flex-col gap-1.5">
-                  <Label>{label}</Label>
+                  <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    {label}
+                  </Label>
                   {editing ? (
-                    <Input {...register(id)} />
+                    <Input {...register(id)} className="h-9" />
                   ) : (
-                    <p className="text-sm">{vendorAsMap[id] ?? "—"}</p>
+                    <p className="text-sm font-medium">{vendorAsMap[id] ?? "—"}</p>
                   )}
                 </div>
               ))}
             </CardContent>
           </Card>
-
-          {editing && (
-            <div className="flex gap-3">
-              <Button type="button" variant="outline" onClick={handleCancel}>Cancel</Button>
-              <Button type="submit" disabled={updateVendor.isPending}>
-                {updateVendor.isPending ? "Saving…" : "Save changes"}
-              </Button>
-            </div>
-          )}
         </div>
       </form>
-    </div>
+    </AnimatedPage>
   )
 }

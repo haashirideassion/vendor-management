@@ -5,11 +5,12 @@ import { AuthProvider } from "@/contexts/AuthContext"
 import { AuthGuard } from "@/components/auth/AuthGuard"
 import { AdminLayout } from "@/components/layout/AdminLayout"
 import { VendorLayout } from "@/components/layout/VendorLayout"
+import { AuthLayout } from "@/components/layout/AuthLayout"
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary"
 
 // Auth pages
-import { Login } from "@/pages/Login"
-import { Signup } from "@/pages/Signup"
+import { LoginForm } from "@/components/auth/LoginForm"
+import { SignupForm } from "@/components/auth/SignupForm"
 import { NotFound } from "@/pages/NotFound"
 
 // Onboarding
@@ -44,8 +45,10 @@ export default function App() {
           <ErrorBoundary>
             <Routes>
               {/* Public */}
-              <Route path="/login" element={<Login />} />
-              <Route path="/signup" element={<Signup />} />
+              <Route element={<AuthLayout />}>
+                <Route path="/login" element={<LoginForm />} />
+                <Route path="/signup" element={<SignupForm />} />
+              </Route>
 
               {/* Onboarding (authenticated, any role) */}
               <Route path="/onboarding" element={<AuthGuard><OnboardingPage /></AuthGuard>} />
