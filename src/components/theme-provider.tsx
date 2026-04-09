@@ -104,14 +104,18 @@ export function ThemeProvider({
   const applyTheme = React.useCallback(
     (nextTheme: Theme) => {
       const root = document.documentElement
-      const resolvedTheme =
-        nextTheme === "system" ? getSystemTheme() : nextTheme
       const restoreTransitions = disableTransitionOnChange
         ? disableTransitionsTemporarily()
         : null
 
       root.classList.remove("light", "dark")
-      root.classList.add(resolvedTheme)
+
+      if (nextTheme === "light") {
+        root.classList.add("light")
+      } else if (nextTheme === "dark") {
+        root.classList.add("dark")
+      }
+      // "system" → no class added; CSS @media handles it automatically
 
       if (restoreTransitions) {
         restoreTransitions()

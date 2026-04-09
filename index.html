@@ -7,11 +7,10 @@
     <meta name="description" content="Vendor Management Portal — streamline vendor onboarding, activation, and annual renewal." />
     <title>Vendor Portal</title>
     <script>
-      // Prevent flash of wrong theme
+      // Prevent flash of wrong theme — for "system" no class needed (CSS media query handles it)
       ;(function () {
-        const theme = localStorage.getItem("vendor-theme")
-        const sys = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"
-        document.documentElement.classList.add(theme === "dark" || theme === "light" ? theme : sys)
+        const t = localStorage.getItem("vendor-theme")
+        if (t === "dark" || t === "light") document.documentElement.classList.add(t)
       })()
     </script>
   </head>
