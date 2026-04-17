@@ -2,7 +2,7 @@ import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { useNavigate, Link } from "react-router-dom"
+import { Link } from "react-router-dom"
 import { supabase } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -12,13 +12,12 @@ import { toast } from "sonner"
 
 const schema = z.object({
   email: z.string().email("Enter a valid email"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
 })
 type FormData = z.infer<typeof schema>
 
-export function LoginForm() {
-  const navigate = useNavigate()
+export function ForgotPasswordForm() {
   const [loading, setLoading] = useState(false)
+  const [sent, setSent] = useState(false)
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -26,9 +25,8 @@ export function LoginForm() {
 
   async function onSubmit(data: FormData) {
     setLoading(true)
-    const { error } = await supabase.auth.signInWithPassword({
-      email: data.email,
-      password: data.password,
+    const { error } = await supabase.auth.resetPasswordForEmail(data.email, {
+      redirectTo: `${window.location.origin}/reset-password`,
     })
     setLoading(false)
 
@@ -37,22 +35,32 @@ export function LoginForm() {
       return
     }
 
-    // Fetch profile to determine role
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", (await supabase.auth.getUser()).data.user?.id ?? "")
-      .single()
+    setSent(true)
+  }
 
-    if (profile?.role === "admin") navigate("/admin/dashboard")
-    else navigate("/vendor/dashboard")
+  if (sent) {
+    return (
+      <Card className="w-full max-w-sm shadow-md">
+        <CardHeader className="pb-4">
+          <CardTitle className="text-xl">Check your email</CardTitle>
+          <CardDescription>
+            We sent a password reset link. Check your inbox and follow the instructions.
+          </CardDescription>
+        </CardHeader>
+        <CardFooter className="pt-0">
+          <Link to="/login" className="text-sm text-primary hover:underline">
+            Back to sign in
+          </Link>
+        </CardFooter>
+      </Card>
+    )
   }
 
   return (
     <Card className="w-full max-w-sm shadow-md">
       <CardHeader className="pb-4">
-        <CardTitle className="text-xl">Sign in</CardTitle>
-        <CardDescription>Enter your credentials to access the vendor portal.</CardDescription>
+        <CardTitle className="text-xl">Forgot password</CardTitle>
+        <CardDescription>Enter your email and we'll send you a reset link.</CardDescription>
       </CardHeader>
       <form onSubmit={handleSubmit(onSubmit)}>
         <CardContent className="flex flex-col gap-5 pb-5">
@@ -61,27 +69,14 @@ export function LoginForm() {
             <Input id="email" type="email" placeholder="you@company.com" {...register("email")} />
             {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
           </div>
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="password">Password</Label>
-              <Link to="/forgot-password" className="text-xs text-muted-foreground hover:text-primary hover:underline">
-                Forgot password?
-              </Link>
-            </div>
-            <Input id="password" type="password" placeholder="••••••••" {...register("password")} />
-            {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
-          </div>
         </CardContent>
         <CardFooter className="flex flex-col gap-4 pt-0">
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Signing in…" : "Sign in"}
+            {loading ? "Sending…" : "Send reset link"}
           </Button>
-          <p className="text-sm text-muted-foreground text-center">
-            New vendor?{" "}
-            <Link to="/signup" className="text-primary hover:underline">
-              Register here
-            </Link>
-          </p>
+          <Link to="/login" className="text-sm text-muted-foreground hover:text-primary hover:underline text-center">
+            Back to sign in
+          </Link>
         </CardFooter>
       </form>
     </Card>

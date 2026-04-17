@@ -11,6 +11,7 @@ import { ErrorBoundary } from "@/components/shared/ErrorBoundary"
 // Auth pages
 import { LoginForm } from "@/components/auth/LoginForm"
 import { SignupForm } from "@/components/auth/SignupForm"
+import { ForgotPasswordForm } from "@/components/auth/ForgotPasswordForm"
 import { NotFound } from "@/pages/NotFound"
 
 // Onboarding
@@ -48,6 +49,7 @@ export default function App() {
               <Route element={<AuthLayout />}>
                 <Route path="/login" element={<LoginForm />} />
                 <Route path="/signup" element={<SignupForm />} />
+                <Route path="/forgot-password" element={<ForgotPasswordForm />} />
               </Route>
 
               {/* Onboarding (authenticated, any role) */}
