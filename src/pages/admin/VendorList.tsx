@@ -52,23 +52,23 @@ export function VendorList() {
               className="pl-9 h-9 text-sm"
             />
           </div>
-          <Select value={status} onValueChange={(v) => setStatus(v as VendorStatus | "")}>
+          <Select value={status || "all"} onValueChange={(v) => setStatus(v === "all" ? "" : v as VendorStatus)}>
             <SelectTrigger className="w-44 h-9 text-sm">
               <SelectValue placeholder="All statuses" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All statuses</SelectItem>
+              <SelectItem value="all">All statuses</SelectItem>
               {VENDOR_STATUSES.map((s) => (
                 <SelectItem key={s} value={s}>{VENDOR_STATUS_LABELS[s]}</SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <Select value={category} onValueChange={setCategory}>
+          <Select value={category || "all"} onValueChange={(v) => setCategory(v === "all" ? "" : v)}>
             <SelectTrigger className="w-48 h-9 text-sm">
               <SelectValue placeholder="All categories" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All categories</SelectItem>
+              <SelectItem value="all">All categories</SelectItem>
               {categories.map((c) => (
                 <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
               ))}

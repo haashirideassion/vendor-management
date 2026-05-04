@@ -4,11 +4,15 @@ import { Progress } from "@/components/ui/progress"
 import { Step1CompanyInfo } from "./Step1CompanyInfo"
 import { Step2TaxBanking } from "./Step2TaxBanking"
 import { Step3Categories } from "./Step3Categories"
-import { Step4Documents } from "./Step4Documents"
-import { Step5Review } from "./Step5Review"
+import { Step4Contract } from "./Step4Contract"
+import { Step5Documents } from "./Step5Documents"
+import { Step6Review } from "./Step6Review"
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/contexts/AuthContext"
 import { toast } from "sonner"
+import { Button } from "@/components/ui/button"
+import { Cancel01Icon } from "@hugeicons/core-free-icons"
+import { HugeiconsIcon } from "@hugeicons/react"
 
 export interface OnboardingData {
   // Step 1
@@ -22,12 +26,20 @@ export interface OnboardingData {
   bank_account_number: string
   bank_routing_number: string
   // Step 3
+  contract_title?: string
+  contract_type?: string
+  contract_start_date?: string
+  contract_end_date?: string
+  contract_value?: string
+  contract_currency?: string
+  auto_renew?: boolean
+  // Step 4
   category_ids: string[]
-  // Step 4 — handled separately via document upload after vendor created
+  // Step 5 — handled separately via document upload after vendor created
   vendor_id?: string
 }
 
-const STEPS = ["Company Info", "Tax & Banking", "Services", "Documents", "Review"]
+const STEPS = ["Company Info", "Tax & Banking", "Services", "Contract", "Documents", "Review"]
 
 export function OnboardingWizard() {
   const { user } = useAuth()
@@ -62,6 +74,8 @@ export function OnboardingWizard() {
           bank_name: final.bank_name || null,
           bank_account_number: final.bank_account_number || null,
           bank_routing_number: final.bank_routing_number || null,
+          contract_start_date: final.contract_start_date || null,
+          contract_anniversary: final.contract_end_date || null,
           status: "pending_review",
         })
         .select()
@@ -78,7 +92,7 @@ export function OnboardingWizard() {
       }
 
       setData((prev) => ({ ...prev, vendor_id: vendor.id }))
-      setStep(3) // go to documents step
+      setStep(4) // go to documents step
       toast.success("Details saved! Please upload your documents.")
     } catch (e: unknown) {
       toast.error((e as Error).message ?? "Submission failed")
@@ -88,10 +102,16 @@ export function OnboardingWizard() {
   }
 
   function onDocumentsDone() {
-    setStep(4)
+    setStep(5)
   }
 
   function finalize() {
+    navigate("/vendor/dashboard")
+  }
+
+  function handleClose() {
+    setData({})
+    setStep(0)
     navigate("/vendor/dashboard")
   }
 
@@ -99,9 +119,14 @@ export function OnboardingWizard() {
     <div className="flex min-h-screen flex-col items-center bg-muted/40 px-4 py-10">
       <div className="w-full max-w-xl">
         {/* Header */}
-        <div className="mb-6 text-center">
-          <h1 className="text-2xl font-bold">Vendor Onboarding</h1>
-          <p className="text-sm text-muted-foreground mt-1">Step {step + 1} of {STEPS.length}</p>
+        <div className="mb-6 flex items-start justify-between">
+          <div className="text-left">
+            <h1 className="text-2xl font-bold">Vendor Onboarding</h1>
+            <p className="text-sm text-muted-foreground mt-1">Step {step + 1} of {STEPS.length}</p>
+          </div>
+          <Button variant="ghost" size="icon" className="text-muted-foreground" onClick={handleClose} title="Cancel Onboarding">
+            <HugeiconsIcon icon={Cancel01Icon} size={20} />
+          </Button>
         </div>
 
         {/* Progress */}
@@ -115,11 +140,12 @@ export function OnboardingWizard() {
         {/* Steps */}
         {step === 0 && <Step1CompanyInfo defaultValues={data} onNext={next} />}
         {step === 1 && <Step2TaxBanking defaultValues={data} onNext={next} onBack={back} />}
-        {step === 2 && <Step3Categories defaultValues={data} onNext={submit} onBack={back} submitting={submitting} />}
-        {step === 3 && data.vendor_id && (
-          <Step4Documents vendorId={data.vendor_id} onNext={onDocumentsDone} />
+        {step === 2 && <Step3Categories defaultValues={data} onNext={next} onBack={back} />}
+        {step === 3 && <Step4Contract defaultValues={data} onNext={submit} onBack={back} submitting={submitting} />}
+        {step === 4 && data.vendor_id && (
+          <Step5Documents vendorId={data.vendor_id} onNext={onDocumentsDone} />
         )}
-        {step === 4 && <Step5Review data={data as OnboardingData} onFinish={finalize} />}
+        {step === 5 && <Step6Review data={data as OnboardingData} onFinish={finalize} />}
       </div>
     </div>
   )

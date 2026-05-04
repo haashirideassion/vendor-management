@@ -10,10 +10,9 @@ interface Props {
   defaultValues: Partial<OnboardingData>
   onNext: (data: Partial<OnboardingData>) => void
   onBack: () => void
-  submitting: boolean
 }
 
-export function Step3Categories({ defaultValues, onNext, onBack, submitting }: Props) {
+export function Step3Categories({ defaultValues, onNext, onBack }: Props) {
   const [selected, setSelected] = useState<string[]>(defaultValues.category_ids ?? [])
   const { data: categories, isLoading } = useCategories(true)
   const [error, setError] = useState("")
@@ -34,7 +33,7 @@ export function Step3Categories({ defaultValues, onNext, onBack, submitting }: P
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Service Categories</CardTitle>
+        <CardTitle>Service Categories <span className="text-destructive">*</span></CardTitle>
         <CardDescription>Select the categories of services your company provides.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
@@ -64,9 +63,9 @@ export function Step3Categories({ defaultValues, onNext, onBack, submitting }: P
         )}
         {error && <p className="text-xs text-destructive">{error}</p>}
         <div className="flex gap-2 mt-2">
-          <Button type="button" variant="outline" className="flex-1" onClick={onBack} disabled={submitting}>Back</Button>
-          <Button type="button" className="flex-1" onClick={handleSubmit} disabled={submitting}>
-            {submitting ? "Saving…" : "Continue"}
+          <Button type="button" variant="outline" className="flex-1" onClick={onBack}>Back</Button>
+          <Button type="button" className="flex-1" onClick={handleSubmit}>
+            Continue
           </Button>
         </div>
       </CardContent>
