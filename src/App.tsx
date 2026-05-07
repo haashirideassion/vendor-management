@@ -7,6 +7,7 @@ import { AdminLayout } from "@/components/layout/AdminLayout"
 import { VendorLayout } from "@/components/layout/VendorLayout"
 import { AuthLayout } from "@/components/layout/AuthLayout"
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary"
+import { INTERNAL_ROLES } from "@/hooks/usePermissions"
 
 // Auth pages
 import { LoginForm } from "@/components/auth/LoginForm"
@@ -31,6 +32,17 @@ import { VendorList } from "@/pages/admin/VendorList"
 import { VendorDetail } from "@/pages/admin/VendorDetail"
 import { CategoryManagement } from "@/pages/admin/CategoryManagement"
 import { Reports } from "@/pages/admin/Reports"
+
+// Procurement pages
+import { EngagementList } from "@/pages/admin/EngagementList"
+import { EngagementDetail } from "@/pages/admin/EngagementDetail"
+import { PurchaseOrderList } from "@/pages/admin/PurchaseOrderList"
+import { PurchaseOrderDetail } from "@/pages/admin/PurchaseOrderDetail"
+import { GRNList } from "@/pages/admin/GRNList"
+import { InvoiceList } from "@/pages/admin/InvoiceList"
+import { VendorInvoices } from "@/pages/vendor/VendorInvoices"
+import { ContractList } from "@/pages/admin/ContractList"
+import { ContractDetail } from "@/pages/admin/ContractDetail"
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -64,16 +76,25 @@ export default function App() {
                 <Route path="services"   element={<VendorServices />} />
                 <Route path="categories" element={<VendorCategories />} />
                 <Route path="renewal"    element={<VendorRenewal />} />
+                <Route path="invoices"  element={<VendorInvoices />} />
               </Route>
 
-              {/* Admin portal */}
-              <Route path="/admin" element={<AuthGuard role="admin"><AdminLayout /></AuthGuard>}>
+              {/* Admin portal — all internal roles (hr_user, manager, procurement_admin, finance_ap, super_admin, admin) */}
+              <Route path="/admin" element={<AuthGuard role={INTERNAL_ROLES}><AdminLayout /></AuthGuard>}>
                 <Route index element={<Navigate to="/admin/dashboard" replace />} />
                 <Route path="dashboard"  element={<AdminDashboard />} />
                 <Route path="vendors"    element={<VendorList />} />
                 <Route path="vendors/:id" element={<VendorDetail />} />
                 <Route path="categories" element={<CategoryManagement />} />
                 <Route path="reports"    element={<Reports />} />
+                <Route path="engagements"    element={<EngagementList />} />
+                <Route path="engagements/:id" element={<EngagementDetail />} />
+                <Route path="purchase-orders"    element={<PurchaseOrderList />} />
+                <Route path="purchase-orders/:id" element={<PurchaseOrderDetail />} />
+                <Route path="grns"        element={<GRNList />} />
+                <Route path="invoices"    element={<InvoiceList />} />
+                <Route path="contracts"      element={<ContractList />} />
+                <Route path="contracts/:id"  element={<ContractDetail />} />
               </Route>
 
               {/* Catch-all */}

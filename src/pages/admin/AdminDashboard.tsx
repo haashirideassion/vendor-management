@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom"
 import { useVendors } from "@/hooks/useVendors"
 import { useAuditLog } from "@/hooks/useAuditLog"
+import { useProcurementKPIs } from "@/hooks/useAnalytics"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { AnimatedPage } from "@/components/shared/AnimatedPage"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -14,6 +15,10 @@ import {
   AlertCircleIcon,
   Cancel01Icon,
   ChartBarIncreasingIcon,
+  Invoice01Icon,
+  File01Icon,
+  Briefcase01Icon,
+  DeliveryBox01Icon,
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import type { VendorStatus } from "@/lib/types"
@@ -48,7 +53,8 @@ const STATUS_META: Record<VendorStatus, { color: string; bg: string; icon: React
 
 export function AdminDashboard() {
   const { data: vendors = [], isLoading } = useVendors()
-  const { data: auditLog = [] } = useAuditLog()
+  const { data: auditLog = [] }           = useAuditLog()
+  const { data: analytics }               = useProcurementKPIs()
 
   const counts = VENDOR_STATUSES.reduce(
     (acc, s) => ({ ...acc, [s]: vendors.filter((v) => v.status === s).length }),
@@ -131,6 +137,58 @@ export function AdminDashboard() {
                 <p className="text-xs text-muted-foreground mt-1 leading-tight font-medium">{s.label}</p>
               </CardContent>
             </Card>
+          ))}
+        </div>
+
+        {/* Procurement quick-stats */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            {
+              label: "Active Contracts",
+              value: analytics?.kpis.activeContractCount,
+              icon: <HugeiconsIcon icon={File01Icon} size={18} strokeWidth={1.5} className="text-teal-600 dark:text-teal-400" />,
+              bg: "bg-teal-50 dark:bg-teal-950/30 border-teal-100 dark:border-teal-900/50",
+              valueColor: "text-teal-700 dark:text-teal-300",
+              to: "/admin/contracts",
+            },
+            {
+              label: "Open POs",
+              value: analytics?.kpis.activePOCount,
+              icon: <HugeiconsIcon icon={Briefcase01Icon} size={18} strokeWidth={1.5} className="text-violet-600 dark:text-violet-400" />,
+              bg: "bg-violet-50 dark:bg-violet-950/30 border-violet-100 dark:border-violet-900/50",
+              valueColor: "text-violet-700 dark:text-violet-300",
+              to: "/admin/purchase-orders",
+            },
+            {
+              label: "Pending Invoices",
+              value: analytics?.kpis.pendingInvoiceCount,
+              icon: <HugeiconsIcon icon={Invoice01Icon} size={18} strokeWidth={1.5} className="text-orange-600 dark:text-orange-400" />,
+              bg: "bg-orange-50 dark:bg-orange-950/30 border-orange-100 dark:border-orange-900/50",
+              valueColor: "text-orange-700 dark:text-orange-300",
+              to: "/admin/invoices",
+            },
+            {
+              label: "GRNs to Verify",
+              value: analytics?.kpis.pendingGRNCount,
+              icon: <HugeiconsIcon icon={DeliveryBox01Icon} size={18} strokeWidth={1.5} className="text-sky-600 dark:text-sky-400" />,
+              bg: "bg-sky-50 dark:bg-sky-950/30 border-sky-100 dark:border-sky-900/50",
+              valueColor: "text-sky-700 dark:text-sky-300",
+              to: "/admin/grns",
+            },
+          ].map((s) => (
+            <Link key={s.label} to={s.to}>
+              <Card className={`border ${s.bg} shadow-none hover:shadow-sm transition-shadow cursor-pointer`}>
+                <CardContent className="pt-4 pb-3 px-4">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="p-1.5 rounded-lg bg-white/60 dark:bg-black/20 shadow-sm">{s.icon}</div>
+                  </div>
+                  <p className={`text-2xl font-bold tracking-tight ${s.valueColor}`}>
+                    {s.value ?? "—"}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5 leading-tight font-medium">{s.label}</p>
+                </CardContent>
+              </Card>
+            </Link>
           ))}
         </div>
 

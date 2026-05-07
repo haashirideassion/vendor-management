@@ -20,6 +20,7 @@ import {
   Menu01Icon,
   Building06Icon,
   Alert01Icon,
+  Invoice02Icon,
 } from "@hugeicons/core-free-icons"
 
 const baseNavItems = [
@@ -28,6 +29,7 @@ const baseNavItems = [
   { label: "Documents", to: "/vendor/documents", icon: File01Icon },
   { label: "Services",  to: "/vendor/services",  icon: Settings01Icon },
   { label: "Categories",to: "/vendor/categories",icon: Tag01Icon },
+  { label: "Invoices",  to: "/vendor/invoices",  icon: Invoice02Icon },
 ]
 
 function SidebarContent({

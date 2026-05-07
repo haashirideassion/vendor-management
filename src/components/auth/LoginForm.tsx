@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { useNavigate, Link } from "react-router-dom"
 import { supabase } from "@/lib/supabase"
+import { INTERNAL_ROLES } from "@/hooks/usePermissions"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -44,8 +45,8 @@ export function LoginForm() {
       .eq("id", (await supabase.auth.getUser()).data.user?.id ?? "")
       .single()
 
-    if (profile?.role === "admin") navigate("/admin/dashboard")
-    else navigate("/vendor/dashboard")
+    const isInternal = profile?.role && INTERNAL_ROLES.includes(profile.role as never)
+    navigate(isInternal ? "/admin/dashboard" : "/vendor/dashboard")
   }
 
   return (
