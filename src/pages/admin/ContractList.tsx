@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
   CONTRACT_TYPE_LABELS,
   CONTRACT_TYPE_COLORS,
@@ -254,122 +254,123 @@ export function ContractList() {
 
       {/* Create Dialog */}
       <Dialog open={creating} onOpenChange={setCreating}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent size="xl">
           <DialogHeader>
             <DialogTitle>New Contract</DialogTitle>
           </DialogHeader>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-2">
-            <div className="space-y-1.5">
-              <Label>Vendor <span className="text-destructive">*</span></Label>
-              <Select onValueChange={(v) => form.setValue("vendor_id", v)}>
-                <SelectTrigger><SelectValue placeholder="Select active vendor" /></SelectTrigger>
-                <SelectContent>
-                  {vendors.map((v) => (
-                    <SelectItem key={v.id} value={v.id}>{v.company_name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {form.formState.errors.vendor_id && (
-                <p className="text-xs text-destructive">{form.formState.errors.vendor_id.message}</p>
-              )}
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
+          <DialogBody>
+            <form id="create-contract" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-2">
               <div className="space-y-1.5">
-                <Label>Contract Type <span className="text-destructive">*</span></Label>
-                <Select onValueChange={(v) => form.setValue("contract_type", v)}>
-                  <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                <Label>Vendor <span className="text-destructive">*</span></Label>
+                <Select onValueChange={(v) => form.setValue("vendor_id", v)}>
+                  <SelectTrigger><SelectValue placeholder="Select active vendor" /></SelectTrigger>
                   <SelectContent>
-                    {CONTRACT_TYPES.map((t) => (
-                      <SelectItem key={t} value={t}>{CONTRACT_TYPE_LABELS[t]}</SelectItem>
+                    {vendors.map((v) => (
+                      <SelectItem key={v.id} value={v.id}>{v.company_name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                {form.formState.errors.contract_type && (
-                  <p className="text-xs text-destructive">{form.formState.errors.contract_type.message}</p>
+                {form.formState.errors.vendor_id && (
+                  <p className="text-xs text-destructive">{form.formState.errors.vendor_id.message}</p>
                 )}
               </div>
-              <div className="space-y-1.5">
-                <Label>Currency</Label>
-                <Select defaultValue="INR" onValueChange={(v) => form.setValue("currency", v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {CURRENCIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
 
-            {watchedType === "sow" && (
-              <div className="space-y-1.5">
-                <Label>Parent MSA</Label>
-                <Select onValueChange={(v) => form.setValue("parent_id", v)}>
-                  <SelectTrigger><SelectValue placeholder="Link to parent MSA (optional)" /></SelectTrigger>
-                  <SelectContent>
-                    {msas.map((m) => (
-                      <SelectItem key={m.id} value={m.id}>{m.title}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Contract Type <span className="text-destructive">*</span></Label>
+                  <Select onValueChange={(v) => form.setValue("contract_type", v)}>
+                    <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                    <SelectContent>
+                      {CONTRACT_TYPES.map((t) => (
+                        <SelectItem key={t} value={t}>{CONTRACT_TYPE_LABELS[t]}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {form.formState.errors.contract_type && (
+                    <p className="text-xs text-destructive">{form.formState.errors.contract_type.message}</p>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Currency</Label>
+                  <Select defaultValue="INR" onValueChange={(v) => form.setValue("currency", v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {CURRENCIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-            )}
 
-            <div className="space-y-1.5">
-              <Label>Title <span className="text-destructive">*</span></Label>
-              <Input {...form.register("title")} placeholder="Master Service Agreement with Acme Corp…" />
-              {form.formState.errors.title && (
-                <p className="text-xs text-destructive">{form.formState.errors.title.message}</p>
+              {watchedType === "sow" && (
+                <div className="space-y-1.5">
+                  <Label>Parent MSA</Label>
+                  <Select onValueChange={(v) => form.setValue("parent_id", v)}>
+                    <SelectTrigger><SelectValue placeholder="Link to parent MSA (optional)" /></SelectTrigger>
+                    <SelectContent>
+                      {msas.map((m) => (
+                        <SelectItem key={m.id} value={m.id}>{m.title}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               )}
-            </div>
 
-            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Effective Date</Label>
-                <Input type="date" {...form.register("effective_date")} />
+                <Label>Title <span className="text-destructive">*</span></Label>
+                <Input {...form.register("title")} placeholder="Master Service Agreement with Acme Corp…" />
+                {form.formState.errors.title && (
+                  <p className="text-xs text-destructive">{form.formState.errors.title.message}</p>
+                )}
               </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Effective Date</Label>
+                  <Input type="date" {...form.register("effective_date")} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Expiry Date</Label>
+                  <Input type="date" {...form.register("expiry_date")} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Total Value</Label>
+                  <Input type="number" min={0} step="0.01" {...form.register("total_value")} placeholder="Optional" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Notice Period (days)</Label>
+                  <Input type="number" min={1} {...form.register("renewal_notice_days")} placeholder="30" />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="auto_renew"
+                  {...form.register("auto_renew")}
+                  className="h-4 w-4 rounded border-border"
+                />
+                <Label htmlFor="auto_renew" className="font-normal cursor-pointer text-sm">
+                  Auto-renew on expiry
+                </Label>
+              </div>
+
               <div className="space-y-1.5">
-                <Label>Expiry Date</Label>
-                <Input type="date" {...form.register("expiry_date")} />
+                <Label>Notes</Label>
+                <Textarea {...form.register("notes")} placeholder="Additional terms or context…" rows={2} />
               </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Total Value</Label>
-                <Input type="number" min={0} step="0.01" {...form.register("total_value")} placeholder="Optional" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Notice Period (days)</Label>
-                <Input type="number" min={1} {...form.register("renewal_notice_days")} placeholder="30" />
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="auto_renew"
-                {...form.register("auto_renew")}
-                className="h-4 w-4 rounded border-border"
-              />
-              <Label htmlFor="auto_renew" className="font-normal cursor-pointer text-sm">
-                Auto-renew on expiry
-              </Label>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>Notes</Label>
-              <Textarea {...form.register("notes")} placeholder="Additional terms or context…" rows={2} />
-            </div>
-
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => { setCreating(false); form.reset() }}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={createContract.isPending}>
-                {createContract.isPending ? "Creating…" : "Create Contract"}
-              </Button>
-            </DialogFooter>
-          </form>
+            </form>
+          </DialogBody>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => { setCreating(false); form.reset() }}>
+              Cancel
+            </Button>
+            <Button type="submit" form="create-contract" disabled={createContract.isPending}>
+              {createContract.isPending ? "Creating…" : "Create Contract"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </AnimatedPage>

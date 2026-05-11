@@ -1,11 +1,11 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Link } from "react-router-dom"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { useEngagements, useCreateEngagement } from "@/hooks/useEngagements"
 import { useVendors } from "@/hooks/useVendors"
-import { useCategories } from "@/hooks/useCategories"
+import { useVendorCategories } from "@/hooks/useCategories"
 import { usePermissions } from "@/hooks/usePermissions"
 import { AnimatedPage } from "@/components/shared/AnimatedPage"
 import { Input } from "@/components/ui/input"
@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
   ENGAGEMENT_STATUS_LABELS,
   ENGAGEMENT_STATUS_COLORS,
@@ -59,10 +59,15 @@ export function EngagementList() {
   const { canCreateEngagement } = usePermissions()
   const { data: engagements = [], isLoading } = useEngagements({ status: status || undefined, search })
   const { data: vendors = [] }    = useVendors({ status: "active" })
-  const { data: categories = [] } = useCategories(true)
   const createEngagement = useCreateEngagement()
 
   const form = useForm<CreateForm>({ resolver: zodResolver(createSchema) })
+  const watchedVendorId = form.watch("vendor_id")
+  const { data: vendorCategories = [], isLoading: catLoading } = useVendorCategories(watchedVendorId)
+
+  useEffect(() => {
+    form.setValue("category_id", "")
+  }, [watchedVendorId, form])
 
   const hasFilters = search || status
 
@@ -195,78 +200,92 @@ export function EngagementList() {
 
       {/* Create Dialog */}
       <Dialog open={creating} onOpenChange={setCreating}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent size="xl">
           <DialogHeader>
             <DialogTitle>New Engagement</DialogTitle>
           </DialogHeader>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-2">
-            <div className="space-y-1.5">
-              <Label>Title <span className="text-destructive">*</span></Label>
-              <Input {...form.register("title")} placeholder="Website redesign, IT support Q3…" />
-              {form.formState.errors.title && <p className="text-xs text-destructive">{form.formState.errors.title.message}</p>}
-            </div>
-            <div className="space-y-1.5">
-              <Label>Description</Label>
-              <Textarea {...form.register("description")} placeholder="Scope of work…" rows={2} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Vendor <span className="text-destructive">*</span></Label>
-              <Select onValueChange={(v) => form.setValue("vendor_id", v)}>
-                <SelectTrigger><SelectValue placeholder="Select active vendor" /></SelectTrigger>
-                <SelectContent>
-                  {vendors.map((v) => <SelectItem key={v.id} value={v.id}>{v.company_name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              {form.formState.errors.vendor_id && <p className="text-xs text-destructive">{form.formState.errors.vendor_id.message}</p>}
-            </div>
-            <div className="space-y-1.5">
-              <Label>Category</Label>
-              <Select onValueChange={(v) => form.setValue("category_id", v)}>
-                <SelectTrigger><SelectValue placeholder="Select category (optional)" /></SelectTrigger>
-                <SelectContent>
-                  {categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
+          <DialogBody>
+            <form id="create-engagement" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-2">
               <div className="space-y-1.5">
-                <Label>Estimated Value <span className="text-destructive">*</span></Label>
-                <Input type="number" min={0} {...form.register("estimated_value")} placeholder="50000" />
-                {form.formState.errors.estimated_value && <p className="text-xs text-destructive">{form.formState.errors.estimated_value.message}</p>}
+                <Label>Title <span className="text-destructive">*</span></Label>
+                <Input {...form.register("title")} placeholder="Website redesign, IT support Q3…" />
+                {form.formState.errors.title && <p className="text-xs text-destructive">{form.formState.errors.title.message}</p>}
               </div>
               <div className="space-y-1.5">
-                <Label>Currency</Label>
-                <Select defaultValue="INR" onValueChange={(v) => form.setValue("currency", v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                <Label>Description</Label>
+                <Textarea {...form.register("description")} placeholder="Scope of work…" rows={2} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Vendor <span className="text-destructive">*</span></Label>
+                <Select onValueChange={(v) => form.setValue("vendor_id", v, { shouldValidate: true })}>
+                  <SelectTrigger><SelectValue placeholder="Select active vendor" /></SelectTrigger>
                   <SelectContent>
-                    {CURRENCIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    {vendors.map((v) => <SelectItem key={v.id} value={v.id}>{v.company_name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                {form.formState.errors.vendor_id && <p className="text-xs text-destructive">{form.formState.errors.vendor_id.message}</p>}
+              </div>
+              <div className="space-y-1.5">
+                <Label>Category</Label>
+                <Select
+                  value={form.watch("category_id") ?? ""}
+                  onValueChange={(v) => form.setValue("category_id", v)}
+                  disabled={!watchedVendorId || catLoading}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={
+                      !watchedVendorId ? "Select vendor first" : catLoading ? "Loading…" : "Select category (optional)"
+                    } />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {vendorCategories.length === 0 && watchedVendorId && !catLoading ? (
+                      <SelectItem value="__none__" disabled>No categories assigned to vendor</SelectItem>
+                    ) : (
+                      vendorCategories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)
+                    )}
                   </SelectContent>
                 </Select>
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Start Date</Label>
-                <Input type="date" {...form.register("start_date")} />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Estimated Value <span className="text-destructive">*</span></Label>
+                  <Input type="number" min={0} {...form.register("estimated_value")} placeholder="50000" />
+                  {form.formState.errors.estimated_value && <p className="text-xs text-destructive">{form.formState.errors.estimated_value.message}</p>}
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Currency</Label>
+                  <Select defaultValue="INR" onValueChange={(v) => form.setValue("currency", v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {CURRENCIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Start Date</Label>
+                  <Input type="date" {...form.register("start_date")} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>End Date</Label>
+                  <Input type="date" {...form.register("end_date")} />
+                </div>
               </div>
               <div className="space-y-1.5">
-                <Label>End Date</Label>
-                <Input type="date" {...form.register("end_date")} />
+                <Label>Notes</Label>
+                <Textarea {...form.register("notes")} placeholder="Additional context…" rows={2} />
               </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Notes</Label>
-              <Textarea {...form.register("notes")} placeholder="Additional context…" rows={2} />
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => { setCreating(false); form.reset() }}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={createEngagement.isPending}>
-                {createEngagement.isPending ? "Creating…" : "Create Engagement"}
-              </Button>
-            </DialogFooter>
-          </form>
+            </form>
+          </DialogBody>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => { setCreating(false); form.reset() }}>
+              Cancel
+            </Button>
+            <Button type="submit" form="create-engagement" disabled={createEngagement.isPending}>
+              {createEngagement.isPending ? "Creating…" : "Create Engagement"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </AnimatedPage>

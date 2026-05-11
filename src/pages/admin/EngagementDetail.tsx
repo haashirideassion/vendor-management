@@ -109,11 +109,11 @@ export function EngagementDetail() {
           )}
           {status === "pending_approval" && canApproveEngagement && (
             <>
-              <Button size="sm" onClick={() => setDialog("approve")}>
+              <Button size="sm" variant="success" onClick={() => setDialog("approve")}>
                 <HugeiconsIcon icon={CheckmarkCircle01Icon} size={14} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" className="mr-1.5" />
                 Approve
               </Button>
-              <Button size="sm" variant="destructive" onClick={() => setDialog("reject")}>
+              <Button size="sm" variant="danger" onClick={() => setDialog("reject")}>
                 <HugeiconsIcon icon={Cancel01Icon} size={14} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" className="mr-1.5" />
                 Reject
               </Button>

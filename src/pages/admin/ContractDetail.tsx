@@ -162,13 +162,13 @@ export function ContractDetail() {
         {canManageContracts && (
           <div className="flex flex-wrap gap-2">
             {status === "draft" && (
-              <Button size="sm" onClick={() => setDialog("activate")}>
+              <Button size="sm" variant="success" onClick={() => setDialog("activate")}>
                 <HugeiconsIcon icon={CheckmarkCircle01Icon} size={14} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" className="mr-1.5" />
                 Activate
               </Button>
             )}
             {status === "active" && (
-              <Button size="sm" variant="destructive" onClick={() => setDialog("terminate")}>
+              <Button size="sm" variant="danger" onClick={() => setDialog("terminate")}>
                 <HugeiconsIcon icon={Cancel01Icon} size={14} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" className="mr-1.5" />
                 Terminate
               </Button>
@@ -372,7 +372,7 @@ export function ContractDetail() {
           </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={handleTerminate} disabled={updateStatus.isPending}>
+            <Button variant="danger" onClick={handleTerminate} disabled={updateStatus.isPending}>
               {updateStatus.isPending ? "Terminating…" : "Terminate Contract"}
             </Button>
           </DialogFooter>

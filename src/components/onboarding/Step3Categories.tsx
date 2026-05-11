@@ -27,7 +27,10 @@ export function Step3Categories({ defaultValues, onNext, onBack }: Props) {
       setError("Please select at least one service category.")
       return
     }
-    onNext({ category_ids: selected })
+    const names = (categories ?? [])
+      .filter((c) => selected.includes(c.id))
+      .map((c) => c.name)
+    onNext({ category_ids: selected, category_names: names })
   }
 
   return (

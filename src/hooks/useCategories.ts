@@ -2,6 +2,24 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { supabase } from "@/lib/supabase"
 import type { ServiceCategory } from "@/lib/types"
 
+export function useVendorCategories(vendorId?: string) {
+  return useQuery({
+    queryKey: ["vendor-categories", vendorId],
+    enabled: !!vendorId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("vendor_categories")
+        .select("*, service_categories(*)")
+        .eq("vendor_id", vendorId!)
+      if (error) throw error
+      return (data ?? [])
+        .filter((vc) => vc.service_categories?.is_active)
+        .map((vc) => vc.service_categories as ServiceCategory)
+        .filter(Boolean)
+    },
+  })
+}
+
 export function useCategories(activeOnly = false) {
   return useQuery({
     queryKey: ["categories", activeOnly],

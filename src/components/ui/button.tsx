@@ -9,7 +9,9 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/80",
+        default:  "bg-[image:var(--brand-gradient)] text-primary-foreground hover:brightness-110 hover:saturate-110",
+        danger:   "bg-[image:var(--gradient-danger)] text-white hover:brightness-105 hover:saturate-110 focus-visible:ring-red-500/30",
+        success:  "bg-[image:var(--gradient-success)] text-foreground hover:brightness-105 hover:saturate-110 focus-visible:ring-green-500/30",
         outline:
           "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:bg-transparent dark:hover:bg-input/30",
         secondary:

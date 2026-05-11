@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { UserCircleIcon, Edit01Icon, Cancel01Icon, CheckmarkCircle01Icon, Building06Icon } from "@hugeicons/core-free-icons"
+import { UserCircleIcon, Edit01Icon, Cancel01Icon, CheckmarkCircle01Icon, Building06Icon, Tag01Icon, Settings01Icon } from "@hugeicons/core-free-icons"
 import { toast } from "sonner"
 
 const schema = z.object({
@@ -194,6 +194,58 @@ export function VendorProfile() {
                   )}
                 </div>
               ))}
+            </CardContent>
+          </Card>
+
+          {/* Service Categories (read-only) */}
+          <Card>
+            <CardHeader className="pb-4">
+              <div className="flex items-center gap-2">
+                <HugeiconsIcon icon={Tag01Icon} size={16} strokeWidth={1.5} className="text-primary" />
+                <CardTitle className="text-base">Service Categories</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {vendor.vendor_categories && vendor.vendor_categories.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {vendor.vendor_categories.map((vc) => (
+                    <span
+                      key={vc.id}
+                      className="rounded-full bg-primary/10 text-primary px-3 py-1 text-xs font-medium border border-primary/20"
+                    >
+                      {vc.service_categories?.name}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No categories assigned yet.</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Service Offerings (read-only) */}
+          <Card>
+            <CardHeader className="pb-4">
+              <div className="flex items-center gap-2">
+                <HugeiconsIcon icon={Settings01Icon} size={16} strokeWidth={1.5} className="text-primary" />
+                <CardTitle className="text-base">Service Offerings</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {vendor.vendor_services && vendor.vendor_services.length > 0 ? (
+                <div className="space-y-2">
+                  {vendor.vendor_services.map((svc) => (
+                    <div key={svc.id} className="rounded-lg border p-3">
+                      <p className="text-sm font-medium">{svc.name}</p>
+                      {svc.description && (
+                        <p className="text-xs text-muted-foreground mt-0.5">{svc.description}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No service offerings listed yet.</p>
+              )}
             </CardContent>
           </Card>
         </div>

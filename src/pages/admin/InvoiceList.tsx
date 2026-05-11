@@ -210,7 +210,7 @@ export function InvoiceList() {
           <DialogFooter>
             <Button variant="outline" onClick={() => { setReviewDialog(null); setNotes("") }}>Cancel</Button>
             <Button
-              variant={reviewDialog?.action === "reject" ? "destructive" : "default"}
+              variant={reviewDialog?.action === "reject" ? "danger" : "success"}
               onClick={handleReview}
               disabled={reviewInvoice.isPending}
             >

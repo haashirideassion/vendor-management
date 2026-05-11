@@ -61,8 +61,9 @@ export function VendorRenewal() {
         </div>
 
         {/* Renewal required banner */}
-        <div className="relative overflow-hidden rounded-xl border border-orange-200 bg-gradient-to-r from-orange-50 to-amber-50 p-4">
-          <div className="flex items-start gap-3">
+        <div className="relative overflow-hidden rounded-xl border border-amber-200 bg-amber-50/60 dark:bg-amber-950/20 dark:border-amber-800 p-4">
+          <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-xl" style={{ background: "var(--gradient-warning)" }} />
+          <div className="flex items-start gap-3 pl-3">
             <div className="mt-0.5 h-9 w-9 rounded-full bg-orange-100 flex items-center justify-center shrink-0">
               <HugeiconsIcon icon={AlertCircleIcon} size={20} strokeWidth={1.5} className="text-orange-600" />
             </div>

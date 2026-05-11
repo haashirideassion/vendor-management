@@ -88,7 +88,7 @@ export function PurchaseOrderDetail() {
           {["draft", "issued"].includes(po.status) && canCreatePO && (
             <Button
               size="sm"
-              variant="destructive"
+              variant="danger"
               onClick={() => updateStatus.mutate({ id: po.id, status: "cancelled" })}
               disabled={updateStatus.isPending}
             >

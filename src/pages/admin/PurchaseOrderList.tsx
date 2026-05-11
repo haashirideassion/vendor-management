@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Separator } from "@/components/ui/separator"
 import { PO_STATUS_LABELS, PO_STATUS_COLORS, CURRENCIES } from "@/lib/constants"
 import { formatCurrency } from "@/lib/utils"
@@ -204,9 +204,10 @@ export function PurchaseOrderList() {
 
       {/* Create PO dialog */}
       <Dialog open={creating} onOpenChange={setCreating}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent size="2xl">
           <DialogHeader><DialogTitle>New Purchase Order</DialogTitle></DialogHeader>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5 pt-2">
+          <DialogBody>
+          <form id="create-po" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-2">
             {/* Header fields */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
@@ -317,13 +318,14 @@ export function PurchaseOrderList() {
               <Textarea {...form.register("notes")} placeholder="Additional notes…" rows={2} />
             </div>
 
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => { setCreating(false); form.reset() }}>Cancel</Button>
-              <Button type="submit" disabled={createPO.isPending}>
-                {createPO.isPending ? "Creating…" : "Create PO"}
-              </Button>
-            </DialogFooter>
           </form>
+          </DialogBody>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => { setCreating(false); form.reset() }}>Cancel</Button>
+            <Button type="submit" form="create-po" disabled={createPO.isPending}>
+              {createPO.isPending ? "Creating…" : "Create PO"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </AnimatedPage>

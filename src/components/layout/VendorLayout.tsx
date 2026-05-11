@@ -13,8 +13,7 @@ import {
   DashboardSquare01Icon,
   UserCircleIcon,
   File01Icon,
-  Settings01Icon,
-  Tag01Icon,
+  ContractsIcon,
   Refresh01Icon,
   Logout01Icon,
   Menu01Icon,
@@ -27,8 +26,7 @@ const baseNavItems = [
   { label: "Dashboard", to: "/vendor/dashboard", icon: DashboardSquare01Icon },
   { label: "Profile",   to: "/vendor/profile",   icon: UserCircleIcon },
   { label: "Documents", to: "/vendor/documents", icon: File01Icon },
-  { label: "Services",  to: "/vendor/services",  icon: Settings01Icon },
-  { label: "Categories",to: "/vendor/categories",icon: Tag01Icon },
+  { label: "Contracts", to: "/vendor/contracts", icon: ContractsIcon },
   { label: "Invoices",  to: "/vendor/invoices",  icon: Invoice02Icon },
 ]
 
@@ -87,7 +85,7 @@ function SidebarContent({
               className={cn(
                 "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150",
                 active
-                  ? "bg-primary text-primary-foreground shadow-sm"
+                  ? "bg-[image:var(--brand-gradient)] text-white shadow-sm"
                   : "text-muted-foreground hover:bg-accent hover:text-foreground"
               )}
             >
@@ -212,7 +210,7 @@ export function VendorLayout() {
           <div className="flex items-center gap-2">
             {showRenewal && (
               <Link to="/vendor/renewal">
-                <Button size="sm" variant="destructive" className="h-7 text-xs gap-1.5 rounded-lg">
+                <Button size="sm" variant="danger" className="h-7 text-xs gap-1.5 rounded-lg">
                   <HugeiconsIcon icon={Refresh01Icon} size={13} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" />
                   Renew Now
                 </Button>

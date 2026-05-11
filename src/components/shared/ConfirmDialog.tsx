@@ -15,7 +15,7 @@ interface ConfirmDialogProps {
   description: string
   confirmLabel?: string
   cancelLabel?: string
-  variant?: "default" | "destructive"
+  variant?: "default" | "destructive" | "danger" | "success"
   onConfirm: () => void
   loading?: boolean
 }

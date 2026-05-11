@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Separator } from "@/components/ui/separator"
 import { GRN_STATUS_LABELS, GRN_STATUS_COLORS } from "@/lib/constants"
 import type { GRNStatus } from "@/lib/types"
@@ -215,9 +215,10 @@ export function GRNList() {
 
       {/* Create GRN dialog */}
       <Dialog open={creating} onOpenChange={setCreating}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent size="2xl">
           <DialogHeader><DialogTitle>Record Goods Receipt Note</DialogTitle></DialogHeader>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-2">
+          <DialogBody>
+          <form id="create-grn" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-2">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Purchase Order <span className="text-destructive">*</span></Label>
@@ -274,13 +275,14 @@ export function GRNList() {
                 ))}
               </div>
             </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => { setCreating(false); form.reset() }}>Cancel</Button>
-              <Button type="submit" disabled={createGRN.isPending}>
-                {createGRN.isPending ? "Creating…" : "Record GRN"}
-              </Button>
-            </DialogFooter>
           </form>
+          </DialogBody>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => { setCreating(false); form.reset() }}>Cancel</Button>
+            <Button type="submit" form="create-grn" disabled={createGRN.isPending}>
+              {createGRN.isPending ? "Creating…" : "Record GRN"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </AnimatedPage>

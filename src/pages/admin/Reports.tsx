@@ -68,6 +68,8 @@ const TOOLTIP_STYLE = {
   borderRadius: 8,
   border: "1px solid hsl(var(--border))",
   boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+  backgroundColor: "hsl(var(--popover))",
+  color: "hsl(var(--popover-foreground))",
 }
 
 export function Reports() {
@@ -167,7 +169,7 @@ export function Reports() {
                   <BarChart data={vendorChartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
                     <XAxis dataKey="status" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
                     <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
-                    <Tooltip cursor={{ fill: "hsl(var(--accent))", radius: 4 }} contentStyle={TOOLTIP_STYLE} />
+                    <Tooltip cursor={{ fill: "rgba(0,0,0,0.04)", radius: 4 }} contentStyle={TOOLTIP_STYLE} />
                     <Bar dataKey="count" radius={[6, 6, 0, 0]} maxBarSize={60}>
                       {vendorChartData.map((d) => <Cell key={d.key} fill={d.color} />)}
                     </Bar>
@@ -304,7 +306,7 @@ export function Reports() {
                     <XAxis dataKey="month" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
                     <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} tickFormatter={compactNum} width={52} />
                     <Tooltip
-                      cursor={{ fill: "hsl(var(--accent))", radius: 4 }}
+                      cursor={{ fill: "rgba(0,0,0,0.04)", radius: 4 }}
                       contentStyle={TOOLTIP_STYLE}
                       formatter={(v: number) => [formatCurrency(v, "INR"), "Spend"]}
                     />
@@ -335,7 +337,7 @@ export function Reports() {
                       <XAxis type="number" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} tickFormatter={compactNum} />
                       <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} width={100} />
                       <Tooltip
-                        cursor={{ fill: "hsl(var(--accent))", radius: 4 }}
+                        cursor={{ fill: "rgba(0,0,0,0.04)", radius: 4 }}
                         contentStyle={TOOLTIP_STYLE}
                         formatter={(v: number) => [formatCurrency(v, "INR"), "Spend"]}
                       />
@@ -406,7 +408,7 @@ export function Reports() {
                     />
                     <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
                     <Tooltip
-                      cursor={{ fill: "hsl(var(--accent))", radius: 4 }}
+                      cursor={{ fill: "rgba(0,0,0,0.04)", radius: 4 }}
                       contentStyle={TOOLTIP_STYLE}
                       labelFormatter={(s) => ENGAGEMENT_STATUS_LABELS[s as EngagementStatus] ?? s}
                     />

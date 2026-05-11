@@ -22,8 +22,7 @@ import { OnboardingPage } from "@/pages/onboarding/OnboardingPage"
 import { VendorDashboard } from "@/pages/vendor/VendorDashboard"
 import { VendorProfile } from "@/pages/vendor/VendorProfile"
 import { VendorDocuments } from "@/pages/vendor/VendorDocuments"
-import { VendorServices } from "@/pages/vendor/VendorServices"
-import { VendorCategories } from "@/pages/vendor/VendorCategories"
+import { VendorContracts } from "@/pages/vendor/VendorContracts"
 import { VendorRenewal } from "@/pages/vendor/VendorRenewal"
 
 // Admin pages
@@ -73,10 +72,10 @@ export default function App() {
                 <Route path="dashboard"  element={<VendorDashboard />} />
                 <Route path="profile"    element={<VendorProfile />} />
                 <Route path="documents"  element={<VendorDocuments />} />
-                <Route path="services"   element={<VendorServices />} />
-                <Route path="categories" element={<VendorCategories />} />
-                <Route path="renewal"    element={<VendorRenewal />} />
-                <Route path="invoices"  element={<VendorInvoices />} />
+                <Route path="contracts"      element={<VendorContracts />} />
+                <Route path="contracts/:id"  element={<ContractDetail />} />
+                <Route path="renewal"        element={<VendorRenewal />} />
+                <Route path="invoices"   element={<VendorInvoices />} />
               </Route>
 
               {/* Admin portal — all internal roles (hr_user, manager, procurement_admin, finance_ap, super_admin, admin) */}

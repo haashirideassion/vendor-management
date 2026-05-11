@@ -13,6 +13,13 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Cancel01Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
+import type { DocumentType } from "@/lib/types"
+
+export interface LocalDocument {
+  type: DocumentType
+  file: File
+  fileName: string
+}
 
 export interface OnboardingData {
   // Step 1
@@ -35,7 +42,8 @@ export interface OnboardingData {
   auto_renew?: boolean
   // Step 4
   category_ids: string[]
-  // Step 5 — handled separately via document upload after vendor created
+  category_names?: string[]
+  // vendor_id only available after final submit
   vendor_id?: string
 }
 
@@ -46,6 +54,7 @@ export function OnboardingWizard() {
   const navigate = useNavigate()
   const [step, setStep] = useState(0)
   const [data, setData] = useState<Partial<OnboardingData>>({})
+  const [localDocs, setLocalDocs] = useState<LocalDocument[]>([])
   const [submitting, setSubmitting] = useState(false)
 
   function next(partial: Partial<OnboardingData>) {
@@ -57,11 +66,15 @@ export function OnboardingWizard() {
     setStep((s) => s - 1)
   }
 
-  async function submit(partial: Partial<OnboardingData>) {
-    const final = { ...data, ...partial } as OnboardingData
+  function goToStep(s: number) {
+    setStep(s)
+  }
+
+  async function finalSubmit() {
+    const final = data as OnboardingData
     setSubmitting(true)
     try {
-      // Create the vendor record
+      // 1. Create vendor record
       const { data: vendor, error: vendorError } = await supabase
         .from("vendors")
         .insert({
@@ -83,7 +96,7 @@ export function OnboardingWizard() {
 
       if (vendorError) throw vendorError
 
-      // Assign categories
+      // 2. Assign categories
       if (final.category_ids?.length) {
         const { error: catError } = await supabase
           .from("vendor_categories")
@@ -91,26 +104,39 @@ export function OnboardingWizard() {
         if (catError) throw catError
       }
 
-      setData((prev) => ({ ...prev, vendor_id: vendor.id }))
-      setStep(4) // go to documents step
-      toast.success("Details saved! Please upload your documents.")
+      // 3. Upload documents
+      for (const doc of localDocs) {
+        const ext = doc.fileName.split(".").pop() ?? "bin"
+        const storagePath = `vendor-documents/${vendor.id}/${doc.type}_${Date.now()}.${ext}`
+
+        const { error: uploadError } = await supabase.storage
+          .from("vendor-documents")
+          .upload(storagePath, doc.file)
+        if (uploadError) throw uploadError
+
+        const { error: docInsertError } = await supabase
+          .from("vendor_documents")
+          .insert({
+            vendor_id: vendor.id,
+            document_type: doc.type,
+            file_name: doc.fileName,
+            storage_path: storagePath,
+          })
+        if (docInsertError) throw docInsertError
+      }
+
+      toast.success("Application submitted successfully!")
+      navigate("/vendor/dashboard")
     } catch (e: unknown) {
-      toast.error((e as Error).message ?? "Submission failed")
+      toast.error((e as Error).message ?? "Submission failed. Please try again.")
     } finally {
       setSubmitting(false)
     }
   }
 
-  function onDocumentsDone() {
-    setStep(5)
-  }
-
-  function finalize() {
-    navigate("/vendor/dashboard")
-  }
-
   function handleClose() {
     setData({})
+    setLocalDocs([])
     setStep(0)
     navigate("/vendor/dashboard")
   }
@@ -141,11 +167,24 @@ export function OnboardingWizard() {
         {step === 0 && <Step1CompanyInfo defaultValues={data} onNext={next} />}
         {step === 1 && <Step2TaxBanking defaultValues={data} onNext={next} onBack={back} />}
         {step === 2 && <Step3Categories defaultValues={data} onNext={next} onBack={back} />}
-        {step === 3 && <Step4Contract defaultValues={data} onNext={submit} onBack={back} submitting={submitting} />}
-        {step === 4 && data.vendor_id && (
-          <Step5Documents vendorId={data.vendor_id} onNext={onDocumentsDone} />
+        {step === 3 && <Step4Contract defaultValues={data} onNext={next} onBack={back} />}
+        {step === 4 && (
+          <Step5Documents
+            localDocs={localDocs}
+            onDocsChange={setLocalDocs}
+            onNext={() => setStep(5)}
+            onBack={back}
+          />
         )}
-        {step === 5 && <Step6Review data={data as OnboardingData} onFinish={finalize} />}
+        {step === 5 && (
+          <Step6Review
+            data={data}
+            localDocs={localDocs}
+            onEdit={goToStep}
+            onSubmit={finalSubmit}
+            submitting={submitting}
+          />
+        )}
       </div>
     </div>
   )

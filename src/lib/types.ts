@@ -294,6 +294,7 @@ export interface Invoice {
   vendor_id: string
   po_id: string | null
   grn_id: string | null
+  contract_id: string | null
   total_amount: number
   currency: string
   invoice_date: string
@@ -313,6 +314,7 @@ export interface Invoice {
   vendor?: Pick<Vendor, "company_name">
   purchase_order?: Pick<PurchaseOrder, "po_number">
   grn?: Pick<GRN, "grn_number">
+  contract?: Pick<Contract, "contract_ref" | "title">
 }
 
 // ─── Vendor with joins ────────────────────────────────────────────────────────
