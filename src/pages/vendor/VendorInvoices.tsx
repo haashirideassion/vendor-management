@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { useForm } from "react-hook-form"
+import type { Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { useInvoices, useSubmitInvoice } from "@/hooks/useInvoices"
@@ -47,7 +48,7 @@ export function VendorInvoices() {
   const submitInvoice = useSubmitInvoice()
 
   const form = useForm<SubmitForm>({
-    resolver: zodResolver(submitSchema),
+    resolver: zodResolver(submitSchema) as unknown as Resolver<SubmitForm>,
     defaultValues: { currency: "INR", invoice_date: new Date().toISOString().slice(0, 10) },
   })
 

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react"
 import { Link } from "react-router-dom"
 import { useForm } from "react-hook-form"
+import type { Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { useEngagements, useCreateEngagement } from "@/hooks/useEngagements"
@@ -61,7 +62,7 @@ export function EngagementList() {
   const { data: vendors = [] }    = useVendors({ status: "active" })
   const createEngagement = useCreateEngagement()
 
-  const form = useForm<CreateForm>({ resolver: zodResolver(createSchema) })
+  const form = useForm<CreateForm>({ resolver: zodResolver(createSchema) as unknown as Resolver<CreateForm> })
   const watchedVendorId = form.watch("vendor_id")
   const { data: vendorCategories = [], isLoading: catLoading } = useVendorCategories(watchedVendorId)
 

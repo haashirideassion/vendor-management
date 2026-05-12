@@ -74,7 +74,7 @@ export function useProcurementKPIs() {
           .select("id, status, estimated_value"),
       ])
 
-      const pos         = (posRes.status         === "fulfilled" ? posRes.value.data         ?? [] : []) as PORow[]
+      const pos         = (posRes.status         === "fulfilled" ? posRes.value.data         ?? [] : []) as unknown as PORow[]
       const invoices    = (invoicesRes.status    === "fulfilled" ? invoicesRes.value.data    ?? [] : []) as InvoiceRow[]
       const contracts   = (contractsRes.status   === "fulfilled" ? contractsRes.value.data   ?? [] : []) as ContractRow[]
       const grns        = (grnsRes.status        === "fulfilled" ? grnsRes.value.data        ?? [] : []) as GRNRow[]

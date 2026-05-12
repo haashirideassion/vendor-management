@@ -1,4 +1,5 @@
 import { useForm } from "react-hook-form"
+import type { Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { Button } from "@/components/ui/button"
@@ -35,7 +36,7 @@ interface Props {
 
 export function Step4Contract({ defaultValues, onNext, onBack, submitting }: Props) {
   const form = useForm<FormValues>({
-    resolver: zodResolver(contractSchema),
+    resolver: zodResolver(contractSchema) as unknown as Resolver<FormValues>,
     defaultValues: {
       contract_title: defaultValues.contract_title || "",
       contract_type: defaultValues.contract_type || "",

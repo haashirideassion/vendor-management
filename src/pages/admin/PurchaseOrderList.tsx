@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import { useForm, useFieldArray } from "react-hook-form"
+import type { Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { usePurchaseOrders, useCreatePurchaseOrder } from "@/hooks/usePurchaseOrders"
@@ -20,7 +21,7 @@ import { PO_STATUS_LABELS, PO_STATUS_COLORS, CURRENCIES } from "@/lib/constants"
 import { formatCurrency } from "@/lib/utils"
 import type { POStatus } from "@/lib/types"
 import { format } from "date-fns"
-import { Search01Icon, Cancel01Icon, Add01Icon, EyeIcon, Delete01Icon } from "@hugeicons/core-free-icons"
+import { Cancel01Icon, Add01Icon, EyeIcon, Delete01Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 
 const STATUSES: POStatus[] = ["draft", "issued", "partially_received", "fully_received", "cancelled", "closed"]
@@ -66,7 +67,7 @@ export function PurchaseOrderList() {
   const createPO = useCreatePurchaseOrder()
 
   const form = useForm<CreateForm>({
-    resolver: zodResolver(createSchema),
+    resolver: zodResolver(createSchema) as unknown as Resolver<CreateForm>,
     defaultValues: {
       engagement_id: defaultEngagementId,
       currency: "INR",
@@ -93,7 +94,7 @@ export function PurchaseOrderList() {
       delivery_address:       data.delivery_address || undefined,
       payment_terms:          data.payment_terms || undefined,
       notes:                  data.notes || undefined,
-      line_items:             data.line_items,
+      line_items:             data.line_items.map((item) => ({ ...item, unit: item.unit ?? null })),
     })
     setCreating(false)
     form.reset()

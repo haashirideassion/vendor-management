@@ -50,7 +50,7 @@ export function InvoiceList() {
   async function handleReview() {
     if (!reviewDialog) return
     try {
-      await reviewInvoice.mutateAsync({ id: reviewDialog.invoice.id, status: reviewDialog.action, notes })
+      await reviewInvoice.mutateAsync({ id: reviewDialog.invoice.id, status: reviewDialog.action === "approve" ? "approved" : "rejected", notes })
       toast.success(reviewDialog.action === "approve" ? "Invoice approved." : "Invoice rejected.")
       setReviewDialog(null)
       setNotes("")

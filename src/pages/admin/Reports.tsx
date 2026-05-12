@@ -308,7 +308,7 @@ export function Reports() {
                     <Tooltip
                       cursor={{ fill: "rgba(0,0,0,0.04)", radius: 4 }}
                       contentStyle={TOOLTIP_STYLE}
-                      formatter={(v: number) => [formatCurrency(v, "INR"), "Spend"]}
+                      formatter={(v: number | undefined) => [formatCurrency(v ?? 0, "INR"), "Spend"]}
                     />
                     <Bar dataKey="value" radius={[6, 6, 0, 0]} maxBarSize={48} fill="oklch(0.52 0.105 223.128)" />
                   </BarChart>
@@ -339,7 +339,7 @@ export function Reports() {
                       <Tooltip
                         cursor={{ fill: "rgba(0,0,0,0.04)", radius: 4 }}
                         contentStyle={TOOLTIP_STYLE}
-                        formatter={(v: number) => [formatCurrency(v, "INR"), "Spend"]}
+                        formatter={(v: number | undefined) => [formatCurrency(v ?? 0, "INR"), "Spend"]}
                       />
                       <Bar dataKey="value" radius={[0, 6, 6, 0]} maxBarSize={20} fill="#7c3aed" />
                     </BarChart>

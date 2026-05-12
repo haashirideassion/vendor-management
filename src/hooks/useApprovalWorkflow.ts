@@ -104,8 +104,6 @@ export function useReviewApproval() {
       id,
       status,
       notes,
-      entityType,
-      entityId,
     }: {
       id: string
       status: "approved" | "rejected"
@@ -147,8 +145,6 @@ export function useCancelApproval() {
   return useMutation({
     mutationFn: async ({
       id,
-      entityType,
-      entityId,
     }: {
       id: string
       entityType: ApprovalEntityType

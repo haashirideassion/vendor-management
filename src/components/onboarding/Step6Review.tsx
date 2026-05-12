@@ -32,7 +32,7 @@ function SectionCard({
   step: number
   onEdit: (s: number) => void
   children: React.ReactNode
-  icon: React.ComponentType
+  icon: typeof Building06Icon
 }) {
   return (
     <Card>

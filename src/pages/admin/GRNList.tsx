@@ -1,6 +1,7 @@
 import { useState } from "react"
-import { Link, useSearchParams } from "react-router-dom"
+import { useSearchParams } from "react-router-dom"
 import { useForm, useFieldArray } from "react-hook-form"
+import type { Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { useGRNs, useCreateGRN, useUpdateGRNStatus } from "@/hooks/useGRNs"
@@ -64,7 +65,7 @@ export function GRNList() {
   const updateStatus = useUpdateGRNStatus()
 
   const form = useForm<CreateForm>({
-    resolver: zodResolver(createSchema),
+    resolver: zodResolver(createSchema) as unknown as Resolver<CreateForm>,
     defaultValues: {
       po_id: defaultPOId,
       received_date: new Date().toISOString().slice(0, 10),
@@ -85,7 +86,7 @@ export function GRNList() {
       vendor_id:     data.vendor_id,
       received_date: data.received_date,
       notes:         data.notes || undefined,
-      line_items:    data.line_items,
+      line_items:    data.line_items.map((item) => ({ ...item, unit: item.unit ?? null })),
     })
     setCreating(false)
     form.reset()
