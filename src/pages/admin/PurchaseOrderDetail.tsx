@@ -1,9 +1,12 @@
+import { useState } from "react"
 import { useParams, Link } from "react-router-dom"
 import { usePurchaseOrder, useIssuePurchaseOrder, useUpdatePOStatus } from "@/hooks/usePurchaseOrders"
 import { useGRNs } from "@/hooks/useGRNs"
 import { useInvoices } from "@/hooks/useInvoices"
 import { usePermissions } from "@/hooks/usePermissions"
 import { AnimatedPage } from "@/components/shared/AnimatedPage"
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
+import { toast } from "sonner"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -22,6 +25,8 @@ import type { POStatus, GRNStatus, InvoiceStatus, MatchStatus } from "@/lib/type
 
 export function PurchaseOrderDetail() {
   const { id } = useParams<{ id: string }>()
+
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false)
 
   const { data: po, isLoading }  = usePurchaseOrder(id!)
   const { data: grns = [] }      = useGRNs({ po_id: id })
@@ -76,7 +81,14 @@ export function PurchaseOrderDetail() {
         {/* Actions */}
         <div className="flex flex-wrap gap-2">
           {po.status === "draft" && canCreatePO && (
-            <Button size="sm" onClick={() => issuePO.mutate({ id: po.id })} disabled={issuePO.isPending}>
+            <Button
+              size="sm"
+              onClick={() => issuePO.mutate({ id: po.id }, {
+                onSuccess: () => toast.success("PO issued successfully."),
+                onError: () => toast.error("Failed to issue PO. Please try again."),
+              })}
+              disabled={issuePO.isPending}
+            >
               {issuePO.isPending ? "Issuing…" : "Issue PO"}
             </Button>
           )}
@@ -89,7 +101,7 @@ export function PurchaseOrderDetail() {
             <Button
               size="sm"
               variant="danger"
-              onClick={() => updateStatus.mutate({ id: po.id, status: "cancelled" })}
+              onClick={() => setShowCancelConfirm(true)}
               disabled={updateStatus.isPending}
             >
               Cancel PO
@@ -236,6 +248,17 @@ export function PurchaseOrderDetail() {
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={showCancelConfirm}
+        onOpenChange={setShowCancelConfirm}
+        title="Cancel Purchase Order"
+        description={`Are you sure you want to cancel ${po.po_number ?? "this PO"}? This action cannot be undone.`}
+        confirmLabel="Cancel PO"
+        variant="danger"
+        loading={updateStatus.isPending}
+        onConfirm={() => updateStatus.mutate({ id: po.id, status: "cancelled" }, { onSuccess: () => setShowCancelConfirm(false) })}
+      />
     </AnimatedPage>
   )
 }

@@ -13,6 +13,7 @@ import { INTERNAL_ROLES } from "@/hooks/usePermissions"
 import { LoginForm } from "@/components/auth/LoginForm"
 import { SignupForm } from "@/components/auth/SignupForm"
 import { ForgotPasswordForm } from "@/components/auth/ForgotPasswordForm"
+import { ResetPasswordForm } from "@/components/auth/ResetPasswordForm"
 import { NotFound } from "@/pages/NotFound"
 
 // Onboarding
@@ -61,10 +62,11 @@ export default function App() {
                 <Route path="/login" element={<LoginForm />} />
                 <Route path="/signup" element={<SignupForm />} />
                 <Route path="/forgot-password" element={<ForgotPasswordForm />} />
+                <Route path="/reset-password" element={<ResetPasswordForm />} />
               </Route>
 
-              {/* Onboarding (authenticated, any role) */}
-              <Route path="/onboarding" element={<AuthGuard><OnboardingPage /></AuthGuard>} />
+              {/* Onboarding — vendor accounts only */}
+              <Route path="/onboarding" element={<AuthGuard role="vendor"><OnboardingPage /></AuthGuard>} />
 
               {/* Vendor portal */}
               <Route path="/vendor" element={<AuthGuard role="vendor"><VendorLayout /></AuthGuard>}>

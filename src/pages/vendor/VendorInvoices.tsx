@@ -23,6 +23,7 @@ import type { InvoiceStatus, MatchStatus } from "@/lib/types"
 import { format } from "date-fns"
 import { Add01Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
+import { toast } from "sonner"
 
 const submitSchema = z.object({
   contract_id:           z.string().min(1, "Select a contract"),
@@ -52,18 +53,23 @@ export function VendorInvoices() {
 
   async function onSubmit(data: SubmitForm) {
     if (!vendor) return
-    await submitInvoice.mutateAsync({
-      contract_id:           data.contract_id,
-      vendor_invoice_number: data.vendor_invoice_number,
-      vendor_id:             vendor.id,
-      total_amount:          data.total_amount,
-      currency:              data.currency,
-      invoice_date:          data.invoice_date,
-      due_date:              data.due_date || undefined,
-      notes:                 data.notes || undefined,
-    })
-    setSubmitting(false)
-    form.reset()
+    try {
+      await submitInvoice.mutateAsync({
+        contract_id:           data.contract_id,
+        vendor_invoice_number: data.vendor_invoice_number,
+        vendor_id:             vendor.id,
+        total_amount:          data.total_amount,
+        currency:              data.currency,
+        invoice_date:          data.invoice_date,
+        due_date:              data.due_date || undefined,
+        notes:                 data.notes || undefined,
+      })
+      toast.success("Invoice submitted successfully.")
+      setSubmitting(false)
+      form.reset()
+    } catch (e: unknown) {
+      toast.error((e as Error).message ?? "Failed to submit invoice. Please try again.")
+    }
   }
 
   return (

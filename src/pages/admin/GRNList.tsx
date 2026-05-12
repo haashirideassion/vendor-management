@@ -14,12 +14,14 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
 import { Separator } from "@/components/ui/separator"
 import { GRN_STATUS_LABELS, GRN_STATUS_COLORS } from "@/lib/constants"
 import type { GRNStatus } from "@/lib/types"
 import { format } from "date-fns"
 import { Add01Icon, Cancel01Icon, Delete01Icon, CheckmarkCircle01Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
+import { toast } from "sonner"
 
 const STATUSES: GRNStatus[] = ["draft", "submitted", "verified", "rejected"]
 
@@ -52,6 +54,7 @@ export function GRNList() {
   const [searchParams]        = useSearchParams()
   const [status, setStatus]   = useState<GRNStatus | "">("")
   const [creating, setCreating] = useState(false)
+  const [confirmAction, setConfirmAction] = useState<{ id: string; status: "verified" | "rejected" } | null>(null)
 
   const defaultPOId = searchParams.get("po_id") ?? undefined
   const { canRecordGRN } = usePermissions()
@@ -179,7 +182,7 @@ export function GRNList() {
                               size="sm"
                               variant="ghost"
                               className="h-7 px-2 text-xs text-green-700 hover:text-green-800 hover:bg-green-50"
-                              onClick={() => updateStatus.mutate({ id: grn.id, status: "verified" })}
+                              onClick={() => setConfirmAction({ id: grn.id, status: "verified" })}
                             >
                               <HugeiconsIcon icon={CheckmarkCircle01Icon} size={13} strokeWidth={1.5} />
                             </Button>
@@ -187,7 +190,7 @@ export function GRNList() {
                               size="sm"
                               variant="ghost"
                               className="h-7 px-2 text-xs text-destructive hover:bg-destructive/8"
-                              onClick={() => updateStatus.mutate({ id: grn.id, status: "rejected" })}
+                              onClick={() => setConfirmAction({ id: grn.id, status: "rejected" })}
                             >
                               <HugeiconsIcon icon={Cancel01Icon} size={13} strokeWidth={1.5} />
                             </Button>
@@ -198,7 +201,13 @@ export function GRNList() {
                             size="sm"
                             variant="ghost"
                             className="h-7 px-2 text-xs"
-                            onClick={() => updateStatus.mutate({ id: grn.id, status: "submitted" })}
+                            onClick={() => updateStatus.mutate(
+                              { id: grn.id, status: "submitted" },
+                              {
+                                onSuccess: () => toast.success("GRN submitted for review."),
+                                onError: () => toast.error("Failed to submit GRN. Please try again."),
+                              }
+                            )}
                           >
                             Submit
                           </Button>
@@ -285,6 +294,27 @@ export function GRNList() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!confirmAction}
+        onOpenChange={(o) => !o && setConfirmAction(null)}
+        title={confirmAction?.status === "verified" ? "Verify GRN" : "Reject GRN"}
+        description={
+          confirmAction?.status === "verified"
+            ? "Are you sure you want to verify this goods receipt?"
+            : "Are you sure you want to reject this goods receipt? The vendor will need to resubmit."
+        }
+        confirmLabel={confirmAction?.status === "verified" ? "Verify" : "Reject"}
+        variant={confirmAction?.status === "verified" ? "default" : "danger"}
+        loading={updateStatus.isPending}
+        onConfirm={() => {
+          if (!confirmAction) return
+          updateStatus.mutate(
+            { id: confirmAction.id, status: confirmAction.status },
+            { onSuccess: () => setConfirmAction(null) }
+          )
+        }}
+      />
     </AnimatedPage>
   )
 }

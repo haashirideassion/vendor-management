@@ -17,7 +17,10 @@ const contractSchema = z.object({
   contract_value: z.string().min(1, "Value is required"),
   contract_currency: z.string().min(1, "Currency is required"),
   auto_renew: z.boolean().default(false),
-})
+}).refine(
+  (d) => !d.contract_start_date || !d.contract_end_date || d.contract_end_date > d.contract_start_date,
+  { message: "End date must be after start date", path: ["contract_end_date"] }
+)
 
 type FormValues = z.infer<typeof contractSchema>
 

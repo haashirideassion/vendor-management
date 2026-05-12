@@ -4,6 +4,7 @@ import { useEngagement, useUpdateEngagementStatus } from "@/hooks/useEngagements
 import { usePurchaseOrders } from "@/hooks/usePurchaseOrders"
 import { useApprovalRequests, useRequestApproval, useReviewApproval } from "@/hooks/useApprovalWorkflow"
 import { usePermissions } from "@/hooks/usePermissions"
+import { toast } from "sonner"
 import { AnimatedPage } from "@/components/shared/AnimatedPage"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -37,23 +38,38 @@ export function EngagementDetail() {
 
   async function handleSubmitForApproval() {
     if (!id || !engagement) return
-    await requestApproval.mutateAsync({ entityType: "engagement", entityId: id, amount: engagement.estimated_value, notes })
-    await updateStatus.mutateAsync({ id, status: "pending_approval" })
-    setDialog(null); setNotes("")
+    try {
+      await requestApproval.mutateAsync({ entityType: "engagement", entityId: id, amount: engagement.estimated_value, notes })
+      await updateStatus.mutateAsync({ id, status: "pending_approval" })
+      setDialog(null); setNotes("")
+      toast.success("Engagement submitted for approval.")
+    } catch {
+      toast.error("Failed to submit for approval. Please try again.")
+    }
   }
 
   async function handleApprove() {
     if (!id || !pendingApproval) return
-    await reviewApproval.mutateAsync({ id: pendingApproval.id, status: "approved", notes, entityType: "engagement", entityId: id })
-    await updateStatus.mutateAsync({ id, status: "approved", notes })
-    setDialog(null); setNotes("")
+    try {
+      await reviewApproval.mutateAsync({ id: pendingApproval.id, status: "approved", notes, entityType: "engagement", entityId: id })
+      await updateStatus.mutateAsync({ id, status: "approved", notes })
+      setDialog(null); setNotes("")
+      toast.success("Engagement approved.")
+    } catch {
+      toast.error("Failed to approve engagement. Please try again.")
+    }
   }
 
   async function handleReject() {
     if (!id || !pendingApproval) return
-    await reviewApproval.mutateAsync({ id: pendingApproval.id, status: "rejected", notes, entityType: "engagement", entityId: id })
-    await updateStatus.mutateAsync({ id, status: "rejected", notes })
-    setDialog(null); setNotes("")
+    try {
+      await reviewApproval.mutateAsync({ id: pendingApproval.id, status: "rejected", notes, entityType: "engagement", entityId: id })
+      await updateStatus.mutateAsync({ id, status: "rejected", notes })
+      setDialog(null); setNotes("")
+      toast.success("Engagement rejected.")
+    } catch {
+      toast.error("Failed to reject engagement. Please try again.")
+    }
   }
 
   if (isLoading) {
@@ -295,7 +311,7 @@ export function EngagementDetail() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={handleReject} disabled={reviewApproval.isPending || updateStatus.isPending}>
+            <Button variant="danger" onClick={handleReject} disabled={reviewApproval.isPending || updateStatus.isPending}>
               {reviewApproval.isPending ? "Rejecting…" : "Reject"}
             </Button>
           </DialogFooter>

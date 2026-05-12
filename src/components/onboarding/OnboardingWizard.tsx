@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { Progress } from "@/components/ui/progress"
 import { Step1CompanyInfo } from "./Step1CompanyInfo"
@@ -48,14 +48,29 @@ export interface OnboardingData {
 }
 
 const STEPS = ["Company Info", "Tax & Banking", "Services", "Contract", "Documents", "Review"]
+const STORAGE_KEY = "vms_onboarding_draft"
 
 export function OnboardingWizard() {
   const { user } = useAuth()
   const navigate = useNavigate()
-  const [step, setStep] = useState(0)
-  const [data, setData] = useState<Partial<OnboardingData>>({})
+  const [step, setStep] = useState(() => {
+    try { return Number(sessionStorage.getItem(`${STORAGE_KEY}_step`) ?? 0) } catch { return 0 }
+  })
+  const [data, setData] = useState<Partial<OnboardingData>>(() => {
+    try {
+      const saved = sessionStorage.getItem(STORAGE_KEY)
+      return saved ? (JSON.parse(saved) as Partial<OnboardingData>) : {}
+    } catch { return {} }
+  })
   const [localDocs, setLocalDocs] = useState<LocalDocument[]>([])
   const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+      sessionStorage.setItem(`${STORAGE_KEY}_step`, String(step))
+    } catch { /* storage unavailable */ }
+  }, [data, step])
 
   function next(partial: Partial<OnboardingData>) {
     setData((prev) => ({ ...prev, ...partial }))
@@ -104,27 +119,34 @@ export function OnboardingWizard() {
         if (catError) throw catError
       }
 
-      // 3. Upload documents
-      for (const doc of localDocs) {
-        const ext = doc.fileName.split(".").pop() ?? "bin"
-        const storagePath = `vendor-documents/${vendor.id}/${doc.type}_${Date.now()}.${ext}`
+      // 3. Upload documents — rollback vendor on failure
+      try {
+        for (const doc of localDocs) {
+          const ext = doc.fileName.split(".").pop() ?? "bin"
+          const storagePath = `vendor-documents/${vendor.id}/${doc.type}_${Date.now()}.${ext}`
 
-        const { error: uploadError } = await supabase.storage
-          .from("vendor-documents")
-          .upload(storagePath, doc.file)
-        if (uploadError) throw uploadError
+          const { error: uploadError } = await supabase.storage
+            .from("vendor-documents")
+            .upload(storagePath, doc.file)
+          if (uploadError) throw uploadError
 
-        const { error: docInsertError } = await supabase
-          .from("vendor_documents")
-          .insert({
-            vendor_id: vendor.id,
-            document_type: doc.type,
-            file_name: doc.fileName,
-            storage_path: storagePath,
-          })
-        if (docInsertError) throw docInsertError
+          const { error: docInsertError } = await supabase
+            .from("vendor_documents")
+            .insert({
+              vendor_id: vendor.id,
+              document_type: doc.type,
+              file_name: doc.fileName,
+              storage_path: storagePath,
+            })
+          if (docInsertError) throw docInsertError
+        }
+      } catch (docError: unknown) {
+        // Roll back: delete vendor record (cascades to vendor_categories)
+        await supabase.from("vendors").delete().eq("id", vendor.id)
+        throw docError
       }
 
+      try { sessionStorage.removeItem(STORAGE_KEY); sessionStorage.removeItem(`${STORAGE_KEY}_step`) } catch { /* ignore */ }
       toast.success("Application submitted successfully!")
       navigate("/vendor/dashboard")
     } catch (e: unknown) {
@@ -135,6 +157,7 @@ export function OnboardingWizard() {
   }
 
   function handleClose() {
+    try { sessionStorage.removeItem(STORAGE_KEY); sessionStorage.removeItem(`${STORAGE_KEY}_step`) } catch { /* ignore */ }
     setData({})
     setLocalDocs([])
     setStep(0)

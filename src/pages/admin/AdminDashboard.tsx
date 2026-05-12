@@ -17,8 +17,8 @@ import { HugeiconsIcon } from "@hugeicons/react"
 import type { VendorStatus } from "@/lib/types"
 
 export function AdminDashboard() {
-  const { data: vendors = [], isLoading } = useVendors()
-  const { data: analytics }               = useProcurementKPIs()
+  const { data: vendors = [], isLoading }       = useVendors()
+  const { data: analytics, isError: analyticsError } = useProcurementKPIs()
 
   const counts = VENDOR_STATUSES.reduce(
     (acc, s) => ({ ...acc, [s]: vendors.filter((v) => v.status === s).length }),
@@ -36,7 +36,7 @@ export function AdminDashboard() {
     },
     {
       label: "All Contracts",
-      value: analytics?.kpis.activeContractCount,
+      value: analyticsError ? "—" : (analytics?.kpis.activeContractCount ?? "—"),
       icon: <HugeiconsIcon icon={File01Icon} size={22} strokeWidth={1.5} className="text-white" />,
       bg: "bg-teal-50 dark:bg-teal-950/30 border-teal-100 dark:border-teal-900/50",
       valueColor: "text-teal-700 dark:text-teal-300",
@@ -60,6 +60,12 @@ export function AdminDashboard() {
           <h1 className="text-xl font-bold tracking-tight">Dashboard</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Live overview of all vendors and recent activity.</p>
         </div>
+
+        {analyticsError && (
+          <div className="rounded-lg border border-yellow-200 bg-yellow-50/60 dark:bg-yellow-950/20 dark:border-yellow-800 px-4 py-2.5 text-sm text-yellow-800 dark:text-yellow-300">
+            Analytics data could not be loaded. Procurement KPIs may be unavailable.
+          </div>
+        )}
 
         {/* Stats grid – 3 key cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

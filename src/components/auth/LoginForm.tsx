@@ -27,26 +27,36 @@ export function LoginForm() {
 
   async function onSubmit(data: FormData) {
     setLoading(true)
-    const { error } = await supabase.auth.signInWithPassword({
-      email: data.email,
-      password: data.password,
-    })
-    setLoading(false)
+    try {
+      const { error, data: authData } = await supabase.auth.signInWithPassword({
+        email: data.email,
+        password: data.password,
+      })
 
-    if (error) {
-      toast.error(error.message)
-      return
+      if (error) {
+        toast.error(error.message)
+        return
+      }
+
+      const userId = authData.user?.id
+      if (!userId) {
+        toast.error("Authentication failed. Please try again.")
+        return
+      }
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", userId)
+        .single()
+
+      const isInternal = profile?.role && INTERNAL_ROLES.includes(profile.role as never)
+      navigate(isInternal ? "/admin/dashboard" : "/vendor/dashboard")
+    } catch {
+      toast.error("An unexpected error occurred. Please try again.")
+    } finally {
+      setLoading(false)
     }
-
-    // Fetch profile to determine role
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", (await supabase.auth.getUser()).data.user?.id ?? "")
-      .single()
-
-    const isInternal = profile?.role && INTERNAL_ROLES.includes(profile.role as never)
-    navigate(isInternal ? "/admin/dashboard" : "/vendor/dashboard")
   }
 
   return (

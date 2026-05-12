@@ -56,7 +56,7 @@ export function useProcurementKPIs() {
     queryKey: ["analytics", "procurement"],
     staleTime: 60_000,
     queryFn: async () => {
-      const [posRes, invoicesRes, contractsRes, grnsRes, engagementsRes] = await Promise.all([
+      const [posRes, invoicesRes, contractsRes, grnsRes, engagementsRes] = await Promise.allSettled([
         supabase
           .from("purchase_orders")
           .select("id, total_value, status, created_at, vendor:vendor_id(company_name)"),
@@ -74,11 +74,11 @@ export function useProcurementKPIs() {
           .select("id, status, estimated_value"),
       ])
 
-      const pos         = (posRes.data         ?? []) as PORow[]
-      const invoices    = (invoicesRes.data     ?? []) as InvoiceRow[]
-      const contracts   = (contractsRes.data    ?? []) as ContractRow[]
-      const grns        = (grnsRes.data         ?? []) as GRNRow[]
-      const engagements = (engagementsRes.data  ?? []) as EngagementRow[]
+      const pos         = (posRes.status         === "fulfilled" ? posRes.value.data         ?? [] : []) as PORow[]
+      const invoices    = (invoicesRes.status    === "fulfilled" ? invoicesRes.value.data    ?? [] : []) as InvoiceRow[]
+      const contracts   = (contractsRes.status   === "fulfilled" ? contractsRes.value.data   ?? [] : []) as ContractRow[]
+      const grns        = (grnsRes.status        === "fulfilled" ? grnsRes.value.data        ?? [] : []) as GRNRow[]
+      const engagements = (engagementsRes.status === "fulfilled" ? engagementsRes.value.data ?? [] : []) as EngagementRow[]
 
       // ── KPIs ───────────────────────────────────────────────────────────────
 

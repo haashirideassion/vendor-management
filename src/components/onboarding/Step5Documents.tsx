@@ -1,4 +1,5 @@
 import { useRef } from "react"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { DOCUMENT_TYPE_LABELS, REQUIRED_DOCUMENTS } from "@/lib/constants"
@@ -39,7 +40,7 @@ function DocRow({
     const file = e.target.files?.[0]
     if (!file) return
     if (file.size > MAX_FILE_SIZE) {
-      alert("File must be under 10 MB.")
+      toast.error("File must be under 10 MB.")
       e.target.value = ""
       return
     }

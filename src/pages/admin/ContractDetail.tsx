@@ -6,6 +6,7 @@ import { z } from "zod"
 import { useContract, useUpdateContractStatus, useMarkContractSigned, useAddAmendment } from "@/hooks/useContracts"
 import { usePurchaseOrders } from "@/hooks/usePurchaseOrders"
 import { usePermissions } from "@/hooks/usePermissions"
+import { toast } from "sonner"
 import { AnimatedPage } from "@/components/shared/AnimatedPage"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -78,32 +79,52 @@ export function ContractDetail() {
 
   async function handleActivate() {
     if (!id) return
-    await updateStatus.mutateAsync({ id, status: "active" })
-    setDialog(null)
+    try {
+      await updateStatus.mutateAsync({ id, status: "active" })
+      setDialog(null)
+      toast.success("Contract activated.")
+    } catch {
+      toast.error("Failed to activate contract. Please try again.")
+    }
   }
 
   async function handleTerminate() {
     if (!id) return
-    await updateStatus.mutateAsync({ id, status: "terminated" })
-    setDialog(null)
+    try {
+      await updateStatus.mutateAsync({ id, status: "terminated" })
+      setDialog(null)
+      toast.success("Contract terminated.")
+    } catch {
+      toast.error("Failed to terminate contract. Please try again.")
+    }
   }
 
   async function handleSign() {
     if (!id) return
-    await markSigned.mutateAsync({ id, signedBy: signBy })
-    setDialog(null)
+    try {
+      await markSigned.mutateAsync({ id, signedBy: signBy })
+      setDialog(null)
+      toast.success("Contract signing status updated.")
+    } catch {
+      toast.error("Failed to update signing status. Please try again.")
+    }
   }
 
   async function onAmendSubmit(data: AmendForm) {
     if (!id) return
-    await addAmendment.mutateAsync({
-      contractId:     id,
-      title:          data.title,
-      description:    data.description || undefined,
-      effective_date: data.effective_date || undefined,
-    })
-    setDialog(null)
-    amendForm.reset()
+    try {
+      await addAmendment.mutateAsync({
+        contractId:     id,
+        title:          data.title,
+        description:    data.description || undefined,
+        effective_date: data.effective_date || undefined,
+      })
+      setDialog(null)
+      amendForm.reset()
+      toast.success("Amendment added.")
+    } catch {
+      toast.error("Failed to add amendment. Please try again.")
+    }
   }
 
   if (isLoading) {

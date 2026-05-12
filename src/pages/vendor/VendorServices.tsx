@@ -203,7 +203,7 @@ export function VendorServices() {
         title="Remove service"
         description="Are you sure you want to remove this service from your profile?"
         confirmLabel="Remove"
-        variant="destructive"
+        variant="danger"
         onConfirm={() => deleteTarget && remove.mutate(deleteTarget)}
         loading={remove.isPending}
       />

@@ -45,7 +45,10 @@ const createSchema = z.object({
   auto_renew:          z.boolean().default(false),
   renewal_notice_days: z.coerce.number().int().min(1).default(30),
   notes:               z.string().optional(),
-})
+}).refine(
+  (d) => !d.effective_date || !d.expiry_date || d.expiry_date > d.effective_date,
+  { message: "Expiry date must be after effective date", path: ["expiry_date"] }
+)
 type CreateForm = z.infer<typeof createSchema>
 
 function TypeBadge({ type }: { type: ContractType }) {

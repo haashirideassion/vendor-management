@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Link, useLocation, Outlet } from "react-router-dom"
 import { useAuth } from "@/contexts/AuthContext"
 import { Button } from "@/components/ui/button"
@@ -162,6 +162,10 @@ export function VendorLayout() {
   const { pathname } = useLocation()
   const { data: vendor } = useVendor()
   const [mobileOpen, setMobileOpen] = useState(false)
+
+  useEffect(() => {
+    setMobileOpen(false)
+  }, [pathname])
   const showRenewal = vendor?.status === "action_required"
   const currentLabel = baseNavItems.find((n) => pathname === n.to)?.label ?? "Vendor Portal"
 

@@ -16,6 +16,7 @@ import type { InvoiceStatus, MatchStatus, Invoice } from "@/lib/types"
 import { format } from "date-fns"
 import { CheckmarkCircle01Icon, Cancel01Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
+import { toast } from "sonner"
 
 const STATUSES: InvoiceStatus[] = ["submitted", "under_review", "matched", "approved", "rejected", "paid"]
 
@@ -32,11 +33,30 @@ export function InvoiceList() {
   const runMatch        = useRunThreeWayMatch()
   const markPaid        = useMarkInvoicePaid()
 
+  function handleRunMatch(invoiceId: string) {
+    runMatch.mutate({ invoiceId }, {
+      onSuccess: () => toast.success("3-way match completed."),
+      onError: () => toast.error("Match failed. Please try again."),
+    })
+  }
+
+  function handleMarkPaid(id: string) {
+    markPaid.mutate({ id }, {
+      onSuccess: () => toast.success("Invoice marked as paid."),
+      onError: () => toast.error("Failed to mark as paid. Please try again."),
+    })
+  }
+
   async function handleReview() {
     if (!reviewDialog) return
-    await reviewInvoice.mutateAsync({ id: reviewDialog.invoice.id, status: reviewDialog.action, notes })
-    setReviewDialog(null)
-    setNotes("")
+    try {
+      await reviewInvoice.mutateAsync({ id: reviewDialog.invoice.id, status: reviewDialog.action, notes })
+      toast.success(reviewDialog.action === "approve" ? "Invoice approved." : "Invoice rejected.")
+      setReviewDialog(null)
+      setNotes("")
+    } catch {
+      toast.error("Failed to update invoice. Please try again.")
+    }
   }
 
   return (
@@ -138,7 +158,7 @@ export function InvoiceList() {
                           <Button
                             size="sm" variant="outline"
                             className="h-7 text-xs"
-                            onClick={() => runMatch.mutate({ invoiceId: inv.id })}
+                            onClick={() => handleRunMatch(inv.id)}
                             disabled={runMatch.isPending}
                           >
                             Match
@@ -166,7 +186,7 @@ export function InvoiceList() {
                           <Button
                             size="sm" variant="outline"
                             className="h-7 text-xs"
-                            onClick={() => markPaid.mutate({ id: inv.id })}
+                            onClick={() => handleMarkPaid(inv.id)}
                             disabled={markPaid.isPending}
                           >
                             Mark Paid
