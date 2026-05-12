@@ -22,7 +22,7 @@ import {
   File01Icon,
 } from "@hugeicons/core-free-icons"
 
-type NavLink = { type: "link"; label: string; to: string; icon: React.ElementType }
+type NavLink = { type: "link"; label: string; to: string; icon: typeof DashboardSquare01Icon }
 type NavGroup = { type: "group"; label: string }
 type NavEntry = NavLink | NavGroup
 

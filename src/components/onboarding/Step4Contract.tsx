@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Switch } from "@/components/ui/switch"
 import type { OnboardingData } from "./OnboardingWizard"
 
-const contractSchema = z.object({
+const contractBaseSchema = z.object({
   contract_title: z.string().min(2, "Title is required"),
   contract_type: z.string().min(1, "Type is required"),
   contract_start_date: z.string().min(1, "Start date is required"),
@@ -17,12 +17,14 @@ const contractSchema = z.object({
   contract_value: z.string().min(1, "Value is required"),
   contract_currency: z.string().min(1, "Currency is required"),
   auto_renew: z.boolean().default(false),
-}).refine(
+})
+
+type FormValues = z.infer<typeof contractBaseSchema>
+
+const contractSchema = contractBaseSchema.refine(
   (d) => !d.contract_start_date || !d.contract_end_date || d.contract_end_date > d.contract_start_date,
   { message: "End date must be after start date", path: ["contract_end_date"] }
 )
-
-type FormValues = z.infer<typeof contractSchema>
 
 interface Props {
   defaultValues: Partial<OnboardingData>
