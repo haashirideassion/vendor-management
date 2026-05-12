@@ -14,13 +14,25 @@ interface DocumentUploaderProps {
   vendorId: string
   onUploaded?: () => void
   allowedTypes?: DocumentType[]
+  selectedDocType?: DocumentType | ""
+  onDocTypeChange?: (t: DocumentType | "") => void
 }
 
-export function DocumentUploader({ vendorId, onUploaded, allowedTypes = ALL_DOCUMENT_TYPES }: DocumentUploaderProps) {
+export function DocumentUploader({ 
+  vendorId, 
+  onUploaded, 
+  allowedTypes = ALL_DOCUMENT_TYPES,
+  selectedDocType,
+  onDocTypeChange
+}: DocumentUploaderProps) {
   const [file, setFile] = useState<File | null>(null)
-  const [docType, setDocType] = useState<DocumentType | "">("")
+  const [internalDocType, setInternalDocType] = useState<DocumentType | "">("")
   const [expiresAt, setExpiresAt] = useState("")
   const upload = useUploadDocument()
+
+  const isControlled = selectedDocType !== undefined
+  const docType = isControlled ? selectedDocType : internalDocType
+  const setDocType = isControlled ? onDocTypeChange! : setInternalDocType
 
   const onDrop = useCallback((accepted: File[]) => {
     if (accepted[0]) setFile(accepted[0])
@@ -81,19 +93,21 @@ export function DocumentUploader({ vendorId, onUploaded, allowedTypes = ALL_DOCU
         )}
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <Label>Document type</Label>
-        <Select value={docType} onValueChange={(v) => setDocType(v as DocumentType)}>
-          <SelectTrigger>
-            <SelectValue placeholder="Select type…" />
-          </SelectTrigger>
-          <SelectContent>
-            {allowedTypes.map((t) => (
-              <SelectItem key={t} value={t}>{DOCUMENT_TYPE_LABELS[t]}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      {!isControlled && (
+        <div className="flex flex-col gap-1.5">
+          <Label>Document type</Label>
+          <Select value={docType} onValueChange={(v) => setDocType(v as DocumentType)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select type…" />
+            </SelectTrigger>
+            <SelectContent>
+              {allowedTypes.map((t) => (
+                <SelectItem key={t} value={t}>{DOCUMENT_TYPE_LABELS[t]}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       {(docType === "insurance_coi") && (
         <div className="flex flex-col gap-1.5">

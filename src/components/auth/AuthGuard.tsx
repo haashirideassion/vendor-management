@@ -4,7 +4,8 @@ import type { UserRole } from "@/lib/types"
 
 interface AuthGuardProps {
   children: React.ReactNode
-  role?: UserRole
+  /** Single role or list of allowed roles. Omit to allow any authenticated user. */
+  role?: UserRole | UserRole[]
 }
 
 export function AuthGuard({ children, role }: AuthGuardProps) {
@@ -23,8 +24,15 @@ export function AuthGuard({ children, role }: AuthGuardProps) {
     return <Navigate to="/login" state={{ from: location }} replace />
   }
 
-  if (role && profile?.role !== role) {
-    return <Navigate to={profile?.role === "admin" ? "/admin/dashboard" : "/vendor/dashboard"} replace />
+  if (role && profile) {
+    const allowed = Array.isArray(role)
+      ? role.includes(profile.role)
+      : profile.role === role
+
+    if (!allowed) {
+      const dest = profile.role === "vendor" ? "/vendor/dashboard" : "/admin/dashboard"
+      return <Navigate to={dest} replace />
+    }
   }
 
   return <>{children}</>

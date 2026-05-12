@@ -1,0 +1,196 @@
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { DOCUMENT_TYPE_LABELS } from "@/lib/constants"
+import type { OnboardingData, LocalDocument } from "./OnboardingWizard"
+import { HugeiconsIcon } from "@hugeicons/react"
+import {
+  Edit01Icon,
+  Building06Icon,
+  BankIcon,
+  Tag01Icon,
+  File01Icon,
+  Files01Icon,
+  AlertCircleIcon,
+} from "@hugeicons/core-free-icons"
+
+interface Props {
+  data: Partial<OnboardingData>
+  localDocs: LocalDocument[]
+  onEdit: (step: number) => void
+  onSubmit: () => void
+  submitting: boolean
+}
+
+function SectionCard({
+  title,
+  step,
+  onEdit,
+  children,
+  icon,
+}: {
+  title: string
+  step: number
+  onEdit: (s: number) => void
+  children: React.ReactNode
+  icon: React.ComponentType
+}) {
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <HugeiconsIcon icon={icon} size={16} strokeWidth={1.5} className="text-primary" />
+            <CardTitle className="text-sm font-semibold">{title}</CardTitle>
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs gap-1.5 text-muted-foreground hover:text-foreground"
+            onClick={() => onEdit(step)}
+          >
+            <HugeiconsIcon icon={Edit01Icon} size={13} strokeWidth={1.5} primaryColor="currentColor" secondaryColor="currentColor" />
+            Edit
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="text-sm space-y-1.5">{children}</CardContent>
+    </Card>
+  )
+}
+
+function Row({ label, value }: { label: string; value?: string | null }) {
+  if (!value) return null
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <span className="text-muted-foreground shrink-0">{label}</span>
+      <span className="font-medium text-right">{value}</span>
+    </div>
+  )
+}
+
+export function Step6Review({ data, localDocs, onEdit, onSubmit, submitting }: Props) {
+  const hasCompany = !!(data.company_name && data.contact_name && data.contact_email)
+  const hasContract = !!(data.contract_title && data.contract_type)
+  const hasCategories = !!(data.category_ids?.length)
+
+  const missingRequired = !hasCompany || !hasContract || !hasCategories
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-lg font-bold">Review Your Application</h2>
+        <p className="text-sm text-muted-foreground mt-0.5">
+          Confirm all details before final submission. Nothing is saved to the database until you click Submit.
+        </p>
+      </div>
+
+      {/* Company Details */}
+      <SectionCard title="Company Details" step={0} onEdit={onEdit} icon={Building06Icon}>
+        <Row label="Company" value={data.company_name} />
+        <Row label="Contact" value={data.contact_name} />
+        <Row label="Email" value={data.contact_email} />
+        <Row label="Phone" value={data.contact_phone} />
+        {!hasCompany && (
+          <p className="text-xs text-destructive mt-1">Company details incomplete — please edit.</p>
+        )}
+      </SectionCard>
+
+      {/* Tax & Banking */}
+      <SectionCard title="Tax & Banking" step={1} onEdit={onEdit} icon={BankIcon}>
+        {data.tax_gst_number || data.bank_name ? (
+          <>
+            <Row label="Tax / GST" value={data.tax_gst_number} />
+            <Row label="Bank" value={data.bank_name} />
+            <Row label="Account No." value={data.bank_account_number} />
+            <Row label="Routing No." value={data.bank_routing_number} />
+          </>
+        ) : (
+          <p className="text-xs text-muted-foreground">No tax or banking details provided.</p>
+        )}
+      </SectionCard>
+
+      {/* Service Categories */}
+      <SectionCard title="Service Categories" step={2} onEdit={onEdit} icon={Tag01Icon}>
+        {hasCategories ? (
+          <div className="flex flex-wrap gap-1.5">
+            {(data.category_names ?? data.category_ids ?? []).map((name) => (
+              <span
+                key={name}
+                className="rounded-full bg-primary/10 text-primary px-2.5 py-0.5 text-xs font-medium border border-primary/20"
+              >
+                {name}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-destructive">No categories selected — please edit.</p>
+        )}
+      </SectionCard>
+
+      {/* Contract Details */}
+      <SectionCard title="Contract Details" step={3} onEdit={onEdit} icon={Files01Icon}>
+        {hasContract ? (
+          <>
+            <Row label="Title" value={data.contract_title} />
+            <Row label="Type" value={data.contract_type} />
+            <Row label="Start Date" value={data.contract_start_date} />
+            <Row label="End Date" value={data.contract_end_date} />
+            <Row label="Value" value={data.contract_value ? `${data.contract_value} ${data.contract_currency ?? ""}` : undefined} />
+            <Row label="Auto Renew" value={data.auto_renew ? "Yes" : "No"} />
+          </>
+        ) : (
+          <p className="text-xs text-destructive">Contract details incomplete — please edit.</p>
+        )}
+      </SectionCard>
+
+      {/* Documents */}
+      <SectionCard title="Documents" step={4} onEdit={onEdit} icon={File01Icon}>
+        {localDocs.length > 0 ? (
+          <div className="space-y-1.5">
+            {localDocs.map((doc) => (
+              <div key={doc.type} className="flex items-center justify-between gap-3">
+                <span className="text-muted-foreground">{DOCUMENT_TYPE_LABELS[doc.type]}</span>
+                <span className="font-medium text-xs text-right truncate max-w-[180px]">{doc.fileName}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">No documents selected.</p>
+        )}
+      </SectionCard>
+
+      {/* Validation warning */}
+      {missingRequired && (
+        <div className="flex items-start gap-2.5 rounded-xl border border-destructive/30 bg-destructive/5 p-3">
+          <HugeiconsIcon icon={AlertCircleIcon} size={16} strokeWidth={1.5} className="text-destructive shrink-0 mt-0.5" />
+          <p className="text-xs text-destructive">
+            Some required fields are missing. Please edit the highlighted sections before submitting.
+          </p>
+        </div>
+      )}
+
+      {/* Submit */}
+      <Button
+        type="button"
+        className="w-full"
+        size="lg"
+        onClick={onSubmit}
+        disabled={submitting || missingRequired}
+      >
+        {submitting ? (
+          <span className="flex items-center gap-2">
+            <span className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+            Submitting…
+          </span>
+        ) : (
+          "Submit Vendor Onboarding"
+        )}
+      </Button>
+
+      <p className="text-xs text-muted-foreground text-center">
+        By submitting, your application will be sent for review. You will be notified by email once a decision is made.
+      </p>
+    </div>
+  )
+}

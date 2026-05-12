@@ -2,12 +2,15 @@ import { createContext, useContext, useEffect, useState } from "react"
 import type { Session, User } from "@supabase/supabase-js"
 import { supabase } from "@/lib/supabase"
 import type { Profile, UserRole } from "@/lib/types"
+import { INTERNAL_ROLES } from "@/hooks/usePermissions"
 
 interface AuthContextValue {
   session: Session | null
   user: User | null
   profile: Profile | null
   role: UserRole | null
+  /** True for any non-vendor role (hr_user, manager, procurement_admin, finance_ap, super_admin, admin) */
+  isInternalUser: boolean
   loading: boolean
   signOut: () => Promise<void>
 }
@@ -20,12 +23,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   async function fetchProfile(userId: string) {
-    const { data } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .single()
-    setProfile(data ?? null)
+    try {
+      const { data } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", userId)
+        .single()
+      setProfile(data ?? null)
+    } catch {
+      setProfile(null)
+    }
   }
 
   useEffect(() => {
@@ -41,6 +48,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         fetchProfile(session.user.id)
       } else {
         setProfile(null)
+        setLoading(false)
       }
     })
 
@@ -59,6 +67,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user: session?.user ?? null,
         profile,
         role: profile?.role ?? null,
+        isInternalUser: profile ? INTERNAL_ROLES.includes(profile.role) : false,
         loading,
         signOut,
       }}

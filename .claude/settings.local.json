@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(node -e \"const p = require\\('./package.json'\\); console.log\\(JSON.stringify\\(Object.keys\\(p.dependencies\\), null, 2\\)\\)\")",
+      "Bash(yarn dev *)",
+      "Bash(yarn --version)",
+      "Bash(curl -s -o /dev/null -w '%{http_code}' https://qxvudwuspapheknxpziy.supabase.co/rest/v1/ -H 'apikey: sb_publishable_WCI-cGQRq-SIVfYFudev0A_p_8cXv4U' -H 'Authorization: Bearer sb_publishable_WCI-cGQRq-SIVfYFudev0A_p_8cXv4U')",
+      "Bash(curl -s 'https://qxvudwuspapheknxpziy.supabase.co/rest/v1/service_categories?select=id,name,is_active' -H 'apikey: sb_publishable_WCI-cGQRq-SIVfYFudev0A_p_8cXv4U' -H 'Authorization: Bearer sb_publishable_WCI-cGQRq-SIVfYFudev0A_p_8cXv4U')",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\" http://localhost:5174/)",
+      "Bash(supabase --version)",
+      "Bash(psql --version)",
+      "Bash(npx supabase *)",
+      "Bash(cat \"d:/VM/vendor-management/supabase/migrations/006_approval_workflow.sql\" \\\\ *)"
+    ],
+    "additionalDirectories": [
+      "\\tmp"
+    ]
+  }
+}

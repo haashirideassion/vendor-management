@@ -1,23 +1,203 @@
-import { useState } from "react"
+import { useState, useMemo } from "react"
+import { useQuery } from "@tanstack/react-query"
 import { useCategories, useCreateCategory, useUpdateCategory, useDeleteCategory } from "@/hooks/useCategories"
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
 import { AnimatedPage } from "@/components/shared/AnimatedPage"
-import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Switch } from "@/components/ui/switch"
-import { Edit01Icon, Delete01Icon, Add01Icon, Tag01Icon } from "@hugeicons/core-free-icons"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  Edit01Icon, Delete01Icon, Add01Icon, Tag01Icon, Search01Icon,
+  ArrowLeft01Icon, ArrowRight01Icon, CheckmarkCircle01Icon, Cancel01Icon,
+} from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import type { ServiceCategory } from "@/lib/types"
+import { format } from "date-fns"
 import { toast } from "sonner"
+import { supabase } from "@/lib/supabase"
+
+const PAGE_SIZE = 10
 
 interface CategoryForm {
   name: string
   description: string
   is_active: boolean
+}
+
+function CategoryTable({
+  categories,
+  vendorCount,
+  onEdit,
+  onToggle,
+  onDelete,
+  toggling,
+}: {
+  categories: ServiceCategory[]
+  vendorCount: (id: string) => number
+  onEdit: (cat: ServiceCategory) => void
+  onToggle: (cat: ServiceCategory) => void
+  onDelete: (id: string) => void
+  toggling: string | null
+}) {
+  const [search, setSearch] = useState("")
+  const [page, setPage] = useState(1)
+
+  const filtered = useMemo(
+    () => categories.filter((c) => c.name.toLowerCase().includes(search.toLowerCase())),
+    [categories, search]
+  )
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+  function handleSearch(v: string) {
+    setSearch(v)
+    setPage(1)
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Search */}
+      <div className="relative max-w-xs">
+        <HugeiconsIcon icon={Search01Icon} size={14} strokeWidth={1.5} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+        <Input
+          placeholder="Search categories…"
+          value={search}
+          onChange={(e) => handleSearch(e.target.value)}
+          className="pl-9 h-9 text-sm"
+        />
+      </div>
+
+      {/* Table */}
+      <div className="rounded-xl border overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/40 hover:bg-muted/40">
+              <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Name</TableHead>
+              <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground hidden sm:table-cell">Description</TableHead>
+              <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground w-24">Vendors</TableHead>
+              <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground w-24 hidden md:table-cell">Created</TableHead>
+              <TableHead className="w-20" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {paginated.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center py-10">
+                  <HugeiconsIcon icon={Tag01Icon} size={28} strokeWidth={1.5} className="text-muted-foreground/30 mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">
+                    {search ? "No categories match your search." : "No categories here yet."}
+                  </p>
+                </TableCell>
+              </TableRow>
+            ) : (
+              paginated.map((cat, idx) => (
+                <TableRow key={cat.id} className={`transition-colors hover:bg-accent/50 ${idx % 2 !== 0 ? "bg-muted/20" : ""}`}>
+                  <TableCell>
+                    <div className="flex items-center gap-2.5">
+                      <div className={`p-1.5 rounded-lg shrink-0 ${cat.is_active ? "bg-primary/10" : "bg-muted"}`}>
+                        <HugeiconsIcon
+                          icon={Tag01Icon}
+                          size={13}
+                          strokeWidth={1.5}
+                          className={cat.is_active ? "text-primary" : "text-muted-foreground"}
+                        />
+                      </div>
+                      <span className="text-sm font-medium">{cat.name}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="hidden sm:table-cell">
+                    <span className="text-sm text-muted-foreground truncate max-w-[200px] block">
+                      {cat.description ?? "—"}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-sm tabular-nums font-medium">{vendorCount(cat.id)}</span>
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell">
+                    <span className="text-xs text-muted-foreground tabular-nums">
+                      {format(new Date(cat.created_at), "dd MMM yyyy")}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1 justify-end">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                        onClick={() => onEdit(cat)}
+                        title="Edit"
+                      >
+                        <HugeiconsIcon icon={Edit01Icon} size={14} strokeWidth={1.5} />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className={`h-7 w-7 p-0 ${cat.is_active ? "text-muted-foreground hover:text-orange-600" : "text-muted-foreground hover:text-green-600"}`}
+                        onClick={() => onToggle(cat)}
+                        disabled={toggling === cat.id}
+                        title={cat.is_active ? "Deactivate" : "Activate"}
+                      >
+                        <HugeiconsIcon
+                          icon={cat.is_active ? Cancel01Icon : CheckmarkCircle01Icon}
+                          size={14}
+                          strokeWidth={1.5}
+                        />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                        onClick={() => onDelete(cat.id)}
+                        title="Delete"
+                      >
+                        <HugeiconsIcon icon={Delete01Icon} size={14} strokeWidth={1.5} />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-muted-foreground text-xs">
+            {filtered.length} result{filtered.length !== 1 ? "s" : ""}
+            {" "}· page {page} of {totalPages}
+          </span>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 w-8 p-0"
+              disabled={page === 1}
+              onClick={() => setPage((p) => p - 1)}
+            >
+              <HugeiconsIcon icon={ArrowLeft01Icon} size={14} strokeWidth={1.5} />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 w-8 p-0"
+              disabled={page === totalPages}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              <HugeiconsIcon icon={ArrowRight01Icon} size={14} strokeWidth={1.5} />
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 export function CategoryManagement() {
@@ -26,10 +206,23 @@ export function CategoryManagement() {
   const updateCategory = useUpdateCategory()
   const deleteCategory = useDeleteCategory()
 
-  const [sheetOpen, setSheetOpen] = useState(false)
+  const [sheetOpen, setSheetOpen]   = useState(false)
   const [editTarget, setEditTarget] = useState<ServiceCategory | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
-  const [form, setForm] = useState<CategoryForm>({ name: "", description: "", is_active: true })
+  const [toggling, setToggling]     = useState<string | null>(null)
+  const [form, setForm]             = useState<CategoryForm>({ name: "", description: "", is_active: true })
+
+  const { data: vcRows = [] } = useQuery({
+    queryKey: ["vendor-category-counts"],
+    queryFn: async () => {
+      const { data } = await supabase.from("vendor_categories").select("category_id")
+      return data ?? []
+    },
+  })
+  const vendorCount = (catId: string) => vcRows.filter((r) => r.category_id === catId).length
+
+  const activeCategories   = categories.filter((c) => c.is_active)
+  const dormantCategories  = categories.filter((c) => !c.is_active)
 
   function openCreate() {
     setEditTarget(null)
@@ -59,6 +252,18 @@ export function CategoryManagement() {
     }
   }
 
+  async function handleToggle(cat: ServiceCategory) {
+    setToggling(cat.id)
+    try {
+      await updateCategory.mutateAsync({ id: cat.id, is_active: !cat.is_active })
+      toast.success(cat.is_active ? "Category deactivated" : "Category activated")
+    } catch (e: unknown) {
+      toast.error((e as Error).message)
+    } finally {
+      setToggling(null)
+    }
+  }
+
   const saving = createCategory.isPending || updateCategory.isPending
 
   if (isLoading) return (
@@ -85,82 +290,81 @@ export function CategoryManagement() {
           </Button>
         </div>
 
-        {/* Stats bar */}
+        {/* Stats */}
         <div className="flex items-center gap-4 text-sm text-muted-foreground">
           <span className="flex items-center gap-1.5">
             <HugeiconsIcon icon={Tag01Icon} size={14} strokeWidth={1.5} />
             <span>{categories.length} total</span>
           </span>
           <span className="text-border">·</span>
-          <span>{categories.filter((c) => c.is_active).length} active</span>
+          <span className="text-green-600 font-medium">{activeCategories.length} active</span>
           <span className="text-border">·</span>
-          <span>{categories.filter((c) => !c.is_active).length} inactive</span>
+          <span>{dormantCategories.length} dormant</span>
         </div>
 
-        {/* Categories list */}
-        {categories.length === 0 ? (
-          <div className="rounded-xl border border-dashed p-12 text-center">
-            <HugeiconsIcon icon={Tag01Icon} size={32} strokeWidth={1.5} className="text-muted-foreground/30 mx-auto mb-3" />
-            <p className="text-sm font-medium text-muted-foreground">No categories yet</p>
-            <p className="text-xs text-muted-foreground/70 mt-1">Create your first category to get started.</p>
-            <Button size="sm" className="mt-4 gap-1.5" onClick={openCreate}>
-              <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={1.5} />
-              Add category
-            </Button>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-2">
-            {categories.map((cat, idx) => (
-              <Card key={cat.id} className={`shadow-none transition-colors hover:bg-accent/30 group ${idx % 2 === 0 ? "" : "bg-muted/15"}`}>
-                <CardContent className="flex items-center justify-between gap-4 py-4 px-5">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className={`p-1.5 rounded-lg shrink-0 ${cat.is_active ? "bg-primary/10" : "bg-muted"}`}>
-                      <HugeiconsIcon
-                        icon={Tag01Icon}
-                        size={15}
-                        strokeWidth={1.5}
-                        className={cat.is_active ? "text-primary" : "text-muted-foreground"}
-                      />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-medium">{cat.name}</p>
-                        <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
-                          cat.is_active
-                            ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                            : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"
-                        }`}>
-                          {cat.is_active ? "Active" : "Inactive"}
-                        </span>
-                      </div>
-                      {cat.description && (
-                        <p className="text-xs text-muted-foreground mt-0.5 truncate">{cat.description}</p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
-                      onClick={() => openEdit(cat)}
-                    >
-                      <HugeiconsIcon icon={Edit01Icon} size={14} strokeWidth={1.5} />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                      onClick={() => setDeleteTarget(cat.id)}
-                    >
-                      <HugeiconsIcon icon={Delete01Icon} size={14} strokeWidth={1.5} />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+        {/* Tabs */}
+        <Tabs defaultValue="active">
+          <TabsList className="h-9">
+            <TabsTrigger value="active" className="text-sm">
+              Active
+              {activeCategories.length > 0 && (
+                <span className="ml-1.5 rounded-full bg-primary/15 text-primary px-1.5 py-0.5 text-[11px] font-semibold">
+                  {activeCategories.length}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="dormant" className="text-sm">
+              Dormant
+              {dormantCategories.length > 0 && (
+                <span className="ml-1.5 rounded-full bg-muted text-muted-foreground px-1.5 py-0.5 text-[11px] font-semibold">
+                  {dormantCategories.length}
+                </span>
+              )}
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="active" className="mt-4">
+            {activeCategories.length === 0 ? (
+              <div className="rounded-xl border border-dashed p-12 text-center">
+                <HugeiconsIcon icon={Tag01Icon} size={32} strokeWidth={1.5} className="text-muted-foreground/30 mx-auto mb-3" />
+                <p className="text-sm font-medium text-muted-foreground">No active categories</p>
+                <p className="text-xs text-muted-foreground/70 mt-1">Create your first category to get started.</p>
+                <Button size="sm" className="mt-4 gap-1.5" onClick={openCreate}>
+                  <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={1.5} />
+                  Add category
+                </Button>
+              </div>
+            ) : (
+              <CategoryTable
+                categories={activeCategories}
+                vendorCount={vendorCount}
+                onEdit={openEdit}
+                onToggle={handleToggle}
+                onDelete={setDeleteTarget}
+                toggling={toggling}
+              />
+            )}
+          </TabsContent>
+
+          <TabsContent value="dormant" className="mt-4">
+            {dormantCategories.length === 0 ? (
+              <div className="rounded-xl border border-dashed p-12 text-center">
+                <HugeiconsIcon icon={Tag01Icon} size={32} strokeWidth={1.5} className="text-muted-foreground/30 mx-auto mb-3" />
+                <p className="text-sm font-medium text-muted-foreground">No dormant categories</p>
+                <p className="text-xs text-muted-foreground/70 mt-1">Deactivated categories will appear here.</p>
+              </div>
+            ) : (
+              <CategoryTable
+                categories={dormantCategories}
+                vendorCount={vendorCount}
+                onEdit={openEdit}
+                onToggle={handleToggle}
+                onDelete={setDeleteTarget}
+                toggling={toggling}
+              />
+            )}
+          </TabsContent>
+        </Tabs>
       </div>
 
       {/* Create / Edit Sheet */}
@@ -213,7 +417,7 @@ export function CategoryManagement() {
         title="Delete category"
         description="This will delete the category. Vendors already assigned to it will be unaffected."
         confirmLabel="Delete"
-        variant="destructive"
+        variant="danger"
         onConfirm={() => {
           if (!deleteTarget) return
           deleteCategory.mutate(deleteTarget, {

@@ -7,11 +7,18 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import type { OnboardingData } from "./OnboardingWizard"
 
+const GST_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/
+const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/
+
 const schema = z.object({
-  tax_gst_number: z.string().optional(),
+  tax_gst_number: z.string()
+    .optional()
+    .refine((v) => !v || GST_REGEX.test(v), { message: "Enter a valid 15-character GSTIN (e.g. 22AAAAA0000A1Z5)" }),
   bank_name: z.string().optional(),
   bank_account_number: z.string().optional(),
-  bank_routing_number: z.string().optional(),
+  bank_routing_number: z.string()
+    .optional()
+    .refine((v) => !v || v.length < 8 || IFSC_REGEX.test(v), { message: "Enter a valid IFSC code (e.g. SBIN0001234)" }),
 })
 type FormData = z.infer<typeof schema>
 
@@ -22,7 +29,7 @@ interface Props {
 }
 
 export function Step2TaxBanking({ defaultValues, onNext, onBack }: Props) {
-  const { register, handleSubmit } = useForm<FormData>({
+  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues,
   })
@@ -37,7 +44,8 @@ export function Step2TaxBanking({ defaultValues, onNext, onBack }: Props) {
         <CardContent className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
             <Label>Tax / GST number</Label>
-            <Input placeholder="GST123456789" {...register("tax_gst_number")} />
+            <Input placeholder="22AAAAA0000A1Z5" {...register("tax_gst_number")} />
+            {errors.tax_gst_number && <p className="text-xs text-destructive">{errors.tax_gst_number.message}</p>}
           </div>
           <div className="flex flex-col gap-1.5">
             <Label>Bank name</Label>
@@ -49,7 +57,8 @@ export function Step2TaxBanking({ defaultValues, onNext, onBack }: Props) {
           </div>
           <div className="flex flex-col gap-1.5">
             <Label>Routing / SWIFT / IFSC</Label>
-            <Input placeholder="NBNK0001234" {...register("bank_routing_number")} />
+            <Input placeholder="SBIN0001234" {...register("bank_routing_number")} />
+            {errors.bank_routing_number && <p className="text-xs text-destructive">{errors.bank_routing_number.message}</p>}
           </div>
           <div className="flex gap-2 mt-2">
             <Button type="button" variant="outline" className="flex-1" onClick={onBack}>Back</Button>

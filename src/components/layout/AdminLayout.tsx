@@ -15,14 +15,32 @@ import {
   Logout01Icon,
   Menu01Icon,
   Building06Icon,
+  Briefcase01Icon,
+  Invoice01Icon,
+  DeliveryBox01Icon,
+  Invoice02Icon,
+  File01Icon,
 } from "@hugeicons/core-free-icons"
 
-const navItems = [
-  { label: "Dashboard", to: "/admin/dashboard", icon: DashboardSquare01Icon },
-  { label: "Vendors",   to: "/admin/vendors",   icon: UserGroup02Icon },
-  { label: "Categories",to: "/admin/categories",icon: Tag01Icon },
-  { label: "Reports",   to: "/admin/reports",   icon: BarChartIcon },
+type NavLink = { type: "link"; label: string; to: string; icon: React.ElementType }
+type NavGroup = { type: "group"; label: string }
+type NavEntry = NavLink | NavGroup
+
+const navEntries: NavEntry[] = [
+  { type: "link",  label: "Dashboard",      to: "/admin/dashboard",       icon: DashboardSquare01Icon },
+  { type: "link",  label: "Vendors",        to: "/admin/vendors",         icon: UserGroup02Icon },
+  { type: "link",  label: "Categories",     to: "/admin/categories",      icon: Tag01Icon },
+  { type: "link",  label: "Reports",        to: "/admin/reports",         icon: BarChartIcon },
+  { type: "group", label: "Legal" },
+  { type: "link",  label: "Contracts",      to: "/admin/contracts",       icon: File01Icon },
+  { type: "group", label: "Procurement" },
+  { type: "link",  label: "Engagements",    to: "/admin/engagements",     icon: Briefcase01Icon },
+  { type: "link",  label: "Purchase Orders",to: "/admin/purchase-orders", icon: Invoice01Icon },
+  { type: "link",  label: "GRNs",           to: "/admin/grns",            icon: DeliveryBox01Icon },
+  { type: "link",  label: "Invoices",       to: "/admin/invoices",        icon: Invoice02Icon },
 ]
+
+const navLinks = navEntries.filter((e): e is NavLink => e.type === "link")
 
 function SidebarContent({ pathname, onNavClick, email }: { pathname: string; onNavClick?: () => void; email?: string }) {
   const { signOut } = useAuth()
@@ -46,8 +64,19 @@ function SidebarContent({ pathname, onNavClick, email }: { pathname: string; onN
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-2.5 space-y-0.5">
-        {navItems.map(({ label, to, icon }) => {
+      <nav className="flex-1 px-2.5 space-y-0.5 overflow-y-auto">
+        {navEntries.map((entry) => {
+          if (entry.type === "group") {
+            return (
+              <p
+                key={entry.label}
+                className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50"
+              >
+                {entry.label}
+              </p>
+            )
+          }
+          const { label, to, icon } = entry
           const active = pathname.startsWith(to)
           return (
             <Link
@@ -57,7 +86,7 @@ function SidebarContent({ pathname, onNavClick, email }: { pathname: string; onN
               className={cn(
                 "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150",
                 active
-                  ? "bg-primary text-primary-foreground shadow-sm"
+                  ? "bg-[image:var(--brand-gradient)] text-white shadow-sm"
                   : "text-muted-foreground hover:bg-accent hover:text-foreground"
               )}
             >
@@ -111,7 +140,7 @@ export function AdminLayout() {
   const { profile } = useAuth()
   const { pathname } = useLocation()
   const [mobileOpen, setMobileOpen] = useState(false)
-  const currentLabel = navItems.find((n) => pathname.startsWith(n.to))?.label ?? "Admin"
+  const currentLabel = navLinks.find((n) => pathname.startsWith(n.to))?.label ?? "Admin"
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">

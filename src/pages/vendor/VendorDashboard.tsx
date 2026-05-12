@@ -1,5 +1,7 @@
 import { Link } from "react-router-dom"
 import { useVendor } from "@/hooks/useVendor"
+import { useContracts } from "@/hooks/useContracts"
+import { useEngagements } from "@/hooks/useEngagements"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { RatingStars } from "@/components/shared/RatingStars"
 import { AnimatedPage } from "@/components/shared/AnimatedPage"
@@ -12,23 +14,35 @@ import {
   AlertCircleIcon,
   CheckmarkCircle01Icon,
   Clock01Icon,
-  Tag01Icon,
   UserCircleIcon,
   Refresh01Icon,
   ChartBarIncreasingIcon,
+  ContractsIcon,
+  Activity01Icon,
 } from "@hugeicons/core-free-icons"
 import { differenceInDays, format } from "date-fns"
 
 export function VendorDashboard() {
   const { data: vendor, isLoading } = useVendor()
+  const { data: contracts = [], isLoading: contractsLoading } = useContracts(
+    vendor?.id ? { vendor_id: vendor.id } : undefined
+  )
+  const { data: engagements = [], isLoading: engagementsLoading } = useEngagements(
+    vendor?.id ? { vendor_id: vendor.id } : undefined
+  )
 
   if (isLoading) {
     return (
       <div className="p-6 space-y-6">
         <div className="h-8 w-48 rounded-md bg-muted animate-pulse" />
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {[1, 2, 3].map((i) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {[1, 2].map((i) => (
             <div key={i} className="h-24 rounded-xl bg-muted animate-pulse" />
+          ))}
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {[1, 2].map((i) => (
+            <div key={i} className="h-36 rounded-xl bg-muted animate-pulse" />
           ))}
         </div>
         <div className="h-48 rounded-xl bg-muted animate-pulse" />
@@ -69,6 +83,26 @@ export function VendorDashboard() {
     vendor.status === "action_required" ||
     (daysToRenewal !== null && daysToRenewal <= 30 && daysToRenewal >= 0)
 
+  // Contracts summary
+  const activeContracts = contracts.filter((c) => c.status === "active")
+  const dormantContracts = contracts.filter((c) => c.status === "expired" || c.status === "terminated")
+  const expiringSoon = activeContracts.filter((c) => {
+    if (!c.expiry_date) return false
+    const d = differenceInDays(new Date(c.expiry_date), new Date())
+    return d >= 0 && d <= 30
+  })
+  const renewalPending = activeContracts.filter((c) => {
+    if (!c.expiry_date || !c.auto_renew) return false
+    const d = differenceInDays(new Date(c.expiry_date), new Date())
+    return d >= 0 && d <= (c.renewal_notice_days ?? 30)
+  })
+
+  // Engagements summary
+  const activeEngagements  = engagements.filter((e) => e.status === "approved")
+  const pendingEngagements = engagements.filter((e) => e.status === "pending_approval")
+  const closedEngagements  = engagements.filter((e) => e.status === "completed" || e.status === "cancelled")
+  const recentEngagement   = engagements[0] ?? null
+
   return (
     <AnimatedPage>
       <div className="p-6 space-y-6">
@@ -80,8 +114,9 @@ export function VendorDashboard() {
 
         {/* Renewal alert banner */}
         {showRenewalAlert && (
-          <div className="relative overflow-hidden rounded-xl border border-orange-200 bg-gradient-to-r from-orange-50 to-amber-50 p-4">
-            <div className="flex items-start gap-3">
+          <div className="relative overflow-hidden rounded-xl border border-amber-200 bg-amber-50/60 dark:bg-amber-950/20 dark:border-amber-800 p-4">
+            <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-xl" style={{ background: "var(--gradient-warning)" }} />
+            <div className="flex items-start gap-3 pl-3">
               <div className="mt-0.5 h-8 w-8 rounded-full bg-orange-100 flex items-center justify-center shrink-0">
                 <HugeiconsIcon icon={AlertCircleIcon} size={18} strokeWidth={1.5} className="text-orange-600" />
               </div>
@@ -95,15 +130,15 @@ export function VendorDashboard() {
                   Please review the updated T&C and upload a new Certificate of Insurance.
                 </p>
               </div>
-              <Button asChild size="sm" className="shrink-0 bg-orange-600 hover:bg-orange-700 text-white border-0">
+              <Button asChild size="sm" variant="danger" className="shrink-0">
                 <Link to="/vendor/renewal">Renew now</Link>
               </Button>
             </div>
           </div>
         )}
 
-        {/* Stat cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {/* Stat cards — Status + Renewal Date */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {/* Status card */}
           <Card>
             <CardContent className="pt-5 pb-4">
@@ -119,23 +154,6 @@ export function VendorDashboard() {
                   <RatingStars value={Math.round(avgRating)} size="sm" />
                   <span className="text-xs text-muted-foreground">({avgRating.toFixed(1)})</span>
                 </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Vendor ID card */}
-          <Card>
-            <CardContent className="pt-5 pb-4">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Vendor ID</span>
-                <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <HugeiconsIcon icon={UserCircleIcon} size={16} strokeWidth={1.5} className="text-primary" />
-                </div>
-              </div>
-              {vendor.vendor_id_code ? (
-                <p className="text-lg font-mono font-bold tracking-tight">{vendor.vendor_id_code}</p>
-              ) : (
-                <p className="text-sm text-muted-foreground">Not assigned yet</p>
               )}
             </CardContent>
           </Card>
@@ -160,6 +178,96 @@ export function VendorDashboard() {
                 </>
               ) : (
                 <p className="text-sm text-muted-foreground">Not set</p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Summary cards — Contracts + Engagements */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Contracts Summary */}
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <HugeiconsIcon icon={ContractsIcon} size={16} strokeWidth={1.5} className="text-primary" />
+                  <CardTitle className="text-base">Contracts</CardTitle>
+                </div>
+                <Button asChild variant="ghost" size="sm" className="h-7 text-xs text-primary">
+                  <Link to="/vendor/contracts">View all</Link>
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {contractsLoading ? (
+                <div className="space-y-2">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div key={i} className="h-5 rounded bg-muted animate-pulse" />
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Active</span>
+                    <span className="font-semibold">{activeContracts.length}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Expiring Soon</span>
+                    <span className={`font-semibold ${expiringSoon.length > 0 ? "text-orange-600" : ""}`}>
+                      {expiringSoon.length}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Dormant</span>
+                    <span className="font-semibold">{dormantContracts.length}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Renewal Pending</span>
+                    <span className={`font-semibold ${renewalPending.length > 0 ? "text-orange-600" : ""}`}>
+                      {renewalPending.length}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Engagement Summary */}
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-2">
+                <HugeiconsIcon icon={Activity01Icon} size={16} strokeWidth={1.5} className="text-primary" />
+                <CardTitle className="text-base">Engagements</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {engagementsLoading ? (
+                <div className="space-y-2">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div key={i} className="h-5 rounded bg-muted animate-pulse" />
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Active</span>
+                    <span className="font-semibold">{activeEngagements.length}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Pending</span>
+                    <span className="font-semibold">{pendingEngagements.length}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Closed</span>
+                    <span className="font-semibold">{closedEngagements.length}</span>
+                  </div>
+                  {recentEngagement && (
+                    <div className="pt-1 border-t border-border/50 mt-1">
+                      <p className="text-xs text-muted-foreground">Latest activity</p>
+                      <p className="text-xs font-medium truncate mt-0.5">{recentEngagement.title}</p>
+                    </div>
+                  )}
+                </div>
               )}
             </CardContent>
           </Card>
@@ -216,30 +324,6 @@ export function VendorDashboard() {
             </Button>
           </CardContent>
         </Card>
-
-        {/* Categories */}
-        {vendor.vendor_categories && vendor.vendor_categories.length > 0 && (
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center gap-2">
-                <HugeiconsIcon icon={Tag01Icon} size={16} strokeWidth={1.5} className="text-primary" />
-                <CardTitle className="text-base">Service Categories</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-2">
-                {vendor.vendor_categories.map((vc) => (
-                  <span
-                    key={vc.id}
-                    className="rounded-full bg-primary/10 text-primary px-3 py-1 text-xs font-medium border border-primary/20"
-                  >
-                    {vc.service_categories?.name}
-                  </span>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
       </div>
     </AnimatedPage>
   )

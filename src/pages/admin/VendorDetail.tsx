@@ -44,13 +44,13 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react"
 import { toast } from "sonner"
 
-type ActionConfig = { label: string; status: VendorStatus; variant: "default" | "destructive" | "outline" | "secondary" }
+type ActionConfig = { label: string; status: VendorStatus; variant: "default" | "success" | "danger" | "outline" | "secondary" }
 
 const ALL_ACTIONS: ActionConfig[] = [
-  { label: "Approve",      status: "active",          variant: "default" },
+  { label: "Approve",      status: "active",          variant: "success" },
   { label: "Request Info", status: "pending_review",  variant: "outline" },
-  { label: "Suspend",      status: "suspended",       variant: "destructive" },
-  { label: "Reject",       status: "rejected",        variant: "destructive" },
+  { label: "Suspend",      status: "suspended",       variant: "danger" },
+  { label: "Reject",       status: "rejected",        variant: "danger" },
 ]
 
 export function VendorDetail() {
@@ -577,7 +577,7 @@ export function VendorDetail() {
             </DialogHeader>
             <div className="space-y-2">
               <Label className="text-sm">
-                Admin notes {actionDialog?.variant === "destructive" ? "(required)" : "(optional)"}
+                Admin notes {actionDialog?.variant === "danger" ? "(required)" : "(optional)"}
               </Label>
               <Textarea
                 placeholder="Add a note for the vendor or internal records…"
@@ -592,11 +592,11 @@ export function VendorDetail() {
                 Cancel
               </Button>
               <Button
-                variant={actionDialog?.variant === "destructive" ? "destructive" : "default"}
+                variant={actionDialog?.variant ?? "default"}
                 onClick={handleStatusChange}
                 disabled={
                   updateStatus.isPending ||
-                  (actionDialog?.variant === "destructive" && !adminNotes.trim())
+                  (actionDialog?.variant === "danger" && !adminNotes.trim())
                 }
               >
                 {updateStatus.isPending ? "Processing…" : actionDialog?.label}

@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { useNavigate, Link } from "react-router-dom"
 import { supabase } from "@/lib/supabase"
+import { INTERNAL_ROLES } from "@/hooks/usePermissions"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -26,26 +27,36 @@ export function LoginForm() {
 
   async function onSubmit(data: FormData) {
     setLoading(true)
-    const { error } = await supabase.auth.signInWithPassword({
-      email: data.email,
-      password: data.password,
-    })
-    setLoading(false)
+    try {
+      const { error, data: authData } = await supabase.auth.signInWithPassword({
+        email: data.email,
+        password: data.password,
+      })
 
-    if (error) {
-      toast.error(error.message)
-      return
+      if (error) {
+        toast.error(error.message)
+        return
+      }
+
+      const userId = authData.user?.id
+      if (!userId) {
+        toast.error("Authentication failed. Please try again.")
+        return
+      }
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", userId)
+        .single()
+
+      const isInternal = profile?.role && INTERNAL_ROLES.includes(profile.role as never)
+      navigate(isInternal ? "/admin/dashboard" : "/vendor/dashboard")
+    } catch {
+      toast.error("An unexpected error occurred. Please try again.")
+    } finally {
+      setLoading(false)
     }
-
-    // Fetch profile to determine role
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", (await supabase.auth.getUser()).data.user?.id ?? "")
-      .single()
-
-    if (profile?.role === "admin") navigate("/admin/dashboard")
-    else navigate("/vendor/dashboard")
   }
 
   return (
