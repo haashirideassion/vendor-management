@@ -86,7 +86,7 @@ export function GRNList() {
       vendor_id:     data.vendor_id,
       received_date: data.received_date,
       notes:         data.notes || undefined,
-      line_items:    data.line_items.map((item) => ({ ...item, unit: item.unit ?? null })),
+      line_items:    data.line_items.map((item) => ({ ...item, unit: item.unit ?? null, po_line_item_id: item.po_line_item_id ?? null })),
     })
     setCreating(false)
     form.reset()
