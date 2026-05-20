@@ -8,7 +8,6 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { cn } from "@/lib/utils"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
-  DashboardSquare01Icon,
   UserGroup02Icon,
   Tag01Icon,
   BarChartIcon,
@@ -22,22 +21,21 @@ import {
   File01Icon,
 } from "@hugeicons/core-free-icons"
 
-type NavLink = { type: "link"; label: string; to: string; icon: typeof DashboardSquare01Icon }
+type NavLink = { type: "link"; label: string; to: string; icon: typeof File01Icon }
 type NavGroup = { type: "group"; label: string }
 type NavEntry = NavLink | NavGroup
 
 const navEntries: NavEntry[] = [
-  { type: "link",  label: "Dashboard",      to: "/admin/dashboard",       icon: DashboardSquare01Icon },
-  { type: "link",  label: "Vendors",        to: "/admin/vendors",         icon: UserGroup02Icon },
-  { type: "link",  label: "Categories",     to: "/admin/categories",      icon: Tag01Icon },
-  { type: "link",  label: "Reports",        to: "/admin/reports",         icon: BarChartIcon },
-  { type: "group", label: "Legal" },
-  { type: "link",  label: "Contracts",      to: "/admin/contracts",       icon: File01Icon },
+  { type: "link",  label: "Vendors",         to: "/admin/vendors",         icon: UserGroup02Icon },
+  { type: "link",  label: "Categories",      to: "/admin/categories",      icon: Tag01Icon },
+  { type: "link",  label: "Reports",         to: "/admin/reports",         icon: BarChartIcon },
   { type: "group", label: "Procurement" },
-  { type: "link",  label: "Engagements",    to: "/admin/engagements",     icon: Briefcase01Icon },
-  { type: "link",  label: "Purchase Orders",to: "/admin/purchase-orders", icon: Invoice01Icon },
-  { type: "link",  label: "GRNs",           to: "/admin/grns",            icon: DeliveryBox01Icon },
-  { type: "link",  label: "Invoices",       to: "/admin/invoices",        icon: Invoice02Icon },
+  { type: "link",  label: "Engagements",     to: "/admin/engagements",     icon: Briefcase01Icon },
+  { type: "link",  label: "Purchase Orders", to: "/admin/purchase-orders", icon: Invoice01Icon },
+  { type: "link",  label: "GRNs",            to: "/admin/grns",            icon: DeliveryBox01Icon },
+  { type: "link",  label: "Invoices",        to: "/admin/invoices",        icon: Invoice02Icon },
+  { type: "group", label: "Legal" },
+  { type: "link",  label: "Contracts",       to: "/admin/contracts",       icon: File01Icon },
 ]
 
 const navLinks = navEntries.filter((e): e is NavLink => e.type === "link")

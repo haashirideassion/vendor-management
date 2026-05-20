@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { useParams, Link } from "react-router-dom"
+import { CreateGRNDialog } from "@/components/shared/CreateGRNDialog"
 import { usePurchaseOrder, useIssuePurchaseOrder, useUpdatePOStatus } from "@/hooks/usePurchaseOrders"
 import { useGRNs } from "@/hooks/useGRNs"
 import { useInvoices } from "@/hooks/useInvoices"
@@ -27,6 +28,7 @@ export function PurchaseOrderDetail() {
   const { id } = useParams<{ id: string }>()
 
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
+  const [showGRNDialog, setShowGRNDialog] = useState(false)
 
   const { data: po, isLoading }  = usePurchaseOrder(id!)
   const { data: grns = [] }      = useGRNs({ po_id: id })
@@ -93,8 +95,8 @@ export function PurchaseOrderDetail() {
             </Button>
           )}
           {po.status === "issued" && canRecordGRN && (
-            <Button asChild size="sm" variant="outline">
-              <Link to={`/admin/grns?po_id=${po.id}`}>Record GRN</Link>
+            <Button size="sm" variant="outline" onClick={() => setShowGRNDialog(true)}>
+              Record GRN
             </Button>
           )}
           {["draft", "issued"].includes(po.status) && canCreatePO && (
@@ -248,6 +250,13 @@ export function PurchaseOrderDetail() {
           </div>
         </div>
       </div>
+
+      <CreateGRNDialog
+        open={showGRNDialog}
+        onOpenChange={setShowGRNDialog}
+        defaultPOId={po.id}
+        defaultVendorId={po.vendor_id ?? undefined}
+      />
 
       <ConfirmDialog
         open={showCancelConfirm}

@@ -1,23 +1,32 @@
 import { useState } from "react"
 import { useParams, Link } from "react-router-dom"
 import { useEngagement, useUpdateEngagementStatus } from "@/hooks/useEngagements"
-import { usePurchaseOrders } from "@/hooks/usePurchaseOrders"
+import { usePurchaseOrders, useCreatePurchaseOrder } from "@/hooks/usePurchaseOrders"
 import { useApprovalRequests, useRequestApproval, useReviewApproval } from "@/hooks/useApprovalWorkflow"
+import { useEngagementQuotations } from "@/hooks/useQuotations"
 import { usePermissions } from "@/hooks/usePermissions"
 import { toast } from "sonner"
 import { AnimatedPage } from "@/components/shared/AnimatedPage"
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { ENGAGEMENT_STATUS_LABELS, ENGAGEMENT_STATUS_COLORS, PO_STATUS_COLORS, PO_STATUS_LABELS } from "@/lib/constants"
+import { ENGAGEMENT_STATUS_LABELS, ENGAGEMENT_STATUS_COLORS, PO_STATUS_COLORS, PO_STATUS_LABELS, QUOTATION_STATUS_COLORS, QUOTATION_STATUS_LABELS } from "@/lib/constants"
 import { formatCurrency } from "@/lib/utils"
 import { format } from "date-fns"
 import { CheckmarkCircle01Icon, Cancel01Icon, ArrowLeft01Icon, Add01Icon, EyeIcon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
-import type { EngagementStatus, POStatus } from "@/lib/types"
+import type { EngagementStatus, POStatus, QuotationStatus, QuotationLineItem } from "@/lib/types"
+
+interface SelectedItem {
+  quotation_id: string
+  vendor_id: string
+  line: QuotationLineItem
+}
 
 type ActionDialog = "submit" | "approve" | "reject" | null
 
@@ -25,21 +34,73 @@ export function EngagementDetail() {
   const { id } = useParams<{ id: string }>()
   const [dialog, setDialog] = useState<ActionDialog>(null)
   const [notes, setNotes]   = useState("")
+  const [selectedItems, setSelectedItems] = useState<Map<string, SelectedItem>>(new Map())
+  const [showPOConfirm, setShowPOConfirm] = useState(false)
 
   const { data: engagement, isLoading } = useEngagement(id!)
   const { data: pos = [] }              = usePurchaseOrders({ engagement_id: id })
   const { data: approvals = [] }        = useApprovalRequests("engagement", id!)
+  const { data: quotations = [] }       = useEngagementQuotations(id)
   const updateStatus   = useUpdateEngagementStatus()
   const requestApproval = useRequestApproval()
   const reviewApproval  = useReviewApproval()
-  const { canApproveEngagement, canCreateEngagement } = usePermissions()
+  const createPO        = useCreatePurchaseOrder()
+  const { canApproveEngagement, canCreateEngagement, canCreatePO } = usePermissions()
+
+  function toggleLineItem(lineItemId: string, item: SelectedItem) {
+    setSelectedItems((prev) => {
+      const next = new Map(prev)
+      if (next.has(lineItemId)) {
+        next.delete(lineItemId)
+      } else {
+        next.set(lineItemId, item)
+      }
+      return next
+    })
+  }
+
+  async function handleCreatePOs() {
+    if (!engagement) return
+    const byVendor = new Map<string, SelectedItem[]>()
+    for (const item of selectedItems.values()) {
+      const group = byVendor.get(item.vendor_id) ?? []
+      group.push(item)
+      byVendor.set(item.vendor_id, group)
+    }
+
+    const results = await Promise.allSettled(
+      Array.from(byVendor.entries()).map(([vendorId, items]) =>
+        createPO.mutateAsync({
+          engagement_id: id!,
+          vendor_id:     vendorId,
+          total_value:   items.reduce((s, i) => s + i.line.total, 0),
+          currency:      engagement.currency,
+          line_items:    items.map((i) => ({
+            description: i.line.description,
+            quantity:    i.line.quantity,
+            unit_price:  i.line.unit_price,
+            unit:        null,
+          })),
+        })
+      )
+    )
+
+    const succeeded = results.filter((r) => r.status === "fulfilled").length
+    const failed    = results.filter((r) => r.status === "rejected").length
+
+    if (succeeded > 0) toast.success(`${succeeded} PO${succeeded !== 1 ? "s" : ""} created`)
+    if (failed    > 0) toast.error(`${failed} PO${failed !== 1 ? "s" : ""} failed to create`)
+
+    setSelectedItems(new Map())
+    setShowPOConfirm(false)
+  }
 
   const pendingApproval = approvals.find((a) => a.status === "pending")
 
   async function handleSubmitForApproval() {
     if (!id || !engagement) return
     try {
-      await requestApproval.mutateAsync({ entityType: "engagement", entityId: id, amount: engagement.estimated_value, notes })
+      await requestApproval.mutateAsync({ entityType: "engagement", entityId: id, amount: engagement.estimated_value ?? undefined, notes })
       await updateStatus.mutateAsync({ id, status: "pending_approval" })
       setDialog(null); setNotes("")
       toast.success("Engagement submitted for approval.")
@@ -163,7 +224,9 @@ export function EngagementDetail() {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground mb-0.5">Estimated Value</p>
-                  <p className="font-medium tabular-nums">{formatCurrency(engagement.estimated_value, engagement.currency)}</p>
+                  <p className="font-medium tabular-nums">
+                    {engagement.estimated_value != null ? formatCurrency(engagement.estimated_value, engagement.currency) : "—"}
+                  </p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground mb-0.5">Currency</p>
@@ -262,6 +325,75 @@ export function EngagementDetail() {
             </CardContent>
           </Card>
         )}
+
+        {/* Vendor Quotations */}
+        {quotations.length > 0 && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-semibold tracking-tight">Vendor Quotations</h2>
+              {selectedItems.size > 0 && canCreatePO && (
+                <Button size="sm" onClick={() => setShowPOConfirm(true)}>
+                  <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" className="mr-1.5" />
+                  Send PO to Vendors ({selectedItems.size} item{selectedItems.size !== 1 ? "s" : ""})
+                </Button>
+              )}
+            </div>
+            {quotations.map((quot) => (
+              <Card key={quot.id}>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-sm font-semibold">{quot.vendor?.company_name ?? "Vendor"}</CardTitle>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs text-muted-foreground">{quot.quot_number}</span>
+                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border ${QUOTATION_STATUS_COLORS[quot.status as QuotationStatus]}`}>
+                        {QUOTATION_STATUS_LABELS[quot.status as QuotationStatus]}
+                      </span>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {quot.notes && <p className="text-sm text-muted-foreground">{quot.notes}</p>}
+                  {(quot.line_items ?? []).length > 0 && (
+                    <div className="space-y-1">
+                      <div className="grid grid-cols-12 gap-2 text-xs text-muted-foreground font-medium px-1 pb-1">
+                        <span className="col-span-1" />
+                        <span className="col-span-4">Description</span>
+                        <span className="col-span-2 text-right">Qty</span>
+                        <span className="col-span-2 text-right">Rate</span>
+                        <span className="col-span-1 text-right">Tax</span>
+                        <span className="col-span-2 text-right">Total</span>
+                      </div>
+                      {(quot.line_items ?? []).map((li) => (
+                        <div key={li.id} className="grid grid-cols-12 gap-2 items-center py-1 border-b border-border/50 text-sm">
+                          <div className="col-span-1 flex justify-center">
+                            <Checkbox
+                              checked={selectedItems.has(li.id)}
+                              onCheckedChange={() => toggleLineItem(li.id, {
+                                quotation_id: quot.id,
+                                vendor_id:    quot.vendor_id,
+                                line:         li,
+                              })}
+                            />
+                          </div>
+                          <div className="col-span-4">{li.description}</div>
+                          <div className="col-span-2 text-right tabular-nums">{li.quantity}</div>
+                          <div className="col-span-2 text-right tabular-nums">{formatCurrency(li.unit_price, engagement.currency)}</div>
+                          <div className="col-span-1 text-right text-muted-foreground">{li.tax_rate}%</div>
+                          <div className="col-span-2 text-right font-medium tabular-nums">{formatCurrency(li.total, engagement.currency)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {quot.total_amount != null && (
+                    <div className="flex justify-end pt-1">
+                      <p className="text-sm font-semibold">Total: {formatCurrency(quot.total_amount, engagement.currency)}</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Submit for Approval dialog */}
@@ -317,6 +449,17 @@ export function EngagementDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={showPOConfirm}
+        onOpenChange={setShowPOConfirm}
+        title="Create Purchase Orders"
+        description={`This will create ${new Set(Array.from(selectedItems.values()).map((i) => i.vendor_id)).size} PO(s) from the selected line items. This action cannot be undone.`}
+        confirmLabel="Create POs"
+        variant="default"
+        loading={createPO.isPending}
+        onConfirm={handleCreatePOs}
+      />
     </AnimatedPage>
   )
 }

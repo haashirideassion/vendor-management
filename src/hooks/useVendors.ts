@@ -66,6 +66,30 @@ export function useVendorById(id: string | undefined) {
   })
 }
 
+export function useVendorsByCategories(categoryIds: string[]) {
+  return useQuery({
+    queryKey: ["vendors", "by-categories", categoryIds],
+    enabled: categoryIds.length > 0,
+    queryFn: async () => {
+      const { data: vc } = await supabase
+        .from("vendor_categories")
+        .select("vendor_id")
+        .in("category_id", categoryIds)
+      const vendorIds = [...new Set((vc ?? []).map((r) => r.vendor_id))]
+      if (vendorIds.length === 0) return []
+
+      const { data, error } = await supabase
+        .from("vendors")
+        .select("id, company_name, contact_name")
+        .in("id", vendorIds)
+        .eq("status", "active")
+        .order("company_name")
+      if (error) throw error
+      return data as Pick<Vendor, "id" | "company_name" | "contact_name">[]
+    },
+  })
+}
+
 export function useUpdateVendorStatus() {
   const qc = useQueryClient()
   return useMutation({

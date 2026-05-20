@@ -44,7 +44,7 @@ export const VENDOR_STATUSES: VendorStatus[] = [
 
 // ─── Procurement status labels & colors ───────────────────────────────────────
 
-import type { EngagementStatus, POStatus, GRNStatus, InvoiceStatus, MatchStatus } from "./types"
+import type { EngagementStatus, POStatus, GRNStatus, InvoiceStatus, MatchStatus, RFQStatus, QuotationStatus } from "./types"
 
 export const ENGAGEMENT_STATUS_LABELS: Record<EngagementStatus, string> = {
   draft: "Draft",
@@ -127,6 +127,34 @@ export const MATCH_STATUS_COLORS: Record<MatchStatus, string> = {
 }
 
 export const CURRENCIES = ["INR", "USD", "EUR", "GBP", "AED"] as const
+
+export const RFQ_STATUS_LABELS: Record<RFQStatus, string> = {
+  pending:   "Pending",
+  viewed:    "Viewed",
+  responded: "Responded",
+  closed:    "Closed",
+}
+
+export const RFQ_STATUS_COLORS: Record<RFQStatus, string> = {
+  pending:   "bg-yellow-100 text-yellow-800 border-yellow-200",
+  viewed:    "bg-blue-100 text-blue-800 border-blue-200",
+  responded: "bg-green-100 text-green-800 border-green-200",
+  closed:    "bg-gray-100 text-gray-500 border-gray-200",
+}
+
+export const QUOTATION_STATUS_LABELS: Record<QuotationStatus, string> = {
+  draft:     "Draft",
+  submitted: "Submitted",
+  accepted:  "Accepted",
+  rejected:  "Rejected",
+}
+
+export const QUOTATION_STATUS_COLORS: Record<QuotationStatus, string> = {
+  draft:     "bg-gray-100 text-gray-700 border-gray-200",
+  submitted: "bg-yellow-100 text-yellow-800 border-yellow-200",
+  accepted:  "bg-green-100 text-green-800 border-green-200",
+  rejected:  "bg-red-100 text-red-700 border-red-200",
+}
 
 // ─── Contract labels & colors ─────────────────────────────────────────────────
 
