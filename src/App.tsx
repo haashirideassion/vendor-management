@@ -29,7 +29,6 @@ import { VendorRFQ } from "@/pages/vendor/VendorRFQ"
 import { VendorRFQDetail } from "@/pages/vendor/VendorRFQDetail"
 
 // Admin pages
-import { AdminDashboard } from "@/pages/admin/AdminDashboard"
 import { VendorList } from "@/pages/admin/VendorList"
 import { VendorDetail } from "@/pages/admin/VendorDetail"
 import { CategoryManagement } from "@/pages/admin/CategoryManagement"
