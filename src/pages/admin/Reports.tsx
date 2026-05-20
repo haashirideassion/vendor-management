@@ -287,6 +287,41 @@ export function Reports() {
             </Card>
           </div>
 
+          {/* Contract expiry alerts — moved before spend charts */}
+          {expiring.length > 0 && (
+            <Card className="shadow-none border-orange-200 dark:border-orange-900/50">
+              <CardHeader className="pb-3 border-b border-orange-100 dark:border-orange-900/30">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-semibold flex items-center gap-2 text-orange-700 dark:text-orange-400">
+                    <HugeiconsIcon icon={AlertCircleIcon} size={16} strokeWidth={1.5} />
+                    Contracts Expiring in 60 Days ({expiring.length})
+                  </CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-3">
+                <div className="flex flex-col divide-y divide-border/60">
+                  {expiring.map((c) => (
+                    <div key={c.id} className="flex items-center justify-between py-3 gap-4">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={`w-2 h-2 rounded-full shrink-0 ${c.daysLeft <= 14 ? "bg-red-500" : "bg-orange-400"}`} />
+                        <div className="min-w-0">
+                          <Link to={`/admin/contracts/${c.id}`} className="text-sm font-medium hover:underline block truncate">{c.title}</Link>
+                          {c.contract_ref && <span className="font-mono text-[11px] text-muted-foreground">{c.contract_ref}</span>}
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-sm tabular-nums">{format(new Date(c.expiry_date), "dd MMM yyyy")}</p>
+                        <p className={`text-xs font-semibold tabular-nums ${c.daysLeft <= 14 ? "text-red-600" : "text-orange-600"}`}>
+                          In {c.daysLeft} day{c.daysLeft !== 1 ? "s" : ""}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Monthly Spend */}
           <Card className="shadow-none">
             <CardHeader className="pb-3 border-b">
@@ -423,40 +458,6 @@ export function Reports() {
             </Card>
           )}
 
-          {/* Contract expiry alerts */}
-          {expiring.length > 0 && (
-            <Card className="shadow-none border-orange-200 dark:border-orange-900/50">
-              <CardHeader className="pb-3 border-b border-orange-100 dark:border-orange-900/30">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm font-semibold flex items-center gap-2 text-orange-700 dark:text-orange-400">
-                    <HugeiconsIcon icon={AlertCircleIcon} size={16} strokeWidth={1.5} />
-                    Contracts Expiring in 60 Days ({expiring.length})
-                  </CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-3">
-                <div className="flex flex-col divide-y divide-border/60">
-                  {expiring.map((c) => (
-                    <div key={c.id} className="flex items-center justify-between py-3 gap-4">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className={`w-2 h-2 rounded-full shrink-0 ${c.daysLeft <= 14 ? "bg-red-500" : "bg-orange-400"}`} />
-                        <div className="min-w-0">
-                          <Link to={`/admin/contracts/${c.id}`} className="text-sm font-medium hover:underline block truncate">{c.title}</Link>
-                          {c.contract_ref && <span className="font-mono text-[11px] text-muted-foreground">{c.contract_ref}</span>}
-                        </div>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <p className="text-sm tabular-nums">{format(new Date(c.expiry_date), "dd MMM yyyy")}</p>
-                        <p className={`text-xs font-semibold tabular-nums ${c.daysLeft <= 14 ? "text-red-600" : "text-orange-600"}`}>
-                          In {c.daysLeft} day{c.daysLeft !== 1 ? "s" : ""}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
         </div>
       </div>
     </AnimatedPage>

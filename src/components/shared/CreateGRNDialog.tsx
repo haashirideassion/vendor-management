@@ -1,0 +1,186 @@
+import { useEffect } from "react"
+import { useForm, useFieldArray } from "react-hook-form"
+import type { Resolver } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { z } from "zod"
+import { useCreateGRN } from "@/hooks/useGRNs"
+import { usePurchaseOrders } from "@/hooks/usePurchaseOrders"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Separator } from "@/components/ui/separator"
+import { Add01Icon, Delete01Icon } from "@hugeicons/core-free-icons"
+import { HugeiconsIcon } from "@hugeicons/react"
+
+const lineItemSchema = z.object({
+  po_line_item_id:   z.string().optional(),
+  description:       z.string().min(1, "Required"),
+  quantity_received: z.coerce.number().positive("Must be > 0"),
+  unit_price:        z.coerce.number().min(0),
+  unit:              z.string().optional(),
+})
+
+const createSchema = z.object({
+  po_id:         z.string().uuid("Select a PO"),
+  vendor_id:     z.string().uuid("Vendor required"),
+  received_date: z.string().min(1, "Required"),
+  notes:         z.string().optional(),
+  line_items:    z.array(lineItemSchema).min(1, "Add at least one line item"),
+})
+type CreateForm = z.infer<typeof createSchema>
+
+interface CreateGRNDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  defaultPOId?: string
+  defaultVendorId?: string
+  onSuccess?: () => void
+}
+
+export function CreateGRNDialog({ open, onOpenChange, defaultPOId, defaultVendorId, onSuccess }: CreateGRNDialogProps) {
+  const { data: pos = [] } = usePurchaseOrders({ status: "issued" })
+  const createGRN = useCreateGRN()
+
+  const form = useForm<CreateForm>({
+    resolver: zodResolver(createSchema) as unknown as Resolver<CreateForm>,
+    defaultValues: {
+      po_id:         defaultPOId ?? "",
+      vendor_id:     defaultVendorId ?? "",
+      received_date: new Date().toISOString().slice(0, 10),
+      line_items:    [{ description: "", quantity_received: 1, unit_price: 0, unit: "" }],
+    },
+  })
+  const { fields, append, remove } = useFieldArray({ control: form.control, name: "line_items" })
+
+  useEffect(() => {
+    if (open) {
+      form.reset({
+        po_id:         defaultPOId ?? "",
+        vendor_id:     defaultVendorId ?? "",
+        received_date: new Date().toISOString().slice(0, 10),
+        line_items:    [{ description: "", quantity_received: 1, unit_price: 0, unit: "" }],
+      })
+    }
+  }, [open, defaultPOId, defaultVendorId, form])
+
+  function handlePOChange(poId: string) {
+    form.setValue("po_id", poId)
+    const po = pos.find((p) => p.id === poId)
+    if (po?.vendor_id) form.setValue("vendor_id", po.vendor_id)
+  }
+
+  async function onSubmit(data: CreateForm) {
+    await createGRN.mutateAsync({
+      po_id:         data.po_id,
+      vendor_id:     data.vendor_id,
+      received_date: data.received_date,
+      notes:         data.notes || undefined,
+      line_items:    data.line_items.map((item) => ({
+        ...item,
+        unit:             item.unit ?? null,
+        po_line_item_id:  item.po_line_item_id ?? null,
+      })),
+    })
+    onOpenChange(false)
+    onSuccess?.()
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent size="2xl">
+        <DialogHeader><DialogTitle>Record Goods Receipt Note</DialogTitle></DialogHeader>
+        <DialogBody>
+          <form id="create-grn-dialog" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Purchase Order <span className="text-destructive">*</span></Label>
+                {defaultPOId ? (
+                  <Select value={defaultPOId} disabled>
+                    <SelectTrigger>
+                      <SelectValue>
+                        {pos.find((p) => p.id === defaultPOId)?.po_number ?? defaultPOId}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent />
+                  </Select>
+                ) : (
+                  <Select onValueChange={handlePOChange}>
+                    <SelectTrigger><SelectValue placeholder="Select issued PO" /></SelectTrigger>
+                    <SelectContent>
+                      {pos.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.po_number} — {p.vendor?.company_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                {form.formState.errors.po_id && (
+                  <p className="text-xs text-destructive">{form.formState.errors.po_id.message}</p>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <Label>Received Date <span className="text-destructive">*</span></Label>
+                <Input type="date" {...form.register("received_date")} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Notes</Label>
+              <Textarea {...form.register("notes")} placeholder="Condition of goods, discrepancies…" rows={2} />
+            </div>
+            <Separator />
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-semibold">Items Received <span className="text-destructive">*</span></Label>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs gap-1"
+                  onClick={() => append({ description: "", quantity_received: 1, unit_price: 0, unit: "" })}
+                >
+                  <HugeiconsIcon icon={Add01Icon} size={12} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" />
+                  Add Row
+                </Button>
+              </div>
+              <div className="space-y-2">
+                {fields.map((field, i) => (
+                  <div key={field.id} className="grid grid-cols-12 gap-2 items-start">
+                    <div className="col-span-5">
+                      <Input {...form.register(`line_items.${i}.description`)} placeholder="Item description" className="h-8 text-xs" />
+                    </div>
+                    <div className="col-span-2">
+                      <Input type="number" min={0.01} step="any" {...form.register(`line_items.${i}.quantity_received`)} placeholder="Qty" className="h-8 text-xs" />
+                    </div>
+                    <div className="col-span-2">
+                      <Input type="number" min={0} step="any" {...form.register(`line_items.${i}.unit_price`)} placeholder="Rate" className="h-8 text-xs" />
+                    </div>
+                    <div className="col-span-2">
+                      <Input {...form.register(`line_items.${i}.unit`)} placeholder="Unit" className="h-8 text-xs" />
+                    </div>
+                    <div className="col-span-1 flex justify-center pt-1">
+                      {fields.length > 1 && (
+                        <button type="button" onClick={() => remove(i)} className="text-muted-foreground hover:text-destructive">
+                          <HugeiconsIcon icon={Delete01Icon} size={14} strokeWidth={1.5} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </form>
+        </DialogBody>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button type="submit" form="create-grn-dialog" disabled={createGRN.isPending}>
+            {createGRN.isPending ? "Creating…" : "Record GRN"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}

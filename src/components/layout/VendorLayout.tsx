@@ -20,6 +20,7 @@ import {
   Building06Icon,
   Alert01Icon,
   Invoice02Icon,
+  Briefcase01Icon,
 } from "@hugeicons/core-free-icons"
 
 const baseNavItems = [
@@ -27,6 +28,7 @@ const baseNavItems = [
   { label: "Profile",   to: "/vendor/profile",   icon: UserCircleIcon },
   { label: "Documents", to: "/vendor/documents", icon: File01Icon },
   { label: "Contracts", to: "/vendor/contracts", icon: ContractsIcon },
+  { label: "RFQs",      to: "/vendor/rfqs",      icon: Briefcase01Icon },
   { label: "Invoices",  to: "/vendor/invoices",  icon: Invoice02Icon },
 ]
 
@@ -167,7 +169,7 @@ export function VendorLayout() {
     setMobileOpen(false)
   }, [pathname])
   const showRenewal = vendor?.status === "action_required"
-  const currentLabel = baseNavItems.find((n) => pathname === n.to)?.label ?? "Vendor Portal"
+  const currentLabel = baseNavItems.find((n) => pathname.startsWith(n.to))?.label ?? "Vendor Portal"
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">

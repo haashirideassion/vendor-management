@@ -1,12 +1,12 @@
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Link } from "react-router-dom"
-import { useForm } from "react-hook-form"
+import { useForm, Controller } from "react-hook-form"
 import type { Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { useEngagements, useCreateEngagement } from "@/hooks/useEngagements"
-import { useVendors } from "@/hooks/useVendors"
-import { useVendorCategories } from "@/hooks/useCategories"
+import { useCategories } from "@/hooks/useCategories"
+import { useVendorsByCategories } from "@/hooks/useVendors"
 import { usePermissions } from "@/hooks/usePermissions"
 import { AnimatedPage } from "@/components/shared/AnimatedPage"
 import { Input } from "@/components/ui/input"
@@ -14,6 +14,9 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Command, CommandInput, CommandList, CommandItem, CommandEmpty } from "@/components/ui/command"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
@@ -34,9 +37,9 @@ const STATUSES: EngagementStatus[] = [
 const createSchema = z.object({
   title:           z.string().min(1, "Title is required"),
   description:     z.string().optional(),
-  vendor_id:       z.string().uuid("Select a vendor"),
-  category_id:     z.string().optional(),
-  estimated_value: z.coerce.number().positive("Must be greater than 0"),
+  category_ids:    z.array(z.string()).min(1, "Select at least one category"),
+  vendor_ids:      z.array(z.string().uuid()).min(1, "Select at least one vendor"),
+  estimated_value: z.coerce.number().min(0).optional().nullable(),
   currency:        z.string().default("INR"),
   start_date:      z.string().optional(),
   end_date:        z.string().optional(),
@@ -52,6 +55,65 @@ function StatusChip({ status }: { status: EngagementStatus }) {
   )
 }
 
+function MultiSelect({
+  options,
+  value,
+  onChange,
+  placeholder,
+  disabled,
+  searchPlaceholder,
+}: {
+  options: { id: string; label: string }[]
+  value: string[]
+  onChange: (v: string[]) => void
+  placeholder: string
+  disabled?: boolean
+  searchPlaceholder?: string
+}) {
+  const [open, setOpen] = useState(false)
+  const toggle = (id: string) => {
+    onChange(value.includes(id) ? value.filter((v) => v !== id) : [...value, id])
+  }
+  const selectedLabels = options.filter((o) => value.includes(o.id)).map((o) => o.label)
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          role="combobox"
+          disabled={disabled}
+          className="w-full justify-start font-normal h-9 text-sm truncate"
+        >
+          {selectedLabels.length === 0
+            ? <span className="text-muted-foreground">{placeholder}</span>
+            : <span className="truncate">{selectedLabels.join(", ")}</span>
+          }
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[320px] p-0" align="start">
+        <Command>
+          <CommandInput placeholder={searchPlaceholder ?? "Search…"} />
+          <CommandList>
+            <CommandEmpty>No results found.</CommandEmpty>
+            {options.map((opt) => (
+              <CommandItem key={opt.id} value={opt.label} onSelect={() => toggle(opt.id)}>
+                <Checkbox
+                  checked={value.includes(opt.id)}
+                  className="mr-2 h-4 w-4"
+                  onCheckedChange={() => toggle(opt.id)}
+                />
+                {opt.label}
+              </CommandItem>
+            ))}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 export function EngagementList() {
   const [search, setSearch]   = useState("")
   const [status, setStatus]   = useState<EngagementStatus | "">("")
@@ -59,16 +121,16 @@ export function EngagementList() {
 
   const { canCreateEngagement } = usePermissions()
   const { data: engagements = [], isLoading } = useEngagements({ status: status || undefined, search })
-  const { data: vendors = [] }    = useVendors({ status: "active" })
+  const { data: categories = [] }  = useCategories(true)
   const createEngagement = useCreateEngagement()
 
-  const form = useForm<CreateForm>({ resolver: zodResolver(createSchema) as unknown as Resolver<CreateForm> })
-  const watchedVendorId = form.watch("vendor_id")
-  const { data: vendorCategories = [], isLoading: catLoading } = useVendorCategories(watchedVendorId)
+  const form = useForm<CreateForm>({
+    resolver: zodResolver(createSchema) as unknown as Resolver<CreateForm>,
+    defaultValues: { category_ids: [], vendor_ids: [], currency: "INR" },
+  })
 
-  useEffect(() => {
-    form.setValue("category_id", "")
-  }, [watchedVendorId, form])
+  const watchedCategoryIds = form.watch("category_ids") ?? []
+  const { data: vendors = [] } = useVendorsByCategories(watchedCategoryIds)
 
   const hasFilters = search || status
 
@@ -76,16 +138,16 @@ export function EngagementList() {
     await createEngagement.mutateAsync({
       title:           data.title,
       description:     data.description ?? null,
-      vendor_id:       data.vendor_id,
-      category_id:     data.category_id || null,
-      estimated_value: data.estimated_value,
+      category_ids:    data.category_ids,
+      vendor_ids:      data.vendor_ids,
+      estimated_value: data.estimated_value ?? null,
       currency:        data.currency,
       start_date:      data.start_date || null,
       end_date:        data.end_date || null,
       notes:           data.notes ?? null,
     })
     setCreating(false)
-    form.reset()
+    form.reset({ category_ids: [], vendor_ids: [], currency: "INR" })
   }
 
   return (
@@ -171,7 +233,9 @@ export function EngagementList() {
                     </TableCell>
                     <TableCell><StatusChip status={e.status} /></TableCell>
                     <TableCell>
-                      <span className="text-sm tabular-nums">{formatCurrency(e.estimated_value, e.currency)}</span>
+                      <span className="text-sm tabular-nums">
+                        {e.estimated_value != null ? formatCurrency(e.estimated_value, e.currency) : "—"}
+                      </span>
                     </TableCell>
                     <TableCell>
                       <span className="text-xs text-muted-foreground tabular-nums">
@@ -216,42 +280,55 @@ export function EngagementList() {
                 <Label>Description</Label>
                 <Textarea {...form.register("description")} placeholder="Scope of work…" rows={2} />
               </div>
+
               <div className="space-y-1.5">
-                <Label>Vendor <span className="text-destructive">*</span></Label>
-                <Select onValueChange={(v) => form.setValue("vendor_id", v, { shouldValidate: true })}>
-                  <SelectTrigger><SelectValue placeholder="Select active vendor" /></SelectTrigger>
-                  <SelectContent>
-                    {vendors.map((v) => <SelectItem key={v.id} value={v.id}>{v.company_name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                {form.formState.errors.vendor_id && <p className="text-xs text-destructive">{form.formState.errors.vendor_id.message}</p>}
+                <Label>Categories <span className="text-destructive">*</span></Label>
+                <Controller
+                  control={form.control}
+                  name="category_ids"
+                  render={({ field }) => (
+                    <MultiSelect
+                      options={categories.map((c) => ({ id: c.id, label: c.name }))}
+                      value={field.value ?? []}
+                      onChange={(ids) => {
+                        field.onChange(ids)
+                        form.setValue("vendor_ids", [])
+                      }}
+                      placeholder="Select categories"
+                      searchPlaceholder="Search categories…"
+                    />
+                  )}
+                />
+                {form.formState.errors.category_ids && (
+                  <p className="text-xs text-destructive">{form.formState.errors.category_ids.message}</p>
+                )}
               </div>
+
               <div className="space-y-1.5">
-                <Label>Category</Label>
-                <Select
-                  value={form.watch("category_id") ?? ""}
-                  onValueChange={(v) => form.setValue("category_id", v)}
-                  disabled={!watchedVendorId || catLoading}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={
-                      !watchedVendorId ? "Select vendor first" : catLoading ? "Loading…" : "Select category (optional)"
-                    } />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {vendorCategories.length === 0 && watchedVendorId && !catLoading ? (
-                      <SelectItem value="__none__" disabled>No categories assigned to vendor</SelectItem>
-                    ) : (
-                      vendorCategories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)
-                    )}
-                  </SelectContent>
-                </Select>
+                <Label>Vendors <span className="text-destructive">*</span></Label>
+                <Controller
+                  control={form.control}
+                  name="vendor_ids"
+                  render={({ field }) => (
+                    <MultiSelect
+                      options={vendors.map((v) => ({ id: v.id, label: v.company_name }))}
+                      value={field.value ?? []}
+                      onChange={field.onChange}
+                      placeholder={watchedCategoryIds.length === 0 ? "Select categories first" : "Select vendors to invite"}
+                      disabled={watchedCategoryIds.length === 0}
+                      searchPlaceholder="Search vendors…"
+                    />
+                  )}
+                />
+                {form.formState.errors.vendor_ids && (
+                  <p className="text-xs text-destructive">{form.formState.errors.vendor_ids.message}</p>
+                )}
               </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label>Estimated Value <span className="text-destructive">*</span></Label>
-                  <Input type="number" min={0} {...form.register("estimated_value")} placeholder="50000" />
-                  {form.formState.errors.estimated_value && <p className="text-xs text-destructive">{form.formState.errors.estimated_value.message}</p>}
+                  <Label>Estimated Value</Label>
+                  <Input type="number" min={0} {...form.register("estimated_value")} placeholder="Optional" />
                 </div>
                 <div className="space-y-1.5">
                   <Label>Currency</Label>
@@ -280,7 +357,7 @@ export function EngagementList() {
             </form>
           </DialogBody>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => { setCreating(false); form.reset() }}>
+            <Button type="button" variant="outline" onClick={() => { setCreating(false); form.reset({ category_ids: [], vendor_ids: [], currency: "INR" }) }}>
               Cancel
             </Button>
             <Button type="submit" form="create-engagement" disabled={createEngagement.isPending}>

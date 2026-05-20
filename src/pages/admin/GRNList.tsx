@@ -1,47 +1,21 @@
 import { useState } from "react"
 import { useSearchParams } from "react-router-dom"
-import { useForm, useFieldArray } from "react-hook-form"
-import type { Resolver } from "react-hook-form"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { z } from "zod"
-import { useGRNs, useCreateGRN, useUpdateGRNStatus } from "@/hooks/useGRNs"
-import { usePurchaseOrders } from "@/hooks/usePurchaseOrders"
+import { useGRNs, useUpdateGRNStatus } from "@/hooks/useGRNs"
 import { usePermissions } from "@/hooks/usePermissions"
 import { AnimatedPage } from "@/components/shared/AnimatedPage"
-import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
-import { Separator } from "@/components/ui/separator"
+import { CreateGRNDialog } from "@/components/shared/CreateGRNDialog"
 import { GRN_STATUS_LABELS, GRN_STATUS_COLORS } from "@/lib/constants"
 import type { GRNStatus } from "@/lib/types"
 import { format } from "date-fns"
-import { Add01Icon, Cancel01Icon, Delete01Icon, CheckmarkCircle01Icon } from "@hugeicons/core-free-icons"
+import { Add01Icon, Cancel01Icon, CheckmarkCircle01Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { toast } from "sonner"
 
 const STATUSES: GRNStatus[] = ["draft", "submitted", "verified", "rejected"]
-
-const lineItemSchema = z.object({
-  po_line_item_id:   z.string().optional(),
-  description:       z.string().min(1, "Required"),
-  quantity_received: z.coerce.number().positive("Must be > 0"),
-  unit_price:        z.coerce.number().min(0),
-  unit:              z.string().optional(),
-})
-
-const createSchema = z.object({
-  po_id:         z.string().uuid("Select a PO"),
-  vendor_id:     z.string().uuid("Vendor required"),
-  received_date: z.string().min(1, "Required"),
-  notes:         z.string().optional(),
-  line_items:    z.array(lineItemSchema).min(1, "Add at least one line item"),
-})
-type CreateForm = z.infer<typeof createSchema>
 
 function StatusChip({ status }: { status: GRNStatus }) {
   return (
@@ -60,37 +34,7 @@ export function GRNList() {
   const defaultPOId = searchParams.get("po_id") ?? undefined
   const { canRecordGRN } = usePermissions()
   const { data: grns = [], isLoading } = useGRNs({ status: status || undefined })
-  const { data: pos = [] }             = usePurchaseOrders({ status: "issued" })
-  const createGRN   = useCreateGRN()
   const updateStatus = useUpdateGRNStatus()
-
-  const form = useForm<CreateForm>({
-    resolver: zodResolver(createSchema) as unknown as Resolver<CreateForm>,
-    defaultValues: {
-      po_id: defaultPOId,
-      received_date: new Date().toISOString().slice(0, 10),
-      line_items: [{ description: "", quantity_received: 1, unit_price: 0, unit: "" }],
-    },
-  })
-  const { fields, append, remove } = useFieldArray({ control: form.control, name: "line_items" })
-
-  function handlePOChange(poId: string) {
-    form.setValue("po_id", poId)
-    const po = pos.find((p) => p.id === poId)
-    if (po?.vendor_id) form.setValue("vendor_id", po.vendor_id)
-  }
-
-  async function onSubmit(data: CreateForm) {
-    await createGRN.mutateAsync({
-      po_id:         data.po_id,
-      vendor_id:     data.vendor_id,
-      received_date: data.received_date,
-      notes:         data.notes || undefined,
-      line_items:    data.line_items.map((item) => ({ ...item, unit: item.unit ?? null, po_line_item_id: item.po_line_item_id ?? null })),
-    })
-    setCreating(false)
-    form.reset()
-  }
 
   return (
     <AnimatedPage>
@@ -223,78 +167,11 @@ export function GRNList() {
         </div>
       </div>
 
-      {/* Create GRN dialog */}
-      <Dialog open={creating} onOpenChange={setCreating}>
-        <DialogContent size="2xl">
-          <DialogHeader><DialogTitle>Record Goods Receipt Note</DialogTitle></DialogHeader>
-          <DialogBody>
-          <form id="create-grn" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-2">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Purchase Order <span className="text-destructive">*</span></Label>
-                <Select defaultValue={defaultPOId} onValueChange={handlePOChange}>
-                  <SelectTrigger><SelectValue placeholder="Select issued PO" /></SelectTrigger>
-                  <SelectContent>
-                    {pos.map((p) => <SelectItem key={p.id} value={p.id}>{p.po_number} — {p.vendor?.company_name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                {form.formState.errors.po_id && <p className="text-xs text-destructive">{form.formState.errors.po_id.message}</p>}
-              </div>
-              <div className="space-y-1.5">
-                <Label>Received Date <span className="text-destructive">*</span></Label>
-                <Input type="date" {...form.register("received_date")} />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Notes</Label>
-              <Textarea {...form.register("notes")} placeholder="Condition of goods, discrepancies…" rows={2} />
-            </div>
-            <Separator />
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm font-semibold">Items Received <span className="text-destructive">*</span></Label>
-                <Button type="button" size="sm" variant="outline" className="h-7 text-xs gap-1"
-                  onClick={() => append({ description: "", quantity_received: 1, unit_price: 0, unit: "" })}>
-                  <HugeiconsIcon icon={Add01Icon} size={12} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" />
-                  Add Row
-                </Button>
-              </div>
-              <div className="space-y-2">
-                {fields.map((field, i) => (
-                  <div key={field.id} className="grid grid-cols-12 gap-2 items-start">
-                    <div className="col-span-5">
-                      <Input {...form.register(`line_items.${i}.description`)} placeholder="Item description" className="h-8 text-xs" />
-                    </div>
-                    <div className="col-span-2">
-                      <Input type="number" min={0.01} step="any" {...form.register(`line_items.${i}.quantity_received`)} placeholder="Qty" className="h-8 text-xs" />
-                    </div>
-                    <div className="col-span-2">
-                      <Input type="number" min={0} step="any" {...form.register(`line_items.${i}.unit_price`)} placeholder="Rate" className="h-8 text-xs" />
-                    </div>
-                    <div className="col-span-2">
-                      <Input {...form.register(`line_items.${i}.unit`)} placeholder="Unit" className="h-8 text-xs" />
-                    </div>
-                    <div className="col-span-1 flex justify-center pt-1">
-                      {fields.length > 1 && (
-                        <button type="button" onClick={() => remove(i)} className="text-muted-foreground hover:text-destructive">
-                          <HugeiconsIcon icon={Delete01Icon} size={14} strokeWidth={1.5} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </form>
-          </DialogBody>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => { setCreating(false); form.reset() }}>Cancel</Button>
-            <Button type="submit" form="create-grn" disabled={createGRN.isPending}>
-              {createGRN.isPending ? "Creating…" : "Record GRN"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <CreateGRNDialog
+        open={creating}
+        onOpenChange={setCreating}
+        defaultPOId={defaultPOId}
+      />
 
       <ConfirmDialog
         open={!!confirmAction}

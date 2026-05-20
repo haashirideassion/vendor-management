@@ -185,6 +185,9 @@ export interface ContractAmendment {
 
 // ─── Procurement ──────────────────────────────────────────────────────────────
 
+export type RFQStatus = "pending" | "viewed" | "responded" | "closed"
+export type QuotationStatus = "draft" | "submitted" | "accepted" | "rejected"
+
 export type EngagementStatus =
   | "draft" | "pending_approval" | "approved" | "rejected" | "cancelled" | "completed"
 
@@ -198,13 +201,61 @@ export type InvoiceStatus =
 
 export type MatchStatus = "matched" | "variance" | "pending"
 
+export interface EngagementVendor {
+  id: string
+  engagement_id: string
+  vendor_id: string
+  created_at: string
+  vendor?: Pick<Vendor, "company_name">
+}
+
+export interface RFQ {
+  id: string
+  rfq_number: string | null
+  engagement_id: string
+  vendor_id: string
+  status: RFQStatus
+  created_at: string
+  updated_at: string
+  engagement?: Pick<Engagement, "title" | "description" | "start_date" | "end_date" | "estimated_value" | "currency">
+  vendor?: Pick<Vendor, "company_name">
+}
+
+export interface QuotationLineItem {
+  id: string
+  quotation_id: string
+  description: string
+  quantity: number
+  unit_price: number
+  tax_rate: number
+  total: number
+  remarks: string | null
+  created_at: string
+}
+
+export interface Quotation {
+  id: string
+  quot_number: string | null
+  rfq_id: string
+  engagement_id: string
+  vendor_id: string
+  status: QuotationStatus
+  notes: string | null
+  total_amount: number | null
+  submitted_at: string | null
+  created_at: string
+  updated_at: string
+  vendor?: Pick<Vendor, "company_name">
+  line_items?: QuotationLineItem[]
+}
+
 export interface Engagement {
   id: string
   title: string
   description: string | null
-  vendor_id: string
+  vendor_id: string | null
   category_id: string | null
-  estimated_value: number
+  estimated_value: number | null
   currency: string
   start_date: string | null
   end_date: string | null
@@ -381,6 +432,26 @@ export interface Database {
         Row: Engagement
         Insert: Omit<Engagement, "id" | "created_at" | "updated_at" | "vendor" | "category" | "creator">
         Update: Partial<Omit<Engagement, "id" | "created_at" | "vendor" | "category" | "creator">>
+      }
+      engagement_vendors: {
+        Row: EngagementVendor
+        Insert: Omit<EngagementVendor, "id" | "created_at" | "vendor">
+        Update: never
+      }
+      rfqs: {
+        Row: RFQ
+        Insert: Omit<RFQ, "id" | "rfq_number" | "created_at" | "updated_at" | "engagement" | "vendor">
+        Update: Partial<Pick<RFQ, "status">>
+      }
+      quotations: {
+        Row: Quotation
+        Insert: Omit<Quotation, "id" | "quot_number" | "created_at" | "updated_at" | "vendor" | "line_items">
+        Update: Partial<Omit<Quotation, "id" | "quot_number" | "created_at" | "vendor" | "line_items">>
+      }
+      quotation_line_items: {
+        Row: QuotationLineItem
+        Insert: Omit<QuotationLineItem, "id" | "total" | "created_at">
+        Update: Partial<Omit<QuotationLineItem, "id" | "total" | "created_at">>
       }
       purchase_orders: {
         Row: PurchaseOrder

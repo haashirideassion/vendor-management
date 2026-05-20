@@ -25,6 +25,8 @@ import { VendorProfile } from "@/pages/vendor/VendorProfile"
 import { VendorDocuments } from "@/pages/vendor/VendorDocuments"
 import { VendorContracts } from "@/pages/vendor/VendorContracts"
 import { VendorRenewal } from "@/pages/vendor/VendorRenewal"
+import { VendorRFQ } from "@/pages/vendor/VendorRFQ"
+import { VendorRFQDetail } from "@/pages/vendor/VendorRFQDetail"
 
 // Admin pages
 import { AdminDashboard } from "@/pages/admin/AdminDashboard"
@@ -77,13 +79,15 @@ export default function App() {
                 <Route path="contracts"      element={<VendorContracts />} />
                 <Route path="contracts/:id"  element={<ContractDetail />} />
                 <Route path="renewal"        element={<VendorRenewal />} />
+                <Route path="rfqs"           element={<VendorRFQ />} />
+                <Route path="rfqs/:id"       element={<VendorRFQDetail />} />
                 <Route path="invoices"   element={<VendorInvoices />} />
               </Route>
 
               {/* Admin portal — all internal roles (hr_user, manager, procurement_admin, finance_ap, super_admin, admin) */}
               <Route path="/admin" element={<AuthGuard role={INTERNAL_ROLES}><AdminLayout /></AuthGuard>}>
-                <Route index element={<Navigate to="/admin/dashboard" replace />} />
-                <Route path="dashboard"  element={<AdminDashboard />} />
+                <Route index element={<Navigate to="/admin/vendors" replace />} />
+                <Route path="dashboard"  element={<Navigate to="/admin/vendors" replace />} />
                 <Route path="vendors"    element={<VendorList />} />
                 <Route path="vendors/:id" element={<VendorDetail />} />
                 <Route path="categories" element={<CategoryManagement />} />
