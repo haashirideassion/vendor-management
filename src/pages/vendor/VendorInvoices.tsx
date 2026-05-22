@@ -74,7 +74,7 @@ export function VendorInvoices() {
       if (error) throw error
       const seen = new Set<string>()
       return (data ?? [])
-        .map((r) => r.engagement as { id: string; title: string; status: string } | null)
+        .map((r) => r.engagement as unknown as { id: string; title: string; status: string } | null)
         .filter((e): e is { id: string; title: string; status: string } => {
           if (!e || seen.has(e.id)) return false
           seen.add(e.id)

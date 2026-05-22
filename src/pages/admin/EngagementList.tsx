@@ -185,6 +185,7 @@ export function EngagementList() {
         line_items:      (data.line_items ?? []).map((li) => ({
           description: li.description,
           quantity:    li.quantity,
+          unit_price:  0,
           unit:        li.unit ?? null,
         })),
       })
