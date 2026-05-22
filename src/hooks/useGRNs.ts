@@ -76,7 +76,13 @@ export function useCreateGRN() {
 
       const { data: grn, error: grnError } = await supabase
         .from("grns")
-        .insert({ ...grnInput, created_by: user.id, status: "draft" })
+        .insert({
+          ...grnInput,
+          created_by: user.id,
+          status: "verified",
+          verified_by: user.id,
+          verified_at: new Date().toISOString(),
+        })
         .select()
         .single()
       if (grnError) throw grnError
@@ -92,7 +98,7 @@ export function useCreateGRN() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["grns"] })
-      toast.success("GRN created")
+      toast.success("GRN recorded and verified")
     },
     onError: () => toast.error("Failed to create GRN"),
   })

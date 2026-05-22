@@ -8,10 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
 import { CreateGRNDialog } from "@/components/shared/CreateGRNDialog"
+import { AttachmentList } from "@/components/shared/AttachmentList"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { GRN_STATUS_LABELS, GRN_STATUS_COLORS } from "@/lib/constants"
 import type { GRNStatus } from "@/lib/types"
 import { format } from "date-fns"
-import { Add01Icon, Cancel01Icon, CheckmarkCircle01Icon } from "@hugeicons/core-free-icons"
+import { Add01Icon, Cancel01Icon, CheckmarkCircle01Icon, File01Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { toast } from "sonner"
 
@@ -30,6 +32,7 @@ export function GRNList() {
   const [status, setStatus]   = useState<GRNStatus | "">("")
   const [creating, setCreating] = useState(false)
   const [confirmAction, setConfirmAction] = useState<{ id: string; status: "verified" | "rejected" } | null>(null)
+  const [docsGRNId, setDocsGRNId] = useState<string | null>(null)
 
   const defaultPOId = searchParams.get("po_id") ?? undefined
   const { canRecordGRN } = usePermissions()
@@ -157,6 +160,14 @@ export function GRNList() {
                             Submit
                           </Button>
                         )}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2 text-xs text-muted-foreground"
+                          onClick={() => setDocsGRNId(grn.id)}
+                        >
+                          <HugeiconsIcon icon={File01Icon} size={13} strokeWidth={1.5} />
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -172,6 +183,21 @@ export function GRNList() {
         onOpenChange={setCreating}
         defaultPOId={defaultPOId}
       />
+
+      <Dialog open={!!docsGRNId} onOpenChange={(o) => !o && setDocsGRNId(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>GRN Attachments</DialogTitle></DialogHeader>
+          {docsGRNId && (
+            <AttachmentList
+              entityType="grn"
+              entityId={docsGRNId}
+              canDelete={canRecordGRN}
+              canUpload={false}
+              className="pt-2"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       <ConfirmDialog
         open={!!confirmAction}

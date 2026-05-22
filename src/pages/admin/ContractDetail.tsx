@@ -8,6 +8,7 @@ import { usePurchaseOrders } from "@/hooks/usePurchaseOrders"
 import { usePermissions } from "@/hooks/usePermissions"
 import { toast } from "sonner"
 import { AnimatedPage } from "@/components/shared/AnimatedPage"
+import { AttachmentList } from "@/components/shared/AttachmentList"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -366,6 +367,13 @@ export function ContractDetail() {
             </CardContent>
           </Card>
         )}
+
+        <AttachmentList
+          entityType="contract"
+          entityId={contract.id}
+          canDelete={canManageContracts}
+          canUpload={false}
+        />
       </div>
 
       {/* Activate dialog */}

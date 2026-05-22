@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { useParams, Link } from "react-router-dom"
 import { CreateGRNDialog } from "@/components/shared/CreateGRNDialog"
+import { AttachmentList } from "@/components/shared/AttachmentList"
 import { usePurchaseOrder, useIssuePurchaseOrder, useUpdatePOStatus } from "@/hooks/usePurchaseOrders"
 import { useGRNs } from "@/hooks/useGRNs"
 import { useInvoices } from "@/hooks/useInvoices"
@@ -249,6 +250,13 @@ export function PurchaseOrderDetail() {
             </Card>
           </div>
         </div>
+
+        <AttachmentList
+          entityType="purchase_order"
+          entityId={po.id}
+          canDelete={canCreatePO}
+          canUpload={false}
+        />
       </div>
 
       <CreateGRNDialog
@@ -256,6 +264,7 @@ export function PurchaseOrderDetail() {
         onOpenChange={setShowGRNDialog}
         defaultPOId={po.id}
         defaultVendorId={po.vendor_id ?? undefined}
+        defaultLineItems={po.line_items}
       />
 
       <ConfirmDialog

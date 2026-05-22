@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -290,18 +290,6 @@ export function CategoryManagement() {
           </Button>
         </div>
 
-        {/* Stats */}
-        <div className="flex items-center gap-4 text-sm text-muted-foreground">
-          <span className="flex items-center gap-1.5">
-            <HugeiconsIcon icon={Tag01Icon} size={14} strokeWidth={1.5} />
-            <span>{categories.length} total</span>
-          </span>
-          <span className="text-border">·</span>
-          <span className="text-green-600 font-medium">{activeCategories.length} active</span>
-          <span className="text-border">·</span>
-          <span>{dormantCategories.length} dormant</span>
-        </div>
-
         {/* Tabs */}
         <Tabs defaultValue="active">
           <TabsList className="h-9">
@@ -367,13 +355,13 @@ export function CategoryManagement() {
         </Tabs>
       </div>
 
-      {/* Create / Edit Sheet */}
-      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <SheetContent>
-          <SheetHeader>
-            <SheetTitle>{editTarget ? "Edit Category" : "New Category"}</SheetTitle>
-          </SheetHeader>
-          <div className="mt-6 flex flex-col gap-4">
+      {/* Create / Edit Dialog */}
+      <Dialog open={sheetOpen} onOpenChange={setSheetOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{editTarget ? "Edit Category" : "New Category"}</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-4 py-2">
             <div className="flex flex-col gap-1.5">
               <Label>Name <span className="text-destructive">*</span></Label>
               <Input
@@ -404,12 +392,15 @@ export function CategoryManagement() {
                 />
               </div>
             )}
-            <Button onClick={handleSave} disabled={saving} className="w-full mt-2">
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSheetOpen(false)}>Cancel</Button>
+            <Button onClick={handleSave} disabled={saving}>
               {saving ? "Saving…" : editTarget ? "Save changes" : "Create category"}
             </Button>
-          </div>
-        </SheetContent>
-      </Sheet>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <ConfirmDialog
         open={!!deleteTarget}

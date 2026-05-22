@@ -8,7 +8,8 @@ const SELECT_FIELDS = `
   vendor:vendor_id ( company_name ),
   purchase_order:po_id ( po_number ),
   grn:grn_id ( grn_number ),
-  contract:contract_id ( contract_ref, title )
+  contract:contract_id ( contract_ref, title ),
+  engagement:engagement_id ( title )
 `
 
 // ─── Filters ──────────────────────────────────────────────────────────────────
@@ -67,6 +68,7 @@ export interface SubmitInvoiceInput {
   po_id?: string
   grn_id?: string
   contract_id?: string
+  engagement_id?: string
   total_amount: number
   currency?: string
   invoice_date: string

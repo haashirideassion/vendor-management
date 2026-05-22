@@ -1,13 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { supabase } from "@/lib/supabase"
-import type { Engagement, EngagementStatus } from "@/lib/types"
+import type { Engagement, EngagementLineItem, EngagementStatus } from "@/lib/types"
 
 const SELECT_FIELDS = `
   *,
   vendor:vendor_id ( company_name, contact_name ),
   category:category_id ( name ),
-  creator:created_by ( full_name, email )
+  creator:created_by ( full_name, email ),
+  line_items:engagement_line_items (*)
 `
 
 // ─── Filters ──────────────────────────────────────────────────────────────────
@@ -68,6 +69,7 @@ export interface CreateEngagementInput {
   start_date?: string | null
   end_date?: string | null
   notes?: string | null
+  line_items?: Omit<EngagementLineItem, "id" | "engagement_id" | "created_at">[]
 }
 
 export function useCreateEngagement() {
@@ -95,6 +97,13 @@ export function useCreateEngagement() {
         .select()
         .single()
       if (engError) throw engError
+
+      if (input.line_items && input.line_items.length > 0) {
+        const { error: liError } = await supabase
+          .from("engagement_line_items")
+          .insert(input.line_items.map((li) => ({ ...li, engagement_id: eng.id })))
+        if (liError) throw liError
+      }
 
       if (input.vendor_ids.length > 0) {
         const { error: evError } = await supabase
@@ -152,12 +161,11 @@ export function useUpdateEngagementStatus() {
       if (error) throw error
       return data as Engagement
     },
-    onSuccess: (_, { id, status }) => {
+    onSuccess: (_, { id }) => {
       queryClient.invalidateQueries({ queryKey: ["engagements"] })
       queryClient.invalidateQueries({ queryKey: ["engagements", id] })
-      toast.success(`Engagement ${status}`)
     },
-    onError: () => toast.error("Failed to update engagement"),
+    onError: () => toast.error("Failed to update engagement status"),
   })
 }
 

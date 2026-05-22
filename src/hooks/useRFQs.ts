@@ -5,7 +5,10 @@ import type { RFQ, RFQStatus } from "@/lib/types"
 
 const SELECT_FIELDS = `
   *,
-  engagement:engagement_id ( title, description, start_date, end_date, estimated_value, currency ),
+  engagement:engagement_id (
+    title, description, start_date, end_date, estimated_value, currency,
+    line_items:engagement_line_items ( id, description, quantity, unit_price, unit )
+  ),
   vendor:vendor_id ( company_name )
 `
 

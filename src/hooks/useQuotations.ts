@@ -73,7 +73,6 @@ export function useCreateQuotation() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["quotations"] })
-      toast.success("Quotation saved")
     },
     onError: () => toast.error("Failed to save quotation"),
   })

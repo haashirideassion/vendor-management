@@ -20,6 +20,7 @@ import type { RFQStatus, QuotationStatus } from "@/lib/types"
 import { format } from "date-fns"
 import { ArrowLeft01Icon, Add01Icon, Delete01Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
+import { toast } from "sonner"
 
 const lineItemSchema = z.object({
   description: z.string().min(1, "Required"),
@@ -74,6 +75,7 @@ export function VendorRFQDetail() {
       notes:         data.notes ?? undefined,
       line_items:    data.line_items.map((li) => ({ ...li, remarks: li.remarks ?? null })),
     })
+    toast.success("Quotation saved as draft")
     setShowQuotationDialog(false)
     form.reset()
   }
@@ -179,6 +181,32 @@ export function VendorRFQDetail() {
           </CardContent>
         </Card>
 
+        {rfq.engagement?.line_items && rfq.engagement.line_items.length > 0 && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold">Requested Items</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-1">
+                <div className="grid grid-cols-12 gap-2 text-xs text-muted-foreground font-medium pb-1 border-b">
+                  <span className="col-span-5">Description</span>
+                  <span className="col-span-2 text-right">Qty</span>
+                  <span className="col-span-2">Unit</span>
+                  <span className="col-span-3 text-right">Rate</span>
+                </div>
+                {rfq.engagement.line_items.map((li) => (
+                  <div key={li.id} className="grid grid-cols-12 gap-2 text-sm py-1 border-b last:border-0">
+                    <span className="col-span-5">{li.description}</span>
+                    <span className="col-span-2 text-right tabular-nums">{li.quantity}</span>
+                    <span className="col-span-2 text-muted-foreground">{li.unit ?? "—"}</span>
+                    <span className="col-span-3 text-right tabular-nums">{formatCurrency(li.unit_price, rfq.engagement?.currency ?? "INR")}</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {quotation && (
           <Card>
             <CardHeader className="pb-3">
@@ -236,16 +264,16 @@ export function VendorRFQDetail() {
                 </div>
                 <div className="space-y-2">
                   <div className="grid grid-cols-12 gap-2 text-xs text-muted-foreground font-medium px-1">
-                    <span className="col-span-4">Description</span>
+                    <span className="col-span-3">Description</span>
                     <span className="col-span-2">Qty</span>
                     <span className="col-span-2">Rate</span>
-                    <span className="col-span-1">Tax %</span>
+                    <span className="col-span-2">Tax %</span>
                     <span className="col-span-2">Remarks</span>
                     <span className="col-span-1" />
                   </div>
                   {fields.map((field, i) => (
                     <div key={field.id} className="grid grid-cols-12 gap-2 items-start">
-                      <div className="col-span-4">
+                      <div className="col-span-3">
                         <Input {...form.register(`line_items.${i}.description`)} placeholder="Item" className="h-8 text-xs" />
                       </div>
                       <div className="col-span-2">
@@ -254,7 +282,7 @@ export function VendorRFQDetail() {
                       <div className="col-span-2">
                         <Input type="number" min={0} step="any" {...form.register(`line_items.${i}.unit_price`)} placeholder="0" className="h-8 text-xs" />
                       </div>
-                      <div className="col-span-1">
+                      <div className="col-span-2">
                         <Input type="number" min={0} max={100} step="any" {...form.register(`line_items.${i}.tax_rate`)} placeholder="0" className="h-8 text-xs" />
                       </div>
                       <div className="col-span-2">

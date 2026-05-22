@@ -4,7 +4,6 @@ import { Progress } from "@/components/ui/progress"
 import { Step1CompanyInfo } from "./Step1CompanyInfo"
 import { Step2TaxBanking } from "./Step2TaxBanking"
 import { Step3Categories } from "./Step3Categories"
-import { Step4Contract } from "./Step4Contract"
 import { Step5Documents } from "./Step5Documents"
 import { Step6Review } from "./Step6Review"
 import { supabase } from "@/lib/supabase"
@@ -47,7 +46,7 @@ export interface OnboardingData {
   vendor_id?: string
 }
 
-const STEPS = ["Company Info", "Tax & Banking", "Services", "Contract", "Documents", "Review"]
+const STEPS = ["Company Info", "Tax & Banking", "Services", "Documents", "Review"]
 const STORAGE_KEY = "vms_onboarding_draft"
 
 export function OnboardingWizard() {
@@ -102,8 +101,6 @@ export function OnboardingWizard() {
           bank_name: final.bank_name || null,
           bank_account_number: final.bank_account_number || null,
           bank_routing_number: final.bank_routing_number || null,
-          contract_start_date: final.contract_start_date || null,
-          contract_anniversary: final.contract_end_date || null,
           status: "pending_review",
         })
         .select()
@@ -190,16 +187,15 @@ export function OnboardingWizard() {
         {step === 0 && <Step1CompanyInfo defaultValues={data} onNext={next} />}
         {step === 1 && <Step2TaxBanking defaultValues={data} onNext={next} onBack={back} />}
         {step === 2 && <Step3Categories defaultValues={data} onNext={next} onBack={back} />}
-        {step === 3 && <Step4Contract defaultValues={data} onNext={next} onBack={back} />}
-        {step === 4 && (
+        {step === 3 && (
           <Step5Documents
             localDocs={localDocs}
             onDocsChange={setLocalDocs}
-            onNext={() => setStep(5)}
+            onNext={() => setStep(4)}
             onBack={back}
           />
         )}
-        {step === 5 && (
+        {step === 4 && (
           <Step6Review
             data={data}
             localDocs={localDocs}

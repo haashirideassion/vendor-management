@@ -23,6 +23,8 @@ import type { POStatus } from "@/lib/types"
 import { format } from "date-fns"
 import { Cancel01Icon, Add01Icon, EyeIcon, Delete01Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
+import { FileUploadZone } from "@/components/shared/FileUploadZone"
+import { useUploadAttachments } from "@/hooks/useAttachments"
 
 const STATUSES: POStatus[] = ["draft", "issued", "partially_received", "fully_received", "cancelled", "closed"]
 
@@ -57,14 +59,16 @@ function StatusChip({ status }: { status: POStatus }) {
 export function PurchaseOrderList() {
   const [searchParams]        = useSearchParams()
   const [status, setStatus]   = useState<POStatus | "">("")
-  const [creating, setCreating] = useState(false)
+  const [creating,    setCreating]    = useState(false)
+  const [stagedFiles, setStagedFiles] = useState<File[]>([])
 
   const { canCreatePO } = usePermissions()
   const defaultEngagementId = searchParams.get("engagement_id") ?? undefined
   const { data: pos = [], isLoading } = usePurchaseOrders({ status: status || undefined })
   const { data: engagements = [] }    = useEngagements({ status: "approved" })
   const { data: vendors = [] }        = useVendors({ status: "active" })
-  const createPO = useCreatePurchaseOrder()
+  const createPO          = useCreatePurchaseOrder()
+  const uploadAttachments = useUploadAttachments()
 
   const form = useForm<CreateForm>({
     resolver: zodResolver(createSchema) as unknown as Resolver<CreateForm>,
@@ -84,20 +88,36 @@ export function PurchaseOrderList() {
     if (eng?.vendor_id) form.setValue("vendor_id", eng.vendor_id)
   }
 
-  async function onSubmit(data: CreateForm) {
-    await createPO.mutateAsync({
-      engagement_id:          data.engagement_id || undefined,
-      vendor_id:              data.vendor_id,
-      total_value:            data.total_value,
-      currency:               data.currency,
-      expected_delivery_date: data.expected_delivery_date || undefined,
-      delivery_address:       data.delivery_address || undefined,
-      payment_terms:          data.payment_terms || undefined,
-      notes:                  data.notes || undefined,
-      line_items:             data.line_items.map((item) => ({ ...item, unit: item.unit ?? null })),
-    })
+  function closeDialog() {
     setCreating(false)
+    setStagedFiles([])
     form.reset()
+  }
+
+  async function onSubmit(data: CreateForm) {
+    let poId: string
+    try {
+      const po = await createPO.mutateAsync({
+        engagement_id:          data.engagement_id || undefined,
+        vendor_id:              data.vendor_id,
+        total_value:            data.total_value,
+        currency:               data.currency,
+        expected_delivery_date: data.expected_delivery_date || undefined,
+        delivery_address:       data.delivery_address || undefined,
+        payment_terms:          data.payment_terms || undefined,
+        notes:                  data.notes || undefined,
+        line_items:             data.line_items.map((item) => ({ ...item, unit: item.unit ?? null })),
+      })
+      poId = po.id
+    } catch {
+      return
+    }
+    if (stagedFiles.length > 0) {
+      try {
+        await uploadAttachments.mutateAsync({ entityType: "purchase_order", entityId: poId, files: stagedFiles })
+      } catch { /* hook toasts its own error */ }
+    }
+    closeDialog()
   }
 
   return (
@@ -204,7 +224,7 @@ export function PurchaseOrderList() {
       </div>
 
       {/* Create PO dialog */}
-      <Dialog open={creating} onOpenChange={setCreating}>
+      <Dialog open={creating} onOpenChange={(open) => { if (!open) closeDialog() }}>
         <DialogContent size="2xl">
           <DialogHeader><DialogTitle>New Purchase Order</DialogTitle></DialogHeader>
           <DialogBody>
@@ -319,12 +339,34 @@ export function PurchaseOrderList() {
               <Textarea {...form.register("notes")} placeholder="Additional notes…" rows={2} />
             </div>
 
+            {/* Attachments */}
+            <Separator />
+            <div className="space-y-2">
+              <div>
+                <p className="text-sm font-semibold">Attachments</p>
+                <p className="text-xs text-muted-foreground">Optional PO documents (uploaded after creation).</p>
+              </div>
+              <FileUploadZone
+                files={stagedFiles}
+                onChange={setStagedFiles}
+                disabled={createPO.isPending || uploadAttachments.isPending}
+              />
+            </div>
+
           </form>
           </DialogBody>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => { setCreating(false); form.reset() }}>Cancel</Button>
-            <Button type="submit" form="create-po" disabled={createPO.isPending}>
-              {createPO.isPending ? "Creating…" : "Create PO"}
+            <Button type="button" variant="outline" onClick={closeDialog}>Cancel</Button>
+            <Button
+              type="submit"
+              form="create-po"
+              disabled={createPO.isPending || uploadAttachments.isPending}
+            >
+              {createPO.isPending
+                ? "Creating…"
+                : uploadAttachments.isPending
+                ? "Uploading…"
+                : "Create PO"}
             </Button>
           </DialogFooter>
         </DialogContent>

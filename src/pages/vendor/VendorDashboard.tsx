@@ -27,9 +27,7 @@ export function VendorDashboard() {
   const { data: contracts = [], isLoading: contractsLoading } = useContracts(
     vendor?.id ? { vendor_id: vendor.id } : undefined
   )
-  const { data: engagements = [], isLoading: engagementsLoading } = useEngagements(
-    vendor?.id ? { vendor_id: vendor.id } : undefined
-  )
+  const { data: engagements = [], isLoading: engagementsLoading } = useEngagements()
 
   if (isLoading) {
     return (

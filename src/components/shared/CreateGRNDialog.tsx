@@ -1,10 +1,13 @@
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useForm, useFieldArray } from "react-hook-form"
 import type { Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { useCreateGRN } from "@/hooks/useGRNs"
 import { usePurchaseOrders } from "@/hooks/usePurchaseOrders"
+import { useUploadAttachments } from "@/hooks/useAttachments"
+import { FileUploadZone } from "./FileUploadZone"
+import type { POLineItem } from "@/lib/types"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -37,12 +40,15 @@ interface CreateGRNDialogProps {
   onOpenChange: (open: boolean) => void
   defaultPOId?: string
   defaultVendorId?: string
+  defaultLineItems?: POLineItem[]
   onSuccess?: () => void
 }
 
-export function CreateGRNDialog({ open, onOpenChange, defaultPOId, defaultVendorId, onSuccess }: CreateGRNDialogProps) {
+export function CreateGRNDialog({ open, onOpenChange, defaultPOId, defaultVendorId, defaultLineItems, onSuccess }: CreateGRNDialogProps) {
   const { data: pos = [] } = usePurchaseOrders({ status: "issued" })
-  const createGRN = useCreateGRN()
+  const createGRN          = useCreateGRN()
+  const uploadAttachments  = useUploadAttachments()
+  const [stagedFiles, setStagedFiles] = useState<File[]>([])
 
   const form = useForm<CreateForm>({
     resolver: zodResolver(createSchema) as unknown as Resolver<CreateForm>,
@@ -56,15 +62,24 @@ export function CreateGRNDialog({ open, onOpenChange, defaultPOId, defaultVendor
   const { fields, append, remove } = useFieldArray({ control: form.control, name: "line_items" })
 
   useEffect(() => {
+    if (!open) setStagedFiles([])
     if (open) {
       form.reset({
         po_id:         defaultPOId ?? "",
         vendor_id:     defaultVendorId ?? "",
         received_date: new Date().toISOString().slice(0, 10),
-        line_items:    [{ description: "", quantity_received: 1, unit_price: 0, unit: "" }],
+        line_items: defaultLineItems?.length
+          ? defaultLineItems.map((li) => ({
+              po_line_item_id:   li.id,
+              description:       li.description,
+              quantity_received: li.quantity,
+              unit_price:        li.unit_price,
+              unit:              li.unit ?? "",
+            }))
+          : [{ description: "", quantity_received: 1, unit_price: 0, unit: "" }],
       })
     }
-  }, [open, defaultPOId, defaultVendorId, form])
+  }, [open, defaultPOId, defaultVendorId, defaultLineItems, form])
 
   function handlePOChange(poId: string) {
     form.setValue("po_id", poId)
@@ -73,17 +88,28 @@ export function CreateGRNDialog({ open, onOpenChange, defaultPOId, defaultVendor
   }
 
   async function onSubmit(data: CreateForm) {
-    await createGRN.mutateAsync({
-      po_id:         data.po_id,
-      vendor_id:     data.vendor_id,
-      received_date: data.received_date,
-      notes:         data.notes || undefined,
-      line_items:    data.line_items.map((item) => ({
-        ...item,
-        unit:             item.unit ?? null,
-        po_line_item_id:  item.po_line_item_id ?? null,
-      })),
-    })
+    let grnId: string
+    try {
+      const grn = await createGRN.mutateAsync({
+        po_id:         data.po_id,
+        vendor_id:     data.vendor_id,
+        received_date: data.received_date,
+        notes:         data.notes || undefined,
+        line_items:    data.line_items.map((item) => ({
+          ...item,
+          unit:            item.unit ?? null,
+          po_line_item_id: item.po_line_item_id ?? null,
+        })),
+      })
+      grnId = grn.id
+    } catch {
+      return
+    }
+    if (stagedFiles.length > 0) {
+      try {
+        await uploadAttachments.mutateAsync({ entityType: "grn", entityId: grnId, files: stagedFiles })
+      } catch { /* hook toasts its own error */ }
+    }
     onOpenChange(false)
     onSuccess?.()
   }
@@ -172,12 +198,33 @@ export function CreateGRNDialog({ open, onOpenChange, defaultPOId, defaultVendor
                 ))}
               </div>
             </div>
+
+            <Separator />
+            <div className="space-y-2">
+              <div>
+                <p className="text-sm font-semibold">Attachments</p>
+                <p className="text-xs text-muted-foreground">Optional delivery documents (uploaded after GRN is recorded).</p>
+              </div>
+              <FileUploadZone
+                files={stagedFiles}
+                onChange={setStagedFiles}
+                disabled={createGRN.isPending || uploadAttachments.isPending}
+              />
+            </div>
           </form>
         </DialogBody>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button type="submit" form="create-grn-dialog" disabled={createGRN.isPending}>
-            {createGRN.isPending ? "Creating…" : "Record GRN"}
+          <Button
+            type="submit"
+            form="create-grn-dialog"
+            disabled={createGRN.isPending || uploadAttachments.isPending}
+          >
+            {createGRN.isPending
+              ? "Recording…"
+              : uploadAttachments.isPending
+              ? "Uploading…"
+              : "Record GRN"}
           </Button>
         </DialogFooter>
       </DialogContent>

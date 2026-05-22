@@ -1,6 +1,6 @@
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Link } from "react-router-dom"
-import { useForm, Controller } from "react-hook-form"
+import { useForm, Controller, useFieldArray } from "react-hook-form"
 import type { Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -17,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Command, CommandInput, CommandList, CommandItem, CommandEmpty } from "@/components/ui/command"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
@@ -27,12 +28,20 @@ import {
 import { formatCurrency } from "@/lib/utils"
 import type { EngagementStatus } from "@/lib/types"
 import { format } from "date-fns"
-import { Search01Icon, Cancel01Icon, Add01Icon, EyeIcon } from "@hugeicons/core-free-icons"
+import { Search01Icon, Cancel01Icon, Add01Icon, EyeIcon, Delete01Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
+import { FileUploadZone } from "@/components/shared/FileUploadZone"
+import { useUploadAttachments } from "@/hooks/useAttachments"
 
 const STATUSES: EngagementStatus[] = [
   "draft", "pending_approval", "approved", "rejected", "cancelled", "completed",
 ]
+
+const lineItemSchema = z.object({
+  description: z.string().min(1, "Description required"),
+  quantity:    z.coerce.number().positive("Must be > 0"),
+  unit:        z.string().optional(),
+})
 
 const createSchema = z.object({
   title:           z.string().min(1, "Title is required"),
@@ -44,6 +53,7 @@ const createSchema = z.object({
   start_date:      z.string().optional(),
   end_date:        z.string().optional(),
   notes:           z.string().optional(),
+  line_items:      z.array(lineItemSchema).optional().default([]),
 })
 type CreateForm = z.infer<typeof createSchema>
 
@@ -117,37 +127,77 @@ function MultiSelect({
 export function EngagementList() {
   const [search, setSearch]   = useState("")
   const [status, setStatus]   = useState<EngagementStatus | "">("")
-  const [creating, setCreating] = useState(false)
+  const [creating,       setCreating]       = useState(false)
+  const [stagedFiles,    setStagedFiles]    = useState<File[]>([])
 
   const { canCreateEngagement } = usePermissions()
   const { data: engagements = [], isLoading } = useEngagements({ status: status || undefined, search })
   const { data: categories = [] }  = useCategories(true)
-  const createEngagement = useCreateEngagement()
+  const createEngagement   = useCreateEngagement()
+  const uploadAttachments  = useUploadAttachments()
 
   const form = useForm<CreateForm>({
     resolver: zodResolver(createSchema) as unknown as Resolver<CreateForm>,
-    defaultValues: { category_ids: [], vendor_ids: [], currency: "INR" },
+    defaultValues: { category_ids: [], vendor_ids: [], currency: "INR", line_items: [] },
   })
 
+  const { fields: lineItemFields, append: appendLineItem, remove: removeLineItem } =
+    useFieldArray({ control: form.control, name: "line_items" })
+
   const watchedCategoryIds = form.watch("category_ids") ?? []
-  const { data: vendors = [] } = useVendorsByCategories(watchedCategoryIds)
+  const { data: vendors = [], isFetching: vendorsFetching } = useVendorsByCategories(watchedCategoryIds)
+
+  // Auto-select all vendors when the fetched vendor list changes after a category pick.
+  // A ref tracks whether we've already auto-selected for the current category set so that
+  // manual deselections are not overridden on background refetches.
+  const didAutoSelectRef = useRef(false)
+
+  useEffect(() => {
+    if (vendors.length > 0 && !didAutoSelectRef.current && watchedCategoryIds.length > 0) {
+      form.setValue("vendor_ids", vendors.map((v) => v.id), { shouldValidate: true })
+      didAutoSelectRef.current = true
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vendors])
 
   const hasFilters = search || status
 
-  async function onSubmit(data: CreateForm) {
-    await createEngagement.mutateAsync({
-      title:           data.title,
-      description:     data.description ?? null,
-      category_ids:    data.category_ids,
-      vendor_ids:      data.vendor_ids,
-      estimated_value: data.estimated_value ?? null,
-      currency:        data.currency,
-      start_date:      data.start_date || null,
-      end_date:        data.end_date || null,
-      notes:           data.notes ?? null,
-    })
+  function closeDialog() {
     setCreating(false)
-    form.reset({ category_ids: [], vendor_ids: [], currency: "INR" })
+    setStagedFiles([])
+    form.reset({ category_ids: [], vendor_ids: [], currency: "INR", line_items: [] })
+    didAutoSelectRef.current = false
+  }
+
+  async function onSubmit(data: CreateForm) {
+    let engagementId: string
+    try {
+      const engagement = await createEngagement.mutateAsync({
+        title:           data.title,
+        description:     data.description ?? null,
+        category_ids:    data.category_ids,
+        vendor_ids:      data.vendor_ids,
+        estimated_value: data.estimated_value ?? null,
+        currency:        data.currency,
+        start_date:      data.start_date || null,
+        end_date:        data.end_date || null,
+        notes:           data.notes ?? null,
+        line_items:      (data.line_items ?? []).map((li) => ({
+          description: li.description,
+          quantity:    li.quantity,
+          unit:        li.unit ?? null,
+        })),
+      })
+      engagementId = engagement.id
+    } catch {
+      return
+    }
+    if (stagedFiles.length > 0) {
+      try {
+        await uploadAttachments.mutateAsync({ entityType: "engagement", entityId: engagementId, files: stagedFiles })
+      } catch { /* hook toasts its own error */ }
+    }
+    closeDialog()
   }
 
   return (
@@ -264,7 +314,7 @@ export function EngagementList() {
       </div>
 
       {/* Create Dialog */}
-      <Dialog open={creating} onOpenChange={setCreating}>
+      <Dialog open={creating} onOpenChange={(open) => { if (!open) closeDialog() }}>
         <DialogContent size="xl">
           <DialogHeader>
             <DialogTitle>New Engagement</DialogTitle>
@@ -293,6 +343,7 @@ export function EngagementList() {
                       onChange={(ids) => {
                         field.onChange(ids)
                         form.setValue("vendor_ids", [])
+                        didAutoSelectRef.current = false
                       }}
                       placeholder="Select categories"
                       searchPlaceholder="Search categories…"
@@ -305,7 +356,15 @@ export function EngagementList() {
               </div>
 
               <div className="space-y-1.5">
-                <Label>Vendors <span className="text-destructive">*</span></Label>
+                <div className="flex items-center justify-between">
+                  <Label>Vendors <span className="text-destructive">*</span></Label>
+                  {vendorsFetching && watchedCategoryIds.length > 0 && (
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      <span className="h-3 w-3 border border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
+                      Loading vendors…
+                    </span>
+                  )}
+                </div>
                 <Controller
                   control={form.control}
                   name="vendor_ids"
@@ -354,14 +413,108 @@ export function EngagementList() {
                 <Label>Notes</Label>
                 <Textarea {...form.register("notes")} placeholder="Additional context…" rows={2} />
               </div>
+
+              {/* Line Items */}
+              <Separator />
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="text-sm font-semibold">Line Items</Label>
+                    <p className="text-xs text-muted-foreground">Requested items/services (optional). Vendors will see these when quoting.</p>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs gap-1"
+                    onClick={() => appendLineItem({ description: "", quantity: 1, unit: "" })}
+                  >
+                    <HugeiconsIcon icon={Add01Icon} size={12} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" />
+                    Add Item
+                  </Button>
+                </div>
+
+                {lineItemFields.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-12 gap-2 text-xs text-muted-foreground font-medium px-1">
+                      <span className="col-span-7">Description</span>
+                      <span className="col-span-2">Qty</span>
+                      <span className="col-span-2">Unit</span>
+                      <span className="col-span-1" />
+                    </div>
+                    {lineItemFields.map((field, i) => (
+                      <div key={field.id} className="grid grid-cols-12 gap-2 items-start">
+                        <div className="col-span-7">
+                          <Input
+                            {...form.register(`line_items.${i}.description`)}
+                            placeholder="Item description"
+                            className="h-8 text-xs"
+                          />
+                          {form.formState.errors.line_items?.[i]?.description && (
+                            <p className="text-xs text-destructive mt-0.5">
+                              {form.formState.errors.line_items[i]?.description?.message}
+                            </p>
+                          )}
+                        </div>
+                        <div className="col-span-2">
+                          <Input
+                            type="number" min={0.01} step="any"
+                            {...form.register(`line_items.${i}.quantity`)}
+                            placeholder="1"
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                        <div className="col-span-2">
+                          <Input
+                            {...form.register(`line_items.${i}.unit`)}
+                            placeholder="e.g. hrs"
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                        <div className="col-span-1 flex justify-center pt-1">
+                          <button
+                            type="button"
+                            onClick={() => removeLineItem(i)}
+                            className="text-muted-foreground hover:text-destructive"
+                          >
+                            <HugeiconsIcon icon={Delete01Icon} size={14} strokeWidth={1.5} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Attachments */}
+              <Separator />
+              <div className="space-y-2">
+                <div>
+                  <p className="text-sm font-semibold">Attachments</p>
+                  <p className="text-xs text-muted-foreground">Optional files to attach (added after creation).</p>
+                </div>
+                <FileUploadZone
+                  files={stagedFiles}
+                  onChange={setStagedFiles}
+                  disabled={createEngagement.isPending || uploadAttachments.isPending}
+                />
+              </div>
             </form>
           </DialogBody>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => { setCreating(false); form.reset({ category_ids: [], vendor_ids: [], currency: "INR" }) }}>
+            <Button type="button" variant="outline" onClick={closeDialog}>
               Cancel
             </Button>
-            <Button type="submit" form="create-engagement" disabled={createEngagement.isPending}>
-              {createEngagement.isPending ? "Creating…" : "Create Engagement"}
+            <Button
+              type="submit"
+              form="create-engagement"
+              disabled={createEngagement.isPending || uploadAttachments.isPending}
+            >
+              {createEngagement.isPending
+                ? "Creating…"
+                : uploadAttachments.isPending
+                ? "Uploading…"
+                : "Create Engagement"}
             </Button>
           </DialogFooter>
         </DialogContent>

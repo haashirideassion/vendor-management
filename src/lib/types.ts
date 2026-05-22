@@ -201,6 +201,16 @@ export type InvoiceStatus =
 
 export type MatchStatus = "matched" | "variance" | "pending"
 
+export interface EngagementLineItem {
+  id: string
+  engagement_id: string
+  description: string
+  quantity: number
+  unit_price: number
+  unit: string | null
+  created_at: string
+}
+
 export interface EngagementVendor {
   id: string
   engagement_id: string
@@ -217,7 +227,9 @@ export interface RFQ {
   status: RFQStatus
   created_at: string
   updated_at: string
-  engagement?: Pick<Engagement, "title" | "description" | "start_date" | "end_date" | "estimated_value" | "currency">
+  engagement?: Pick<Engagement, "title" | "description" | "start_date" | "end_date" | "estimated_value" | "currency"> & {
+    line_items?: EngagementLineItem[]
+  }
   vendor?: Pick<Vendor, "company_name">
 }
 
@@ -272,6 +284,7 @@ export interface Engagement {
   category?: Pick<ServiceCategory, "name">
   creator?: Pick<Profile, "full_name" | "email">
   contract?: Pick<Contract, "contract_ref" | "title">
+  line_items?: EngagementLineItem[]
 }
 
 export interface PurchaseOrder {
@@ -346,6 +359,7 @@ export interface Invoice {
   po_id: string | null
   grn_id: string | null
   contract_id: string | null
+  engagement_id: string | null
   total_amount: number
   currency: string
   invoice_date: string
@@ -366,6 +380,26 @@ export interface Invoice {
   purchase_order?: Pick<PurchaseOrder, "po_number">
   grn?: Pick<GRN, "grn_number">
   contract?: Pick<Contract, "contract_ref" | "title">
+  engagement?: Pick<Engagement, "title">
+}
+
+// ─── Attachments ─────────────────────────────────────────────────────────────
+
+export type AttachmentEntityType = "engagement" | "purchase_order" | "grn" | "contract" | "invoice"
+
+export interface Attachment {
+  id: string
+  entity_type: AttachmentEntityType
+  entity_id: string
+  file_name: string
+  original_name: string
+  file_extension: string
+  mime_type: string
+  file_size: number
+  storage_path: string
+  uploaded_by: string
+  created_at: string
+  is_deleted: boolean
 }
 
 // ─── Vendor with joins ────────────────────────────────────────────────────────
@@ -430,8 +464,13 @@ export interface Database {
       }
       engagements: {
         Row: Engagement
-        Insert: Omit<Engagement, "id" | "created_at" | "updated_at" | "vendor" | "category" | "creator">
-        Update: Partial<Omit<Engagement, "id" | "created_at" | "vendor" | "category" | "creator">>
+        Insert: Omit<Engagement, "id" | "created_at" | "updated_at" | "vendor" | "category" | "creator" | "line_items">
+        Update: Partial<Omit<Engagement, "id" | "created_at" | "vendor" | "category" | "creator" | "line_items">>
+      }
+      engagement_line_items: {
+        Row: EngagementLineItem
+        Insert: Omit<EngagementLineItem, "id" | "created_at">
+        Update: Partial<Omit<EngagementLineItem, "id" | "created_at">>
       }
       engagement_vendors: {
         Row: EngagementVendor
@@ -475,8 +514,8 @@ export interface Database {
       }
       invoices: {
         Row: Invoice
-        Insert: Omit<Invoice, "id" | "invoice_ref" | "created_at" | "updated_at" | "vendor" | "purchase_order" | "grn">
-        Update: Partial<Omit<Invoice, "id" | "invoice_ref" | "created_at" | "vendor" | "purchase_order" | "grn">>
+        Insert: Omit<Invoice, "id" | "invoice_ref" | "created_at" | "updated_at" | "vendor" | "purchase_order" | "grn" | "engagement">
+        Update: Partial<Omit<Invoice, "id" | "invoice_ref" | "created_at" | "vendor" | "purchase_order" | "grn" | "engagement">>
       }
       contracts: {
         Row: Contract
@@ -487,6 +526,11 @@ export interface Database {
         Row: ContractAmendment
         Insert: Omit<ContractAmendment, "id" | "created_at">
         Update: Partial<Omit<ContractAmendment, "id" | "created_at">>
+      }
+      attachments: {
+        Row: Attachment
+        Insert: Omit<Attachment, "id" | "created_at">
+        Update: Partial<Pick<Attachment, "is_deleted">>
       }
     }
   }

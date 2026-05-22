@@ -9,7 +9,6 @@ import {
   BankIcon,
   Tag01Icon,
   File01Icon,
-  Files01Icon,
   AlertCircleIcon,
 } from "@hugeicons/core-free-icons"
 
@@ -71,10 +70,9 @@ function Row({ label, value }: { label: string; value?: string | null }) {
 
 export function Step6Review({ data, localDocs, onEdit, onSubmit, submitting }: Props) {
   const hasCompany = !!(data.company_name && data.contact_name && data.contact_email)
-  const hasContract = !!(data.contract_title && data.contract_type)
   const hasCategories = !!(data.category_ids?.length)
 
-  const missingRequired = !hasCompany || !hasContract || !hasCategories
+  const missingRequired = !hasCompany || !hasCategories
 
   return (
     <div className="space-y-4">
@@ -128,24 +126,8 @@ export function Step6Review({ data, localDocs, onEdit, onSubmit, submitting }: P
         )}
       </SectionCard>
 
-      {/* Contract Details */}
-      <SectionCard title="Contract Details" step={3} onEdit={onEdit} icon={Files01Icon}>
-        {hasContract ? (
-          <>
-            <Row label="Title" value={data.contract_title} />
-            <Row label="Type" value={data.contract_type} />
-            <Row label="Start Date" value={data.contract_start_date} />
-            <Row label="End Date" value={data.contract_end_date} />
-            <Row label="Value" value={data.contract_value ? `${data.contract_value} ${data.contract_currency ?? ""}` : undefined} />
-            <Row label="Auto Renew" value={data.auto_renew ? "Yes" : "No"} />
-          </>
-        ) : (
-          <p className="text-xs text-destructive">Contract details incomplete — please edit.</p>
-        )}
-      </SectionCard>
-
       {/* Documents */}
-      <SectionCard title="Documents" step={4} onEdit={onEdit} icon={File01Icon}>
+      <SectionCard title="Documents" step={3} onEdit={onEdit} icon={File01Icon}>
         {localDocs.length > 0 ? (
           <div className="space-y-1.5">
             {localDocs.map((doc) => (

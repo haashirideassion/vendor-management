@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Separator } from "@/components/ui/separator"
 import {
   CONTRACT_TYPE_LABELS,
   CONTRACT_TYPE_COLORS,
@@ -30,6 +31,8 @@ import type { ContractType, ContractStatus } from "@/lib/types"
 import { format } from "date-fns"
 import { Search01Icon, Cancel01Icon, Add01Icon, EyeIcon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
+import { FileUploadZone } from "@/components/shared/FileUploadZone"
+import { useUploadAttachments } from "@/hooks/useAttachments"
 
 const createSchema = z.object({
   vendor_id:           z.string().uuid("Select a vendor"),
@@ -72,7 +75,8 @@ export function ContractList() {
   const [search, setSearch]             = useState("")
   const [typeFilter, setTypeFilter]     = useState<ContractType | "">("")
   const [statusFilter, setStatusFilter] = useState<ContractStatus | "">("")
-  const [creating, setCreating]         = useState(false)
+  const [creating,    setCreating]    = useState(false)
+  const [stagedFiles, setStagedFiles] = useState<File[]>([])
 
   const { canManageContracts } = usePermissions()
 
@@ -82,7 +86,8 @@ export function ContractList() {
   })
   const { data: vendors = [] } = useVendors({ status: "active" })
   const { data: msas = [] }    = useContracts({ contract_type: "msa" })
-  const createContract = useCreateContract()
+  const createContract    = useCreateContract()
+  const uploadAttachments = useUploadAttachments()
 
   const contracts = search
     ? allContracts.filter((c) =>
@@ -100,22 +105,38 @@ export function ContractList() {
   const watchedType = form.watch("contract_type")
   const hasFilters  = search || typeFilter || statusFilter
 
-  async function onSubmit(data: CreateForm) {
-    await createContract.mutateAsync({
-      vendor_id:           data.vendor_id,
-      contract_type:       data.contract_type as ContractType,
-      title:               data.title,
-      parent_id:           data.parent_id || null,
-      effective_date:      data.effective_date || null,
-      expiry_date:         data.expiry_date || null,
-      total_value:         data.total_value ?? null,
-      currency:            data.currency,
-      auto_renew:          data.auto_renew,
-      renewal_notice_days: data.renewal_notice_days,
-      notes:               data.notes ?? null,
-    })
+  function closeDialog() {
     setCreating(false)
+    setStagedFiles([])
     form.reset()
+  }
+
+  async function onSubmit(data: CreateForm) {
+    let contractId: string
+    try {
+      const contract = await createContract.mutateAsync({
+        vendor_id:           data.vendor_id,
+        contract_type:       data.contract_type as ContractType,
+        title:               data.title,
+        parent_id:           data.parent_id || null,
+        effective_date:      data.effective_date || null,
+        expiry_date:         data.expiry_date || null,
+        total_value:         data.total_value ?? null,
+        currency:            data.currency,
+        auto_renew:          data.auto_renew,
+        renewal_notice_days: data.renewal_notice_days,
+        notes:               data.notes ?? null,
+      })
+      contractId = contract.id
+    } catch {
+      return
+    }
+    if (stagedFiles.length > 0) {
+      try {
+        await uploadAttachments.mutateAsync({ entityType: "contract", entityId: contractId, files: stagedFiles })
+      } catch { /* hook toasts its own error */ }
+    }
+    closeDialog()
   }
 
   return (
@@ -365,14 +386,36 @@ export function ContractList() {
                 <Label>Notes</Label>
                 <Textarea {...form.register("notes")} placeholder="Additional terms or context…" rows={2} />
               </div>
+
+              {/* Attachments */}
+              <Separator />
+              <div className="space-y-2">
+                <div>
+                  <p className="text-sm font-semibold">Attachments</p>
+                  <p className="text-xs text-muted-foreground">Optional contract documents (uploaded after creation).</p>
+                </div>
+                <FileUploadZone
+                  files={stagedFiles}
+                  onChange={setStagedFiles}
+                  disabled={createContract.isPending || uploadAttachments.isPending}
+                />
+              </div>
             </form>
           </DialogBody>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => { setCreating(false); form.reset() }}>
+            <Button type="button" variant="outline" onClick={closeDialog}>
               Cancel
             </Button>
-            <Button type="submit" form="create-contract" disabled={createContract.isPending}>
-              {createContract.isPending ? "Creating…" : "Create Contract"}
+            <Button
+              type="submit"
+              form="create-contract"
+              disabled={createContract.isPending || uploadAttachments.isPending}
+            >
+              {createContract.isPending
+                ? "Creating…"
+                : uploadAttachments.isPending
+                ? "Uploading…"
+                : "Create Contract"}
             </Button>
           </DialogFooter>
         </DialogContent>

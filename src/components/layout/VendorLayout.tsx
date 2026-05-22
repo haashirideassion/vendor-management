@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { ThemeToggle } from "@/components/shared/ThemeToggle"
+import { NotificationBell } from "@/components/shared/NotificationBell"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { useVendor } from "@/hooks/useVendor"
@@ -222,6 +223,7 @@ export function VendorLayout() {
                 </Button>
               </Link>
             )}
+            <NotificationBell />
             <ThemeToggle />
           </div>
         </header>

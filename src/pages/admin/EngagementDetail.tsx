@@ -5,6 +5,7 @@ import { usePurchaseOrders, useCreatePurchaseOrder } from "@/hooks/usePurchaseOr
 import { useApprovalRequests, useRequestApproval, useReviewApproval } from "@/hooks/useApprovalWorkflow"
 import { useEngagementQuotations } from "@/hooks/useQuotations"
 import { usePermissions } from "@/hooks/usePermissions"
+import { AttachmentList } from "@/components/shared/AttachmentList"
 import { toast } from "sonner"
 import { AnimatedPage } from "@/components/shared/AnimatedPage"
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
@@ -15,10 +16,17 @@ import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { ENGAGEMENT_STATUS_LABELS, ENGAGEMENT_STATUS_COLORS, PO_STATUS_COLORS, PO_STATUS_LABELS, QUOTATION_STATUS_COLORS, QUOTATION_STATUS_LABELS } from "@/lib/constants"
+import {
+  ENGAGEMENT_STATUS_LABELS,
+  ENGAGEMENT_STATUS_COLORS,
+  PO_STATUS_COLORS,
+  PO_STATUS_LABELS,
+  QUOTATION_STATUS_COLORS,
+  QUOTATION_STATUS_LABELS,
+} from "@/lib/constants"
 import { formatCurrency } from "@/lib/utils"
 import { format } from "date-fns"
-import { CheckmarkCircle01Icon, Cancel01Icon, ArrowLeft01Icon, Add01Icon, EyeIcon } from "@hugeicons/core-free-icons"
+import { CheckmarkCircle01Icon, Cancel01Icon, ArrowLeft01Icon, Add01Icon, EyeIcon, InformationCircleIcon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import type { EngagementStatus, POStatus, QuotationStatus, QuotationLineItem } from "@/lib/types"
 
@@ -47,7 +55,11 @@ export function EngagementDetail() {
   const createPO        = useCreatePurchaseOrder()
   const { canApproveEngagement, canCreateEngagement, canCreatePO } = usePermissions()
 
+  // POs have already been dispatched for this engagement — lock the selection UI
+  const posSent = pos.length > 0
+
   function toggleLineItem(lineItemId: string, item: SelectedItem) {
+    if (posSent) return
     setSelectedItems((prev) => {
       const next = new Map(prev)
       if (next.has(lineItemId)) {
@@ -88,7 +100,7 @@ export function EngagementDetail() {
     const succeeded = results.filter((r) => r.status === "fulfilled").length
     const failed    = results.filter((r) => r.status === "rejected").length
 
-    if (succeeded > 0) toast.success(`${succeeded} PO${succeeded !== 1 ? "s" : ""} created`)
+    if (succeeded > 0) toast.success(`${succeeded} PO${succeeded !== 1 ? "s" : ""} created and sent to vendors`)
     if (failed    > 0) toast.error(`${failed} PO${failed !== 1 ? "s" : ""} failed to create`)
 
     setSelectedItems(new Map())
@@ -265,6 +277,34 @@ export function EngagementDetail() {
                   </div>
                 </>
               )}
+
+              {/* Engagement line items */}
+              {(engagement.line_items ?? []).length > 0 && (
+                <>
+                  <Separator />
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-2 font-semibold uppercase tracking-wide">Requested Items</p>
+                    <div className="space-y-1">
+                      <div className="grid grid-cols-12 gap-2 text-xs text-muted-foreground font-medium px-1">
+                        <span className="col-span-5">Description</span>
+                        <span className="col-span-2 text-right">Qty</span>
+                        <span className="col-span-2 text-right">Unit</span>
+                        <span className="col-span-3 text-right">Rate</span>
+                      </div>
+                      {(engagement.line_items ?? []).map((li) => (
+                        <div key={li.id} className="grid grid-cols-12 gap-2 items-center py-1 border-b border-border/50 text-sm">
+                          <div className="col-span-5">{li.description}</div>
+                          <div className="col-span-2 text-right tabular-nums">{li.quantity}</div>
+                          <div className="col-span-2 text-right text-muted-foreground">{li.unit ?? "—"}</div>
+                          <div className="col-span-3 text-right tabular-nums">
+                            {li.unit_price > 0 ? formatCurrency(li.unit_price, engagement.currency) : "—"}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -331,13 +371,22 @@ export function EngagementDetail() {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-base font-semibold tracking-tight">Vendor Quotations</h2>
-              {selectedItems.size > 0 && canCreatePO && (
+              {!posSent && selectedItems.size > 0 && canCreatePO && (
                 <Button size="sm" onClick={() => setShowPOConfirm(true)}>
                   <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" className="mr-1.5" />
                   Send PO to Vendors ({selectedItems.size} item{selectedItems.size !== 1 ? "s" : ""})
                 </Button>
               )}
             </div>
+
+            {/* Banner shown after POs are dispatched */}
+            {posSent && (
+              <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 text-sm text-blue-800">
+                <HugeiconsIcon icon={InformationCircleIcon} size={15} strokeWidth={1.5} className="shrink-0" />
+                <span>Purchase orders have already been sent for this engagement. Selection is locked.</span>
+              </div>
+            )}
+
             {quotations.map((quot) => (
               <Card key={quot.id}>
                 <CardHeader className="pb-3">
@@ -368,6 +417,7 @@ export function EngagementDetail() {
                           <div className="col-span-1 flex justify-center">
                             <Checkbox
                               checked={selectedItems.has(li.id)}
+                              disabled={posSent}
                               onCheckedChange={() => toggleLineItem(li.id, {
                                 quotation_id: quot.id,
                                 vendor_id:    quot.vendor_id,
@@ -394,6 +444,13 @@ export function EngagementDetail() {
             ))}
           </div>
         )}
+
+        <AttachmentList
+          entityType="engagement"
+          entityId={id!}
+          canDelete={canCreateEngagement}
+          canUpload={false}
+        />
       </div>
 
       {/* Submit for Approval dialog */}
@@ -453,9 +510,9 @@ export function EngagementDetail() {
       <ConfirmDialog
         open={showPOConfirm}
         onOpenChange={setShowPOConfirm}
-        title="Create Purchase Orders"
-        description={`This will create ${new Set(Array.from(selectedItems.values()).map((i) => i.vendor_id)).size} PO(s) from the selected line items. This action cannot be undone.`}
-        confirmLabel="Create POs"
+        title="Send Purchase Orders to Vendors"
+        description={`This will create ${new Set(Array.from(selectedItems.values()).map((i) => i.vendor_id)).size} PO(s) from the selected line items. This action cannot be undone and the selection will be locked.`}
+        confirmLabel="Send POs"
         variant="default"
         loading={createPO.isPending}
         onConfirm={handleCreatePOs}
