@@ -8,7 +8,8 @@ const SELECT_FIELDS = `
   vendor:vendor_id ( company_name, contact_name ),
   category:category_id ( name ),
   creator:created_by ( full_name, email ),
-  line_items:engagement_line_items (*)
+  line_items:engagement_line_items (*),
+  engagement_vendors ( vendor:vendor_id ( id, company_name ) )
 `
 
 // ─── Filters ──────────────────────────────────────────────────────────────────
@@ -119,6 +120,21 @@ export function useCreateEngagement() {
           )
         if (rfqError) throw rfqError
       }
+
+      const { error: approvalError } = await supabase.from("approval_requests").insert({
+        entity_type:  "engagement",
+        entity_id:    eng.id,
+        requested_by: user.id,
+        amount:       input.estimated_value ?? null,
+        notes:        null,
+      })
+      if (approvalError) throw approvalError
+
+      const { error: statusError } = await supabase
+        .from("engagements")
+        .update({ status: "pending_approval" })
+        .eq("id", eng.id)
+      if (statusError) throw statusError
 
       return eng as Engagement
     },

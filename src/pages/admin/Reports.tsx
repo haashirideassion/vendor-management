@@ -31,35 +31,35 @@ import { HugeiconsIcon } from "@hugeicons/react"
 import type { VendorStatus, InvoiceStatus, EngagementStatus } from "@/lib/types"
 
 const VENDOR_CHART_COLORS: Record<VendorStatus, string> = {
-  active:          "#16a34a",
-  pending_review:  "#ca8a04",
+  active: "#16a34a",
+  pending_review: "#ca8a04",
   action_required: "#ea580c",
-  suspended:       "#dc2626",
-  rejected:        "#6b7280",
+  suspended: "#dc2626",
+  rejected: "#6b7280",
 }
 
 const INVOICE_CHART_COLORS: Partial<Record<InvoiceStatus, string>> = {
-  submitted:    "#6b7280",
+  submitted: "#6b7280",
   under_review: "#ca8a04",
-  matched:      "#2563eb",
-  approved:     "#16a34a",
-  paid:         "#7c3aed",
-  rejected:     "#dc2626",
+  matched: "#2563eb",
+  approved: "#16a34a",
+  paid: "#7c3aed",
+  rejected: "#dc2626",
 }
 
 const ENGAGEMENT_CHART_COLORS: Partial<Record<EngagementStatus, string>> = {
-  draft:            "#6b7280",
+  draft: "#6b7280",
   pending_approval: "#ca8a04",
-  approved:         "#2563eb",
-  completed:        "#16a34a",
-  rejected:         "#dc2626",
-  cancelled:        "#9ca3af",
+  approved: "#2563eb",
+  completed: "#16a34a",
+  rejected: "#dc2626",
+  cancelled: "#9ca3af",
 }
 
 function compactNum(v: number): string {
   if (v >= 10_000_000) return `₹${(v / 10_000_000).toFixed(1)}Cr`
-  if (v >= 100_000)    return `₹${(v / 100_000).toFixed(1)}L`
-  if (v >= 1_000)      return `₹${(v / 1_000).toFixed(0)}K`
+  if (v >= 100_000) return `₹${(v / 100_000).toFixed(1)}L`
+  if (v >= 1_000) return `₹${(v / 1_000).toFixed(0)}K`
   return `₹${Math.round(v)}`
 }
 
@@ -74,14 +74,14 @@ const TOOLTIP_STYLE = {
 
 export function Reports() {
   const { data: vendors = [], isLoading } = useVendors()
-  const { data: analytics }               = useProcurementKPIs()
+  const { data: analytics } = useProcurementKPIs()
 
   const vendorChartData = VENDOR_STATUSES
     .map((s) => ({
       status: VENDOR_STATUS_LABELS[s],
-      count:  vendors.filter((v) => v.status === s).length,
-      color:  VENDOR_CHART_COLORS[s],
-      key:    s,
+      count: vendors.filter((v) => v.status === s).length,
+      color: VENDOR_CHART_COLORS[s],
+      key: s,
     }))
     .filter((d) => d.count > 0)
 
@@ -94,13 +94,13 @@ export function Reports() {
     .filter((v) => v.daysLeft <= 60)
     .sort((a, b) => a.daysLeft - b.daysLeft)
 
-  const totalActive  = vendors.filter((v) => v.status === "active").length
+  const totalActive = vendors.filter((v) => v.status === "active").length
   const pendingCount = vendors.filter((v) => v.status === "pending_review").length
   const renewingIn30 = upcomingRenewals.filter((v) => v.daysLeft <= 30).length
 
-  const kpis        = analytics?.kpis
-  const charts      = analytics?.charts
-  const expiring    = analytics?.contractsExpiringSoon ?? []
+  const kpis = analytics?.kpis
+  const charts = analytics?.charts
+  const expiring = analytics?.contractsExpiringSoon ?? []
 
   if (isLoading) return (
     <div className="p-6 flex items-center gap-2 text-sm text-muted-foreground">
@@ -136,7 +136,7 @@ export function Reports() {
                 <div className="mb-3 p-1.5 w-fit rounded-lg bg-white/60 dark:bg-black/20 shadow-sm">
                   <HugeiconsIcon icon={ChartBarIncreasingIcon} size={18} strokeWidth={1.5} className="text-green-600 dark:text-green-400" />
                 </div>
-                <p className="text-3xl font-bold tracking-tight text-green-700 dark:text-green-300">{totalActive}</p>
+                <p className="text-3xl font-bold tracking-tight text-green-600 dark:text-green-300">{totalActive}</p>
                 <p className="text-xs text-muted-foreground mt-1 font-medium">Active Vendors</p>
               </CardContent>
             </Card>
@@ -268,7 +268,7 @@ export function Reports() {
                 <div className="mb-3 p-1.5 w-fit rounded-lg bg-white/60 dark:bg-black/20 shadow-sm">
                   <HugeiconsIcon icon={File01Icon} size={18} strokeWidth={1.5} className="text-green-600 dark:text-green-400" />
                 </div>
-                <p className="text-2xl font-bold tracking-tight text-green-700 dark:text-green-300 tabular-nums">
+                <p className="text-2xl font-bold tracking-tight text-green-600 dark:text-green-300 tabular-nums">
                   {kpis?.activeContractCount ?? "—"}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1 font-medium">Active Contracts</p>
@@ -399,10 +399,10 @@ export function Reports() {
                 ) : (
                   <div className="space-y-2.5 pt-1">
                     {charts.invoiceStatus.map((d) => {
-                      const total  = charts.invoiceStatus.reduce((s, x) => s + x.count, 0)
-                      const pct    = total > 0 ? Math.round((d.count / total) * 100) : 0
-                      const color  = INVOICE_CHART_COLORS[d.status as InvoiceStatus] ?? "#6b7280"
-                      const label  = INVOICE_STATUS_LABELS[d.status as InvoiceStatus] ?? d.status
+                      const total = charts.invoiceStatus.reduce((s, x) => s + x.count, 0)
+                      const pct = total > 0 ? Math.round((d.count / total) * 100) : 0
+                      const color = INVOICE_CHART_COLORS[d.status as InvoiceStatus] ?? "#6b7280"
+                      const label = INVOICE_STATUS_LABELS[d.status as InvoiceStatus] ?? d.status
                       const chipCls = INVOICE_STATUS_COLORS[d.status as InvoiceStatus] ?? "bg-gray-100 text-gray-700 border-gray-200"
                       return (
                         <div key={d.status} className="space-y-1">

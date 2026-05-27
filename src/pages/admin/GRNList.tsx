@@ -1,8 +1,10 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useSearchParams } from "react-router-dom"
 import { useGRNs, useUpdateGRNStatus } from "@/hooks/useGRNs"
 import { usePermissions } from "@/hooks/usePermissions"
+import { usePagination } from "@/hooks/usePagination"
 import { AnimatedPage } from "@/components/shared/AnimatedPage"
+import { PaginationBar } from "@/components/shared/PaginationBar"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -28,8 +30,8 @@ function StatusChip({ status }: { status: GRNStatus }) {
 }
 
 export function GRNList() {
-  const [searchParams]        = useSearchParams()
-  const [status, setStatus]   = useState<GRNStatus | "">("")
+  const [searchParams] = useSearchParams()
+  const [status, setStatus] = useState<GRNStatus | "">("")
   const [creating, setCreating] = useState(false)
   const [confirmAction, setConfirmAction] = useState<{ id: string; status: "verified" | "rejected" } | null>(null)
   const [docsGRNId, setDocsGRNId] = useState<string | null>(null)
@@ -39,27 +41,14 @@ export function GRNList() {
   const { data: grns = [], isLoading } = useGRNs({ status: status || undefined })
   const updateStatus = useUpdateGRNStatus()
 
+  const { page, setPage, totalPages, totalItems, paginated, reset } = usePagination(grns, 10)
+  useEffect(() => { reset() }, [status])
+
   return (
     <AnimatedPage>
-      <div className="p-6 space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold tracking-tight">Goods Receipt Notes</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              {isLoading ? "Loading…" : `${grns.length} GRN${grns.length !== 1 ? "s" : ""}`}
-            </p>
-          </div>
-          {canRecordGRN && (
-            <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setCreating(true)}>
-              <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" />
-              Record GRN
-            </Button>
-          )}
-        </div>
-
-        {/* Filter */}
-        <div className="flex flex-wrap items-center gap-3 p-4 rounded-xl border bg-card">
+      <div className="flex-1 flex flex-col min-h-0 pt-4 gap-4">
+        {/* Filter + action */}
+        <div className="shrink-0 flex flex-wrap items-center gap-3 p-4 rounded-xl border bg-card">
           <Select value={status || "all"} onValueChange={(v) => setStatus(v === "all" ? "" : v as GRNStatus)}>
             <SelectTrigger className="w-44 h-9 text-sm"><SelectValue placeholder="All statuses" /></SelectTrigger>
             <SelectContent>
@@ -73,10 +62,16 @@ export function GRNList() {
               Clear
             </Button>
           )}
+          {canRecordGRN && (
+            <Button size="sm" className="h-8 gap-1.5 text-xs ml-auto" onClick={() => setCreating(true)}>
+              <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" />
+              Record GRN
+            </Button>
+          )}
         </div>
 
         {/* Table */}
-        <div className="rounded-xl border overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-auto rounded-xl border">
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/40 hover:bg-muted/40">
@@ -105,7 +100,7 @@ export function GRNList() {
                   </TableCell>
                 </TableRow>
               ) : (
-                grns.map((grn, idx) => (
+                paginated.map((grn, idx) => (
                   <TableRow key={grn.id} className={`transition-colors hover:bg-accent/50 ${idx % 2 !== 0 ? "bg-muted/20" : ""}`}>
                     <TableCell>
                       <span className="font-mono text-xs bg-muted border border-border/70 rounded px-1.5 py-0.5">
@@ -129,7 +124,7 @@ export function GRNList() {
                             <Button
                               size="sm"
                               variant="ghost"
-                              className="h-7 px-2 text-xs text-green-700 hover:text-green-800 hover:bg-green-50"
+                              className="h-7 px-2 text-xs text-green-600 hover:text-green-800 hover:bg-green-50"
                               onClick={() => setConfirmAction({ id: grn.id, status: "verified" })}
                             >
                               <HugeiconsIcon icon={CheckmarkCircle01Icon} size={13} strokeWidth={1.5} />
@@ -163,10 +158,11 @@ export function GRNList() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="h-7 px-2 text-xs text-muted-foreground"
+                          className="h-7 px-2 gap-1.5 text-xs text-muted-foreground"
                           onClick={() => setDocsGRNId(grn.id)}
                         >
                           <HugeiconsIcon icon={File01Icon} size={13} strokeWidth={1.5} />
+                          <span>Document</span>
                         </Button>
                       </div>
                     </TableCell>
@@ -176,6 +172,14 @@ export function GRNList() {
             </TableBody>
           </Table>
         </div>
+
+        <PaginationBar
+          page={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          onPageChange={setPage}
+          itemLabel="GRN"
+        />
       </div>
 
       <CreateGRNDialog

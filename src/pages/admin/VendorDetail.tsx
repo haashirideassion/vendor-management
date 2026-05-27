@@ -37,7 +37,7 @@ import {
   Cancel01Icon,
   EyeIcon,
   Add01Icon,
-  Home01Icon,
+  ArrowLeft01Icon,
   UserCircleIcon,
   Alert01Icon,
 } from "@hugeicons/core-free-icons"
@@ -155,7 +155,7 @@ export function VendorDetail() {
             <div className="min-w-0">
               <div className="flex items-center gap-2 mb-1">
                 <Button variant="ghost" size="sm" className="h-7 px-2 -ml-2 text-muted-foreground" onClick={() => navigate(-1)}>
-                  <HugeiconsIcon icon={Home01Icon} size={14} strokeWidth={1.5} className="mr-1" />
+                  <HugeiconsIcon icon={ArrowLeft01Icon} size={14} strokeWidth={1.5} className="mr-1" />
                   Vendors
                 </Button>
                 <span className="text-muted-foreground/40 text-sm">/</span>

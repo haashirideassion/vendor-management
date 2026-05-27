@@ -17,6 +17,7 @@ import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTi
 import { Separator } from "@/components/ui/separator"
 import { Add01Icon, Delete01Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
+import { supabase } from "@/lib/supabase"
 
 const lineItemSchema = z.object({
   po_line_item_id:   z.string().optional(),
@@ -81,10 +82,24 @@ export function CreateGRNDialog({ open, onOpenChange, defaultPOId, defaultVendor
     }
   }, [open, defaultPOId, defaultVendorId, defaultLineItems, form])
 
-  function handlePOChange(poId: string) {
+  async function handlePOChange(poId: string) {
     form.setValue("po_id", poId)
     const po = pos.find((p) => p.id === poId)
     if (po?.vendor_id) form.setValue("vendor_id", po.vendor_id)
+
+    const { data: lineItems } = await supabase
+      .from("po_line_items")
+      .select("*")
+      .eq("po_id", poId)
+    if (lineItems && lineItems.length > 0) {
+      form.setValue("line_items", lineItems.map((li) => ({
+        po_line_item_id:   li.id,
+        description:       li.description,
+        quantity_received: li.quantity,
+        unit_price:        li.unit_price,
+        unit:              li.unit ?? "",
+      })))
+    }
   }
 
   async function onSubmit(data: CreateForm) {

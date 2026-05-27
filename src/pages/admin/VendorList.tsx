@@ -1,13 +1,16 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Link } from "react-router-dom"
 import { useVendors } from "@/hooks/useVendors"
 import { useCategories } from "@/hooks/useCategories"
+import { usePagination } from "@/hooks/usePagination"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { RatingStars } from "@/components/shared/RatingStars"
 import { AnimatedPage } from "@/components/shared/AnimatedPage"
+import { PaginationBar } from "@/components/shared/PaginationBar"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { VENDOR_STATUS_LABELS, VENDOR_STATUSES } from "@/lib/constants"
 import { Search01Icon, Cancel01Icon, EyeIcon } from "@hugeicons/core-free-icons"
@@ -15,26 +18,66 @@ import { HugeiconsIcon } from "@hugeicons/react"
 import type { VendorStatus } from "@/lib/types"
 import { format } from "date-fns"
 
+type TabValue = "active" | "dormant"
+
+const PAGE_SIZE = 10
+
+const ACTIVE_STATUSES: VendorStatus[] = ["active", "pending_review", "action_required"]
+const DORMANT_STATUSES: VendorStatus[] = ["suspended", "rejected"]
+
 export function VendorList() {
+  const [tab, setTab] = useState<TabValue>("active")
   const [search, setSearch] = useState("")
   const [status, setStatus] = useState<VendorStatus | "">("")
   const [category, setCategory] = useState("")
 
-  const { data: vendors = [], isLoading } = useVendors({ search, status, category })
+  // Fetch all vendors (no implicit status filter — we filter by tab below)
+  const { data: allVendors = [], isLoading } = useVendors({ search, category })
   const { data: categories = [] } = useCategories()
+
+  // Tab-based filtering
+  const vendors =
+    tab === "active"
+      ? allVendors.filter((v) => ACTIVE_STATUSES.includes(v.status))
+      : allVendors.filter((v) => DORMANT_STATUSES.includes(v.status))
+
+  // Additional status filter within each tab
+  const filtered = status ? vendors.filter((v) => v.status === status) : vendors
+
+  const { page, setPage, totalPages, totalItems, paginated, reset } = usePagination(filtered, PAGE_SIZE)
+
+  // Reset page when filters change
+  useEffect(() => { reset() }, [search, status, category, tab])
 
   const hasFilters = search || status || category
 
+  const activeCount  = allVendors.filter((v) => ACTIVE_STATUSES.includes(v.status)).length
+  const dormantCount = allVendors.filter((v) => DORMANT_STATUSES.includes(v.status)).length
+
   return (
     <AnimatedPage>
-      <div className="p-6 space-y-6">
-        {/* Header */}
-        <div>
-          <h1 className="text-xl font-bold tracking-tight">Vendors</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {isLoading ? "Loading…" : `${vendors.length} vendor${vendors.length !== 1 ? "s" : ""} found`}
-          </p>
-        </div>
+      <div className="pt-4 space-y-4">
+        {/* Active / Dormant tabs */}
+        <Tabs value={tab} onValueChange={(v) => { setTab(v as TabValue); setStatus("") }}>
+          <TabsList className="h-9">
+            <TabsTrigger value="active" className="text-sm gap-1.5">
+              Active
+              {activeCount > 0 && (
+                <span className="rounded-full bg-primary/15 text-primary px-1.5 py-0.5 text-[11px] font-semibold">
+                  {activeCount}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="dormant" className="text-sm gap-1.5">
+              Dormant
+              {dormantCount > 0 && (
+                <span className="rounded-full bg-muted text-muted-foreground px-1.5 py-0.5 text-[11px] font-semibold">
+                  {dormantCount}
+                </span>
+              )}
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
 
         {/* Filter bar */}
         <div className="flex flex-wrap items-center gap-3 p-4 rounded-xl border bg-card shadow-none">
@@ -111,7 +154,7 @@ export function VendorList() {
                     </div>
                   </TableCell>
                 </TableRow>
-              ) : vendors.length === 0 ? (
+              ) : paginated.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center text-muted-foreground py-12">
                     <div className="flex flex-col items-center gap-1">
@@ -124,7 +167,7 @@ export function VendorList() {
                   </TableCell>
                 </TableRow>
               ) : (
-                vendors.map((v, idx) => (
+                paginated.map((v, idx) => (
                   <TableRow
                     key={v.id}
                     className={`transition-colors hover:bg-accent/50 ${idx % 2 === 0 ? "" : "bg-muted/20"}`}
@@ -186,6 +229,15 @@ export function VendorList() {
             </TableBody>
           </Table>
         </div>
+
+        {/* Pagination */}
+        <PaginationBar
+          page={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          onPageChange={setPage}
+          itemLabel="vendor"
+        />
       </div>
     </AnimatedPage>
   )

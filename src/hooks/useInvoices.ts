@@ -85,10 +85,23 @@ export function useSubmitInvoice() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error("Not authenticated")
 
+      let resolvedPoId = input.po_id ?? undefined
+      if (!resolvedPoId && input.engagement_id && input.vendor_id) {
+        const { data: po } = await supabase
+          .from("purchase_orders")
+          .select("id")
+          .eq("engagement_id", input.engagement_id)
+          .eq("vendor_id", input.vendor_id)
+          .limit(1)
+          .maybeSingle()
+        if (po) resolvedPoId = po.id
+      }
+
       const { data, error } = await supabase
         .from("invoices")
         .insert({
           ...input,
+          po_id:        resolvedPoId ?? input.po_id ?? null,
           submitted_by: user.id,
           status: "submitted",
           match_status: "pending",

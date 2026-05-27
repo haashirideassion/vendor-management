@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Link } from "react-router-dom"
 import { useForm } from "react-hook-form"
 import type { Resolver } from "react-hook-form"
@@ -7,7 +7,9 @@ import { z } from "zod"
 import { useContracts, useCreateContract } from "@/hooks/useContracts"
 import { useVendors } from "@/hooks/useVendors"
 import { usePermissions } from "@/hooks/usePermissions"
+import { usePagination } from "@/hooks/usePagination"
 import { AnimatedPage } from "@/components/shared/AnimatedPage"
+import { PaginationBar } from "@/components/shared/PaginationBar"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -97,6 +99,9 @@ export function ContractList() {
       )
     : allContracts
 
+  const { page, setPage, totalPages, totalItems, paginated, reset } = usePagination(contracts, 10)
+  useEffect(() => { reset() }, [search, typeFilter, statusFilter])
+
   const form = useForm<CreateForm>({
     resolver: zodResolver(createSchema) as unknown as Resolver<CreateForm>,
     defaultValues: { currency: "INR", auto_renew: false, renewal_notice_days: 30 },
@@ -141,25 +146,9 @@ export function ContractList() {
 
   return (
     <AnimatedPage>
-      <div className="p-6 space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold tracking-tight">Contracts</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              {isLoading ? "Loading…" : `${contracts.length} contract${contracts.length !== 1 ? "s" : ""}`}
-            </p>
-          </div>
-          {canManageContracts && (
-            <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setCreating(true)}>
-              <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" />
-              New Contract
-            </Button>
-          )}
-        </div>
-
-        {/* Filters */}
-        <div className="flex flex-wrap items-center gap-3 p-4 rounded-xl border bg-card">
+      <div className="flex-1 flex flex-col min-h-0 pt-4 gap-4">
+        {/* Filters + action button */}
+        <div className="shrink-0 flex flex-wrap items-center gap-3 p-4 rounded-xl border bg-card">
           <div className="relative flex-1 min-w-[200px] max-w-xs">
             <HugeiconsIcon icon={Search01Icon} size={15} strokeWidth={1.5} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
             <Input
@@ -204,10 +193,16 @@ export function ContractList() {
               Clear
             </Button>
           )}
+          {canManageContracts && (
+            <Button size="sm" className="h-8 gap-1.5 text-xs ml-auto" onClick={() => setCreating(true)}>
+              <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" />
+              New Contract
+            </Button>
+          )}
         </div>
 
         {/* Table */}
-        <div className="rounded-xl border overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-auto rounded-xl border">
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/40 hover:bg-muted/40">
@@ -238,7 +233,7 @@ export function ContractList() {
                   </TableCell>
                 </TableRow>
               ) : (
-                contracts.map((c, idx) => (
+                paginated.map((c, idx) => (
                   <TableRow key={c.id} className={`transition-colors hover:bg-accent/50 ${idx % 2 !== 0 ? "bg-muted/20" : ""}`}>
                     <TableCell>
                       <p className="text-sm font-medium leading-tight">{c.title}</p>
@@ -275,6 +270,15 @@ export function ContractList() {
             </TableBody>
           </Table>
         </div>
+
+        {/* Pagination */}
+        <PaginationBar
+          page={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          onPageChange={setPage}
+          itemLabel="contract"
+        />
       </div>
 
       {/* Create Dialog */}

@@ -6,7 +6,7 @@ import { AnimatedPage } from "@/components/shared/AnimatedPage"
 import { DocumentUploader } from "@/components/shared/DocumentUploader"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { DOCUMENT_TYPE_LABELS } from "@/lib/constants"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
@@ -23,7 +23,7 @@ import { toast } from "sonner"
 export function VendorDocuments() {
   const { data: vendor, isLoading } = useVendor()
   const getSignedUrl = useDocumentSignedUrl()
-  const [sheetOpen, setSheetOpen] = useState(false)
+  const [uploadOpen, setUploadOpen] = useState(false)
 
   const docs = vendor?.vendor_documents ?? []
 
@@ -75,7 +75,7 @@ export function VendorDocuments() {
             <h1 className="text-xl font-bold tracking-tight">Documents</h1>
             <p className="text-sm text-muted-foreground">Manage your uploaded documents.</p>
           </div>
-          <Button size="sm" onClick={() => setSheetOpen(true)}>
+          <Button size="sm" onClick={() => setUploadOpen(true)}>
             <HugeiconsIcon icon={Upload01Icon} size={15} strokeWidth={1.5} className="mr-1.5" />
             Upload document
           </Button>
@@ -91,7 +91,7 @@ export function VendorDocuments() {
               <p className="text-sm font-medium">No documents uploaded yet</p>
               <p className="text-sm text-muted-foreground">Upload your required documents to complete verification.</p>
             </div>
-            <Button size="sm" onClick={() => setSheetOpen(true)}>
+            <Button size="sm" onClick={() => setUploadOpen(true)}>
               <HugeiconsIcon icon={Upload01Icon} size={15} strokeWidth={1.5} className="mr-1.5" />
               Upload your first document
             </Button>
@@ -103,9 +103,8 @@ export function VendorDocuments() {
                 <CardContent className="flex items-center justify-between gap-4 py-4">
                   <div className="flex items-center gap-3 min-w-0">
                     <div
-                      className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 ${
-                        doc.verified ? "bg-green-100" : "bg-yellow-100"
-                      }`}
+                      className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 ${doc.verified ? "bg-green-100" : "bg-yellow-100"
+                        }`}
                     >
                       <HugeiconsIcon
                         icon={doc.verified ? CheckmarkCircle01Icon : Clock01Icon}
@@ -129,11 +128,10 @@ export function VendorDocuments() {
 
                   <div className="flex items-center gap-2 shrink-0">
                     <span
-                      className={`text-xs px-2.5 py-1 rounded-full font-medium ${
-                        doc.verified
-                          ? "bg-green-100 text-green-700"
+                      className={`text-xs px-2.5 py-1 rounded-full font-medium ${doc.verified
+                          ? "bg-green-100 text-green-600"
                           : "bg-yellow-100 text-yellow-700"
-                      }`}
+                        }`}
                     >
                       {doc.verified ? "Verified" : "Pending"}
                     </span>
@@ -154,19 +152,19 @@ export function VendorDocuments() {
         )}
       </div>
 
-      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <SheetContent>
-          <SheetHeader>
-            <SheetTitle>Upload New Document</SheetTitle>
-          </SheetHeader>
-          <div className="mt-6">
+      <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Upload New Document</DialogTitle>
+          </DialogHeader>
+          <div className="mt-2">
             <DocumentUploader
               vendorId={vendor.id}
-              onUploaded={() => setSheetOpen(false)}
+              onUploaded={() => setUploadOpen(false)}
             />
           </div>
-        </SheetContent>
-      </Sheet>
+        </DialogContent>
+      </Dialog>
     </AnimatedPage>
   )
 }

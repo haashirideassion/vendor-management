@@ -21,16 +21,16 @@ import { differenceInDays, format } from "date-fns"
 import type { Contract, ContractStatus } from "@/lib/types"
 
 const STATUS_COLORS: Record<ContractStatus, string> = {
-  draft:      "bg-muted text-muted-foreground border-border/60",
-  active:     "bg-green-100 text-green-700 border-green-200",
-  expired:    "bg-orange-100 text-orange-700 border-orange-200",
+  draft: "bg-muted text-muted-foreground border-border/60",
+  active: "bg-green-100 text-green-600 border-green-200",
+  expired: "bg-orange-100 text-orange-700 border-orange-200",
   terminated: "bg-red-100 text-red-700 border-red-200",
 }
 
 const STATUS_LABELS: Record<ContractStatus, string> = {
-  draft:      "Draft",
-  active:     "Active",
-  expired:    "Expired",
+  draft: "Draft",
+  active: "Active",
+  expired: "Expired",
   terminated: "Terminated",
 }
 
@@ -163,7 +163,7 @@ function ContractTable({
                     </TableCell>
                   )}
                   <TableCell>
-                    <Button asChild variant="ghost" size="sm" className="h-7 text-xs gap-1.5 text-primary hover:text-primary">
+                    <Button asChild variant="ghost" size="sm" className="h-8 px-2 gap-1.5 text-xs">
                       <Link to={`/vendor/contracts/${contract.id}`}>
                         <HugeiconsIcon icon={EyeIcon} size={13} strokeWidth={1.5} primaryColor="currentColor" secondaryColor="currentColor" />
                         View
@@ -231,8 +231,8 @@ export function VendorContracts() {
     vendor?.id ? { vendor_id: vendor.id } : undefined
   )
 
-  const active   = contracts.filter((c) => c.status === "active")
-  const dormant  = contracts.filter((c) => c.status === "expired" || c.status === "terminated")
+  const active = contracts.filter((c) => c.status === "active")
+  const dormant = contracts.filter((c) => c.status === "expired" || c.status === "terminated")
 
   return (
     <AnimatedPage>

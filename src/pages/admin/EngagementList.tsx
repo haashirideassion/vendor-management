@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { Link } from "react-router-dom"
 import { useForm, Controller, useFieldArray } from "react-hook-form"
 import type { Resolver } from "react-hook-form"
@@ -8,7 +8,9 @@ import { useEngagements, useCreateEngagement } from "@/hooks/useEngagements"
 import { useCategories } from "@/hooks/useCategories"
 import { useVendorsByCategories } from "@/hooks/useVendors"
 import { usePermissions } from "@/hooks/usePermissions"
+import { usePagination } from "@/hooks/usePagination"
 import { AnimatedPage } from "@/components/shared/AnimatedPage"
+import { PaginationBar } from "@/components/shared/PaginationBar"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -162,10 +164,26 @@ export function EngagementList() {
 
   const hasFilters = search || status
 
+  const { page, setPage, totalPages, totalItems, paginated, reset } = usePagination(engagements, 10)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const resetPage = useCallback(() => reset(), [])
+  useEffect(() => { resetPage() }, [search, status, resetPage])
+
   function closeDialog() {
     setCreating(false)
     setStagedFiles([])
-    form.reset({ category_ids: [], vendor_ids: [], currency: "INR", line_items: [] })
+    form.reset({
+      title:           "",
+      description:     "",
+      category_ids:    [],
+      vendor_ids:      [],
+      estimated_value: undefined,
+      currency:        "INR",
+      start_date:      "",
+      end_date:        "",
+      notes:           "",
+      line_items:      [],
+    })
     didAutoSelectRef.current = false
   }
 
@@ -203,25 +221,9 @@ export function EngagementList() {
 
   return (
     <AnimatedPage>
-      <div className="p-6 space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold tracking-tight">Engagements</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              {isLoading ? "Loading…" : `${engagements.length} engagement${engagements.length !== 1 ? "s" : ""}`}
-            </p>
-          </div>
-          {canCreateEngagement && (
-            <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setCreating(true)}>
-              <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" />
-              New Engagement
-            </Button>
-          )}
-        </div>
-
-        {/* Filters */}
-        <div className="flex flex-wrap items-center gap-3 p-4 rounded-xl border bg-card">
+      <div className="flex-1 flex flex-col min-h-0 pt-4 gap-4">
+        {/* Filters + action */}
+        <div className="shrink-0 flex flex-wrap items-center gap-3 p-4 rounded-xl border bg-card">
           <div className="relative flex-1 min-w-[200px] max-w-xs">
             <HugeiconsIcon icon={Search01Icon} size={15} strokeWidth={1.5} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
             <Input placeholder="Search by title…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 h-9 text-sm" />
@@ -239,10 +241,16 @@ export function EngagementList() {
               Clear
             </Button>
           )}
+          {canCreateEngagement && (
+            <Button size="sm" className="h-8 gap-1.5 text-xs ml-auto" onClick={() => setCreating(true)}>
+              <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" />
+              New Engagement
+            </Button>
+          )}
         </div>
 
         {/* Table */}
-        <div className="rounded-xl border overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-auto rounded-xl border">
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/40 hover:bg-muted/40">
@@ -250,7 +258,6 @@ export function EngagementList() {
                 <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Vendor</TableHead>
                 <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Status</TableHead>
                 <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Value</TableHead>
-                <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Start</TableHead>
                 <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Created</TableHead>
                 <TableHead className="w-16" />
               </TableRow>
@@ -258,7 +265,7 @@ export function EngagementList() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-12">
+                  <TableCell colSpan={6} className="text-center py-12">
                     <div className="flex flex-col items-center gap-2">
                       <div className="h-5 w-5 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
                       <span className="text-sm text-muted-foreground">Loading…</span>
@@ -267,30 +274,28 @@ export function EngagementList() {
                 </TableRow>
               ) : engagements.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-12">
+                  <TableCell colSpan={6} className="text-center py-12">
                     <p className="text-sm font-medium text-muted-foreground">No engagements found</p>
                     {hasFilters && <p className="text-xs text-muted-foreground/70 mt-1">Try adjusting your filters</p>}
                   </TableCell>
                 </TableRow>
               ) : (
-                engagements.map((e, idx) => (
+                paginated.map((e, idx) => (
                   <TableRow key={e.id} className={`transition-colors hover:bg-accent/50 ${idx % 2 !== 0 ? "bg-muted/20" : ""}`}>
                     <TableCell>
                       <p className="text-sm font-medium leading-tight">{e.title}</p>
                       {e.category?.name && <p className="text-xs text-muted-foreground mt-0.5">{e.category.name}</p>}
                     </TableCell>
                     <TableCell>
-                      <p className="text-sm">{e.vendor?.company_name ?? "—"}</p>
+                      <p className="text-sm">
+                        {(e.engagement_vendors ?? []).map(ev => ev.vendor?.company_name).filter(Boolean).join(", ")
+                          || e.vendor?.company_name || "—"}
+                      </p>
                     </TableCell>
                     <TableCell><StatusChip status={e.status} /></TableCell>
                     <TableCell>
                       <span className="text-sm tabular-nums">
                         {e.estimated_value != null ? formatCurrency(e.estimated_value, e.currency) : "—"}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-xs text-muted-foreground tabular-nums">
-                        {e.start_date ? format(new Date(e.start_date), "dd MMM yyyy") : "—"}
                       </span>
                     </TableCell>
                     <TableCell>
@@ -312,6 +317,14 @@ export function EngagementList() {
             </TableBody>
           </Table>
         </div>
+
+        <PaginationBar
+          page={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          onPageChange={setPage}
+          itemLabel="engagement"
+        />
       </div>
 
       {/* Create Dialog */}

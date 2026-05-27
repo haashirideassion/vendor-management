@@ -285,6 +285,7 @@ export interface Engagement {
   creator?: Pick<Profile, "full_name" | "email">
   contract?: Pick<Contract, "contract_ref" | "title">
   line_items?: EngagementLineItem[]
+  engagement_vendors?: { vendor: { id: string; company_name: string } | null }[]
 }
 
 export interface PurchaseOrder {
@@ -410,6 +411,21 @@ export interface VendorWithDetails extends Vendor {
   vendor_documents?: VendorDocument[]
   vendor_ratings?: VendorRating[]
   avg_rating?: number
+}
+
+// ─── Notifications ────────────────────────────────────────────────────────────
+
+export type NotificationType = "new_vendor" | "new_invoice" | "new_quotation"
+
+export interface Notification {
+  id: string
+  user_id: string
+  type: NotificationType
+  title: string
+  message: string | null
+  module_reference_id: string | null
+  is_read: boolean
+  created_at: string
 }
 
 // ─── Supabase Database Type Map ───────────────────────────────────────────────

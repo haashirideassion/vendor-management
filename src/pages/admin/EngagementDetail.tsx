@@ -2,10 +2,11 @@ import { useState } from "react"
 import { useParams, Link } from "react-router-dom"
 import { useEngagement, useUpdateEngagementStatus } from "@/hooks/useEngagements"
 import { usePurchaseOrders, useCreatePurchaseOrder } from "@/hooks/usePurchaseOrders"
-import { useApprovalRequests, useRequestApproval, useReviewApproval } from "@/hooks/useApprovalWorkflow"
+import { useApprovalRequests, useReviewApproval } from "@/hooks/useApprovalWorkflow"
 import { useEngagementQuotations } from "@/hooks/useQuotations"
 import { usePermissions } from "@/hooks/usePermissions"
 import { AttachmentList } from "@/components/shared/AttachmentList"
+import { CreatePODialog } from "@/components/shared/CreatePODialog"
 import { toast } from "sonner"
 import { AnimatedPage } from "@/components/shared/AnimatedPage"
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
@@ -36,23 +37,23 @@ interface SelectedItem {
   line: QuotationLineItem
 }
 
-type ActionDialog = "submit" | "approve" | "reject" | null
+type ActionDialog = "approve" | "reject" | null
 
 export function EngagementDetail() {
   const { id } = useParams<{ id: string }>()
   const [dialog, setDialog] = useState<ActionDialog>(null)
-  const [notes, setNotes]   = useState("")
+  const [notes, setNotes] = useState("")
   const [selectedItems, setSelectedItems] = useState<Map<string, SelectedItem>>(new Map())
   const [showPOConfirm, setShowPOConfirm] = useState(false)
+  const [poDialogOpen, setPoDialogOpen] = useState(false)
 
   const { data: engagement, isLoading } = useEngagement(id!)
-  const { data: pos = [] }              = usePurchaseOrders({ engagement_id: id })
-  const { data: approvals = [] }        = useApprovalRequests("engagement", id!)
-  const { data: quotations = [] }       = useEngagementQuotations(id)
-  const updateStatus   = useUpdateEngagementStatus()
-  const requestApproval = useRequestApproval()
-  const reviewApproval  = useReviewApproval()
-  const createPO        = useCreatePurchaseOrder()
+  const { data: pos = [] } = usePurchaseOrders({ engagement_id: id })
+  const { data: approvals = [] } = useApprovalRequests("engagement", id!)
+  const { data: quotations = [] } = useEngagementQuotations(id)
+  const updateStatus = useUpdateEngagementStatus()
+  const reviewApproval = useReviewApproval()
+  const createPO = useCreatePurchaseOrder()
   const { canApproveEngagement, canCreateEngagement, canCreatePO } = usePermissions()
 
   // POs have already been dispatched for this engagement — lock the selection UI
@@ -84,24 +85,24 @@ export function EngagementDetail() {
       Array.from(byVendor.entries()).map(([vendorId, items]) =>
         createPO.mutateAsync({
           engagement_id: id!,
-          vendor_id:     vendorId,
-          total_value:   items.reduce((s, i) => s + i.line.total, 0),
-          currency:      engagement.currency,
-          line_items:    items.map((i) => ({
+          vendor_id: vendorId,
+          total_value: items.reduce((s, i) => s + i.line.total, 0),
+          currency: engagement.currency,
+          line_items: items.map((i) => ({
             description: i.line.description,
-            quantity:    i.line.quantity,
-            unit_price:  i.line.unit_price,
-            unit:        null,
+            quantity: i.line.quantity,
+            unit_price: i.line.unit_price,
+            unit: null,
           })),
         })
       )
     )
 
     const succeeded = results.filter((r) => r.status === "fulfilled").length
-    const failed    = results.filter((r) => r.status === "rejected").length
+    const failed = results.filter((r) => r.status === "rejected").length
 
     if (succeeded > 0) toast.success(`${succeeded} PO${succeeded !== 1 ? "s" : ""} created and sent to vendors`)
-    if (failed    > 0) toast.error(`${failed} PO${failed !== 1 ? "s" : ""} failed to create`)
+    if (failed > 0) toast.error(`${failed} PO${failed !== 1 ? "s" : ""} failed to create`)
 
     setSelectedItems(new Map())
     setShowPOConfirm(false)
@@ -109,17 +110,7 @@ export function EngagementDetail() {
 
   const pendingApproval = approvals.find((a) => a.status === "pending")
 
-  async function handleSubmitForApproval() {
-    if (!id || !engagement) return
-    try {
-      await requestApproval.mutateAsync({ entityType: "engagement", entityId: id, amount: engagement.estimated_value ?? undefined, notes })
-      await updateStatus.mutateAsync({ id, status: "pending_approval" })
-      setDialog(null); setNotes("")
-      toast.success("Engagement submitted for approval.")
-    } catch {
-      toast.error("Failed to submit for approval. Please try again.")
-    }
-  }
+
 
   async function handleApprove() {
     if (!id || !pendingApproval) return
@@ -180,7 +171,7 @@ export function EngagementDetail() {
             <div>
               <h1 className="text-xl font-bold tracking-tight">{engagement.title}</h1>
               <p className="text-sm text-muted-foreground mt-0.5">
-                {engagement.vendor?.company_name} · Created {format(new Date(engagement.created_at), "dd MMM yyyy")}
+                {(engagement.engagement_vendors ?? []).map(ev => ev.vendor?.company_name).filter(Boolean).join(", ") || engagement.vendor?.company_name || "—"} · Created {format(new Date(engagement.created_at), "dd MMM yyyy")}
               </p>
             </div>
             <span className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-xs font-medium border ${ENGAGEMENT_STATUS_COLORS[status]}`}>
@@ -191,11 +182,6 @@ export function EngagementDetail() {
 
         {/* Action buttons */}
         <div className="flex flex-wrap gap-2">
-          {status === "draft" && canCreateEngagement && (
-            <Button size="sm" onClick={() => setDialog("submit")}>
-              Submit for Approval
-            </Button>
-          )}
           {status === "pending_approval" && canApproveEngagement && (
             <>
               <Button size="sm" variant="success" onClick={() => setDialog("approve")}>
@@ -209,11 +195,9 @@ export function EngagementDetail() {
             </>
           )}
           {status === "approved" && (
-            <Button asChild size="sm" variant="outline">
-              <Link to={`/admin/purchase-orders?engagement_id=${id}`}>
-                <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" className="mr-1.5" />
-                Issue PO
-              </Link>
+            <Button size="sm" variant="outline" onClick={() => setPoDialogOpen(true)}>
+              <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" className="mr-1.5" />
+              Issue PO
             </Button>
           )}
         </div>
@@ -228,7 +212,9 @@ export function EngagementDetail() {
               <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
                 <div>
                   <p className="text-xs text-muted-foreground mb-0.5">Vendor</p>
-                  <p className="font-medium">{engagement.vendor?.company_name ?? "—"}</p>
+                  <p className="font-medium">
+                    {(engagement.engagement_vendors ?? []).map(ev => ev.vendor?.company_name).filter(Boolean).join(", ") || engagement.vendor?.company_name || "—"}
+                  </p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground mb-0.5">Category</p>
@@ -322,7 +308,7 @@ export function EngagementDetail() {
                     <div key={a.id} className="text-xs space-y-1">
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-medium">{a.requester?.full_name ?? a.requester?.email ?? "Unknown"}</span>
-                        <Badge variant="outline" className={`text-[10px] py-0 ${a.status === "approved" ? "text-green-700 border-green-200" : a.status === "rejected" ? "text-red-700 border-red-200" : "text-yellow-700 border-yellow-200"}`}>
+                        <Badge variant="outline" className={`text-[10px] py-0 ${a.status === "approved" ? "text-green-600 border-green-200" : a.status === "rejected" ? "text-red-700 border-red-200" : "text-yellow-700 border-yellow-200"}`}>
                           {a.status}
                         </Badge>
                       </div>
@@ -420,8 +406,8 @@ export function EngagementDetail() {
                               disabled={posSent}
                               onCheckedChange={() => toggleLineItem(li.id, {
                                 quotation_id: quot.id,
-                                vendor_id:    quot.vendor_id,
-                                line:         li,
+                                vendor_id: quot.vendor_id,
+                                line: li,
                               })}
                             />
                           </div>
@@ -452,25 +438,6 @@ export function EngagementDetail() {
           canUpload={false}
         />
       </div>
-
-      {/* Submit for Approval dialog */}
-      <Dialog open={dialog === "submit"} onOpenChange={() => setDialog(null)}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Submit for Approval</DialogTitle></DialogHeader>
-          <div className="space-y-3 pt-2">
-            <p className="text-sm text-muted-foreground">
-              This will send the engagement for manager/procurement approval.
-            </p>
-            <Textarea placeholder="Add a note (optional)…" value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
-            <Button onClick={handleSubmitForApproval} disabled={requestApproval.isPending || updateStatus.isPending}>
-              {requestApproval.isPending ? "Submitting…" : "Submit"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Approve dialog */}
       <Dialog open={dialog === "approve"} onOpenChange={() => setDialog(null)}>
@@ -516,6 +483,16 @@ export function EngagementDetail() {
         variant="default"
         loading={createPO.isPending}
         onConfirm={handleCreatePOs}
+      />
+      <CreatePODialog
+        open={poDialogOpen}
+        onOpenChange={setPoDialogOpen}
+        defaultEngagementId={id}
+        defaultVendors={(engagement?.engagement_vendors ?? [])
+          .map(ev => ev.vendor)
+          .filter((v): v is { id: string; company_name: string } => v != null)}
+        defaultLineItems={engagement?.line_items ?? []}
+        currency={engagement?.currency}
       />
     </AnimatedPage>
   )

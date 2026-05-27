@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useForm } from "react-hook-form"
 import type { Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -91,10 +91,41 @@ export function VendorInvoices() {
   const watchedContractId   = form.watch("contract_id")
   const watchedEngagementId = form.watch("engagement_id")
 
+  const { data: linkedPO } = useQuery({
+    queryKey: ["linked-po-for-invoice", watchedEngagementId, vendor?.id],
+    enabled: !!watchedEngagementId && !!vendor?.id,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("purchase_orders")
+        .select("id, po_number")
+        .eq("engagement_id", watchedEngagementId!)
+        .eq("vendor_id", vendor!.id)
+        .limit(1)
+        .maybeSingle()
+      return data
+    },
+  })
+
+  useEffect(() => {
+    if (submitting) {
+      form.reset({
+        contract_id:           "",
+        engagement_id:         "",
+        vendor_invoice_number: "",
+        total_amount:          undefined,
+        currency:              "INR",
+        invoice_date:          new Date().toISOString().slice(0, 10),
+        due_date:              "",
+        notes:                 "",
+      })
+      setStagedFiles([])
+    }
+  }, [submitting])
+
   function closeDialog() {
     setSubmitting(false)
     setStagedFiles([])
-    form.reset()
+    form.reset({ currency: "INR", invoice_date: new Date().toISOString().slice(0, 10) })
   }
 
   async function onSubmit(data: SubmitForm) {
@@ -127,9 +158,9 @@ export function VendorInvoices() {
 
   return (
     <AnimatedPage>
-      <div className="p-6 space-y-6">
+      <div className="flex-1 flex flex-col min-h-0 p-6 gap-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="shrink-0 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold tracking-tight">Invoices</h1>
             <p className="text-sm text-muted-foreground mt-0.5">
@@ -143,7 +174,7 @@ export function VendorInvoices() {
         </div>
 
         {/* Table */}
-        <div className="rounded-xl border overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-auto rounded-xl border">
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/40 hover:bg-muted/40">
@@ -214,10 +245,11 @@ export function VendorInvoices() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="h-7 px-2 text-muted-foreground"
+                        className="h-7 px-2 gap-1.5 text-muted-foreground"
                         onClick={() => setDocsInvoiceId(inv.id)}
                       >
                         <HugeiconsIcon icon={File01Icon} size={13} strokeWidth={1.5} />
+                        <span className="text-xs">Document</span>
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -318,6 +350,9 @@ export function VendorInvoices() {
                     )}
                   </SelectContent>
                 </Select>
+                {watchedEngagementId && linkedPO && (
+                  <p className="text-xs text-muted-foreground mt-1">Auto-linked PO: {linkedPO.po_number}</p>
+                )}
               </div>
             </div>
 

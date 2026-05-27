@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react"
 import { animate } from "animejs"
+import { cn } from "@/lib/utils"
 
 interface AnimatedPageProps {
   children: React.ReactNode
@@ -20,7 +21,7 @@ export function AnimatedPage({ children, className }: AnimatedPageProps) {
   }, [])
 
   return (
-    <div ref={ref} className={className} style={{ opacity: 0 }}>
+    <div ref={ref} className={cn("flex-1 overflow-y-auto", className)} style={{ opacity: 0 }}>
       {children}
     </div>
   )

@@ -10,6 +10,7 @@ import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/contexts/AuthContext"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
+import { AppLogo } from "@/components/shared/AppLogo"
 import { Cancel01Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import type { DocumentType } from "@/lib/types"
@@ -167,6 +168,7 @@ export function OnboardingWizard() {
         {/* Header */}
         <div className="mb-6 flex items-start justify-between">
           <div className="text-left">
+            <AppLogo className="h-10 w-auto max-w-[180px] mb-3" />
             <h1 className="text-2xl font-bold">Vendor Onboarding</h1>
             <p className="text-sm text-muted-foreground mt-1">Step {step + 1} of {STEPS.length}</p>
           </div>

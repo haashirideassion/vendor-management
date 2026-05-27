@@ -58,6 +58,23 @@ export function VendorRFQDetail() {
   })
   const { fields, append, remove } = useFieldArray({ control: form.control, name: "line_items" })
 
+  useEffect(() => {
+    if (!showQuotationDialog) return
+    const seed = (rfq?.engagement?.line_items ?? []).map((li) => ({
+      description: li.description,
+      quantity:    li.quantity,
+      unit_price:  0,
+      tax_rate:    0,
+      remarks:     "",
+    }))
+    form.reset({
+      notes:      "",
+      line_items: seed.length > 0
+        ? seed
+        : [{ description: "", quantity: 1, unit_price: 0, tax_rate: 0, remarks: "" }],
+    })
+  }, [showQuotationDialog])
+
   const watchedItems = form.watch("line_items")
   const grandTotal = watchedItems.reduce((sum, item) => {
     const qty   = Number(item.quantity)   || 0
@@ -238,7 +255,7 @@ export function VendorRFQDetail() {
         )}
       </div>
 
-      <Dialog open={showQuotationDialog} onOpenChange={setShowQuotationDialog}>
+      <Dialog open={showQuotationDialog} onOpenChange={(o) => { if (!o) form.reset(); setShowQuotationDialog(o) }}>
         <DialogContent size="2xl">
           <DialogHeader><DialogTitle>Provide Quotation</DialogTitle></DialogHeader>
           <DialogBody>
@@ -249,6 +266,9 @@ export function VendorRFQDetail() {
               </div>
               <Separator />
               <div className="space-y-3">
+                {(rfq?.engagement?.line_items ?? []).length > 0 && (
+                  <p className="text-xs text-muted-foreground">Pre-filled from engagement scope — add pricing to each item.</p>
+                )}
                 <div className="flex items-center justify-between">
                   <Label className="text-sm font-semibold">Line Items <span className="text-destructive">*</span></Label>
                   <Button

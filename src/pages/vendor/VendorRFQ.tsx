@@ -1,6 +1,8 @@
 import { Link } from "react-router-dom"
 import { useVendorRFQs } from "@/hooks/useRFQs"
+import { usePagination } from "@/hooks/usePagination"
 import { AnimatedPage } from "@/components/shared/AnimatedPage"
+import { PaginationBar } from "@/components/shared/PaginationBar"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { RFQ_STATUS_LABELS, RFQ_STATUS_COLORS } from "@/lib/constants"
@@ -11,18 +13,12 @@ import { HugeiconsIcon } from "@hugeicons/react"
 
 export function VendorRFQ() {
   const { data: rfqs = [], isLoading } = useVendorRFQs()
+  const { page, setPage, totalPages, totalItems, paginated } = usePagination(rfqs, 10)
 
   return (
     <AnimatedPage>
-      <div className="p-6 space-y-6">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight">Requests for Quotation</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {isLoading ? "Loading…" : `${rfqs.length} RFQ${rfqs.length !== 1 ? "s" : ""}`}
-          </p>
-        </div>
-
-        <div className="rounded-xl border overflow-hidden">
+      <div className="flex-1 flex flex-col min-h-0 pt-4 gap-4">
+        <div className="flex-1 min-h-0 overflow-auto rounded-xl border">
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/40 hover:bg-muted/40">
@@ -50,7 +46,7 @@ export function VendorRFQ() {
                   </TableCell>
                 </TableRow>
               ) : (
-                rfqs.map((rfq, idx) => (
+                paginated.map((rfq, idx) => (
                   <TableRow key={rfq.id} className={`transition-colors hover:bg-accent/50 ${idx % 2 !== 0 ? "bg-muted/20" : ""}`}>
                     <TableCell>
                       <span className="font-mono text-xs bg-muted border border-border/70 rounded px-1.5 py-0.5">
@@ -84,6 +80,14 @@ export function VendorRFQ() {
             </TableBody>
           </Table>
         </div>
+
+        <PaginationBar
+          page={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          onPageChange={setPage}
+          itemLabel="RFQ"
+        />
       </div>
     </AnimatedPage>
   )

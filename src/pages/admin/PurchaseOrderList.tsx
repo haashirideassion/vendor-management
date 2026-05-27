@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import { useForm, useFieldArray } from "react-hook-form"
 import type { Resolver } from "react-hook-form"
@@ -8,7 +8,9 @@ import { usePurchaseOrders, useCreatePurchaseOrder } from "@/hooks/usePurchaseOr
 import { useEngagements } from "@/hooks/useEngagements"
 import { useVendors } from "@/hooks/useVendors"
 import { usePermissions } from "@/hooks/usePermissions"
+import { usePagination } from "@/hooks/usePagination"
 import { AnimatedPage } from "@/components/shared/AnimatedPage"
+import { PaginationBar } from "@/components/shared/PaginationBar"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -25,6 +27,7 @@ import { Cancel01Icon, Add01Icon, EyeIcon, Delete01Icon } from "@hugeicons/core-
 import { HugeiconsIcon } from "@hugeicons/react"
 import { FileUploadZone } from "@/components/shared/FileUploadZone"
 import { useUploadAttachments } from "@/hooks/useAttachments"
+import { supabase } from "@/lib/supabase"
 
 const STATUSES: POStatus[] = ["draft", "issued", "partially_received", "fully_received", "cancelled", "closed"]
 
@@ -70,6 +73,9 @@ export function PurchaseOrderList() {
   const createPO          = useCreatePurchaseOrder()
   const uploadAttachments = useUploadAttachments()
 
+  const { page, setPage, totalPages, totalItems, paginated, reset } = usePagination(pos, 10)
+  useEffect(() => { reset() }, [status])
+
   const form = useForm<CreateForm>({
     resolver: zodResolver(createSchema) as unknown as Resolver<CreateForm>,
     defaultValues: {
@@ -87,6 +93,25 @@ export function PurchaseOrderList() {
     const eng = engagements.find((e) => e.id === engId)
     if (eng?.vendor_id) form.setValue("vendor_id", eng.vendor_id)
   }
+
+  const watchedEngagementId = form.watch("engagement_id")
+  useEffect(() => {
+    if (!watchedEngagementId || !creating) return
+    supabase
+      .from("engagement_line_items")
+      .select("*")
+      .eq("engagement_id", watchedEngagementId)
+      .then(({ data }) => {
+        if (data && data.length > 0) {
+          form.setValue("line_items", data.map((li) => ({
+            description: li.description,
+            quantity:    li.quantity,
+            unit_price:  0,
+            unit:        li.unit ?? "",
+          })))
+        }
+      })
+  }, [watchedEngagementId, creating])
 
   function closeDialog() {
     setCreating(false)
@@ -122,25 +147,9 @@ export function PurchaseOrderList() {
 
   return (
     <AnimatedPage>
-      <div className="p-6 space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold tracking-tight">Purchase Orders</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              {isLoading ? "Loading…" : `${pos.length} PO${pos.length !== 1 ? "s" : ""}`}
-            </p>
-          </div>
-          {canCreatePO && (
-            <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setCreating(true)}>
-              <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" />
-              New PO
-            </Button>
-          )}
-        </div>
-
-        {/* Filters */}
-        <div className="flex flex-wrap items-center gap-3 p-4 rounded-xl border bg-card">
+      <div className="flex-1 flex flex-col min-h-0 pt-4 gap-4">
+        {/* Filters + action */}
+        <div className="shrink-0 flex flex-wrap items-center gap-3 p-4 rounded-xl border bg-card">
           <Select value={status || "all"} onValueChange={(v) => setStatus(v === "all" ? "" : v as POStatus)}>
             <SelectTrigger className="w-52 h-9 text-sm"><SelectValue placeholder="All statuses" /></SelectTrigger>
             <SelectContent>
@@ -154,10 +163,16 @@ export function PurchaseOrderList() {
               Clear
             </Button>
           )}
+          {canCreatePO && (
+            <Button size="sm" className="h-8 gap-1.5 text-xs ml-auto" onClick={() => setCreating(true)}>
+              <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" />
+              New PO
+            </Button>
+          )}
         </div>
 
         {/* Table */}
-        <div className="rounded-xl border overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-auto rounded-xl border">
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/40 hover:bg-muted/40">
@@ -187,7 +202,7 @@ export function PurchaseOrderList() {
                   </TableCell>
                 </TableRow>
               ) : (
-                pos.map((po, idx) => (
+                paginated.map((po, idx) => (
                   <TableRow key={po.id} className={`transition-colors hover:bg-accent/50 ${idx % 2 !== 0 ? "bg-muted/20" : ""}`}>
                     <TableCell>
                       <span className="font-mono text-xs bg-muted border border-border/70 rounded px-1.5 py-0.5">
@@ -221,6 +236,14 @@ export function PurchaseOrderList() {
             </TableBody>
           </Table>
         </div>
+
+        <PaginationBar
+          page={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          onPageChange={setPage}
+          itemLabel="purchase order"
+        />
       </div>
 
       {/* Create PO dialog */}

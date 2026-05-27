@@ -95,7 +95,7 @@ export function DocumentUploader({
 
       {!isControlled && (
         <div className="flex flex-col gap-1.5">
-          <Label>Document type</Label>
+          <Label>Document type <span className="text-destructive">*</span></Label>
           <Select value={docType} onValueChange={(v) => setDocType(v as DocumentType)}>
             <SelectTrigger>
               <SelectValue placeholder="Select type…" />

@@ -13,8 +13,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import {
   Edit01Icon, Delete01Icon, Add01Icon, Tag01Icon, Search01Icon,
-  ArrowLeft01Icon, ArrowRight01Icon, CheckmarkCircle01Icon, Cancel01Icon,
+  CheckmarkCircle01Icon, Cancel01Icon,
 } from "@hugeicons/core-free-icons"
+import { PaginationBar } from "@/components/shared/PaginationBar"
 import { HugeiconsIcon } from "@hugeicons/react"
 import type { ServiceCategory } from "@/lib/types"
 import { format } from "date-fns"
@@ -167,35 +168,13 @@ function CategoryTable({
         </Table>
       </div>
 
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-muted-foreground text-xs">
-            {filtered.length} result{filtered.length !== 1 ? "s" : ""}
-            {" "}· page {page} of {totalPages}
-          </span>
-          <div className="flex items-center gap-1">
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 w-8 p-0"
-              disabled={page === 1}
-              onClick={() => setPage((p) => p - 1)}
-            >
-              <HugeiconsIcon icon={ArrowLeft01Icon} size={14} strokeWidth={1.5} />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 w-8 p-0"
-              disabled={page === totalPages}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              <HugeiconsIcon icon={ArrowRight01Icon} size={14} strokeWidth={1.5} />
-            </Button>
-          </div>
-        </div>
-      )}
+      <PaginationBar
+        page={page}
+        totalPages={totalPages}
+        totalItems={filtered.length}
+        onPageChange={setPage}
+        itemLabel="category"
+      />
     </div>
   )
 }
@@ -275,23 +254,10 @@ export function CategoryManagement() {
 
   return (
     <AnimatedPage>
-      <div className="p-6 space-y-6">
-        {/* Header */}
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-xl font-bold tracking-tight">Service Categories</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Manage the categories vendors can be registered under.
-            </p>
-          </div>
-          <Button size="sm" onClick={openCreate} className="gap-1.5 shrink-0">
-            <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={1.5} />
-            Add category
-          </Button>
-        </div>
-
-        {/* Tabs */}
+      <div className="pt-4 space-y-4">
+        {/* Tabs + Add button */}
         <Tabs defaultValue="active">
+          <div className="flex items-center justify-between gap-3">
           <TabsList className="h-9">
             <TabsTrigger value="active" className="text-sm">
               Active
@@ -310,6 +276,11 @@ export function CategoryManagement() {
               )}
             </TabsTrigger>
           </TabsList>
+          <Button size="sm" onClick={openCreate} className="gap-1.5 shrink-0">
+            <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={1.5} />
+            Add category
+          </Button>
+          </div>
 
           <TabsContent value="active" className="mt-4">
             {activeCategories.length === 0 ? (

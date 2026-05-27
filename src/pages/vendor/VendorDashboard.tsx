@@ -2,8 +2,7 @@ import { Link } from "react-router-dom"
 import { useVendor } from "@/hooks/useVendor"
 import { useContracts } from "@/hooks/useContracts"
 import { useEngagements } from "@/hooks/useEngagements"
-import { StatusBadge } from "@/components/shared/StatusBadge"
-import { RatingStars } from "@/components/shared/RatingStars"
+import { useInvoices } from "@/hooks/useInvoices"
 import { AnimatedPage } from "@/components/shared/AnimatedPage"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -16,9 +15,9 @@ import {
   Clock01Icon,
   UserCircleIcon,
   Refresh01Icon,
-  ChartBarIncreasingIcon,
   ContractsIcon,
   Activity01Icon,
+  Invoice02Icon,
 } from "@hugeicons/core-free-icons"
 import { differenceInDays, format } from "date-fns"
 
@@ -28,6 +27,9 @@ export function VendorDashboard() {
     vendor?.id ? { vendor_id: vendor.id } : undefined
   )
   const { data: engagements = [], isLoading: engagementsLoading } = useEngagements()
+  const { data: invoices = [], isLoading: invoicesLoading } = useInvoices(
+    vendor?.id ? { vendor_id: vendor.id } : undefined
+  )
 
   if (isLoading) {
     return (
@@ -72,8 +74,6 @@ export function VendorDashboard() {
   const daysToRenewal = vendor.contract_anniversary
     ? differenceInDays(new Date(vendor.contract_anniversary), new Date())
     : null
-  const avgRating = vendor.avg_rating ?? 0
-
   const completedDocs = REQUIRED_DOCUMENTS.filter((dt) => uploadedTypes.has(dt)).length
   const docProgress = Math.round((completedDocs / REQUIRED_DOCUMENTS.length) * 100)
 
@@ -95,21 +95,20 @@ export function VendorDashboard() {
     return d >= 0 && d <= (c.renewal_notice_days ?? 30)
   })
 
+  // Invoices summary
+  const paidInvoices = invoices.filter((i) => i.status === "paid")
+  const underReviewInvoices = invoices.filter((i) => i.status === "under_review")
+  const submittedInvoices = invoices.filter((i) => i.status === "submitted")
+
   // Engagements summary
-  const activeEngagements  = engagements.filter((e) => e.status === "approved")
+  const activeEngagements = engagements.filter((e) => e.status === "approved")
   const pendingEngagements = engagements.filter((e) => e.status === "pending_approval")
-  const closedEngagements  = engagements.filter((e) => e.status === "completed" || e.status === "cancelled")
-  const recentEngagement   = engagements[0] ?? null
+  const closedEngagements = engagements.filter((e) => e.status === "completed" || e.status === "cancelled")
+  const recentEngagement = engagements[0] ?? null
 
   return (
     <AnimatedPage>
       <div className="p-6 space-y-6">
-        {/* Page title */}
-        <div>
-          <h1 className="text-xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-sm text-muted-foreground">Your vendor account overview.</p>
-        </div>
-
         {/* Renewal alert banner */}
         {showRenewalAlert && (
           <div className="relative overflow-hidden rounded-xl border border-amber-200 bg-amber-50/60 dark:bg-amber-950/20 dark:border-amber-800 p-4">
@@ -137,20 +136,44 @@ export function VendorDashboard() {
 
         {/* Stat cards — Status + Renewal Date */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {/* Status card */}
+          {/* Invoices card */}
           <Card>
-            <CardContent className="pt-5 pb-4">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Status</span>
-                <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <HugeiconsIcon icon={ChartBarIncreasingIcon} size={16} strokeWidth={1.5} className="text-primary" />
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <HugeiconsIcon icon={Invoice02Icon} size={16} strokeWidth={1.5} className="text-primary" />
+                  <CardTitle className="text-base">Invoices</CardTitle>
                 </div>
+                <Button asChild variant="ghost" size="sm" className="h-7 text-xs text-primary">
+                  <Link to="/vendor/invoices">View all</Link>
+                </Button>
               </div>
-              <StatusBadge status={vendor.status} />
-              {avgRating > 0 && (
-                <div className="flex items-center gap-1.5 mt-2">
-                  <RatingStars value={Math.round(avgRating)} size="sm" />
-                  <span className="text-xs text-muted-foreground">({avgRating.toFixed(1)})</span>
+            </CardHeader>
+            <CardContent>
+              {invoicesLoading ? (
+                <div className="space-y-2">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div key={i} className="h-5 rounded bg-muted animate-pulse" />
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Total</span>
+                    <span className="font-semibold">{invoices.length}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Paid</span>
+                    <span className="font-semibold">{paidInvoices.length}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Under Review</span>
+                    <span className="font-semibold">{underReviewInvoices.length}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Submitted</span>
+                    <span className="font-semibold">{submittedInvoices.length}</span>
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -300,11 +323,10 @@ export function VendorDashboard() {
                   </div>
                   {doc && (
                     <span
-                      className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                        doc.verified
-                          ? "bg-green-100 text-green-700"
+                      className={`text-xs px-2 py-0.5 rounded-full font-medium ${doc.verified
+                          ? "bg-green-100 text-green-600"
                           : "bg-yellow-100 text-yellow-700"
-                      }`}
+                        }`}
                     >
                       {doc.verified ? "Verified" : "Pending review"}
                     </span>

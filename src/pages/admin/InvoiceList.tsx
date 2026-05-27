@@ -1,7 +1,9 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useInvoices, useReviewInvoice, useRunThreeWayMatch, useMarkInvoicePaid } from "@/hooks/useInvoices"
 import { usePermissions } from "@/hooks/usePermissions"
+import { usePagination } from "@/hooks/usePagination"
 import { AnimatedPage } from "@/components/shared/AnimatedPage"
+import { PaginationBar } from "@/components/shared/PaginationBar"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -23,15 +25,19 @@ const STATUSES: InvoiceStatus[] = ["submitted", "under_review", "matched", "appr
 type ReviewDialog = { invoice: Invoice; action: "approve" | "reject" } | null
 
 export function InvoiceList() {
-  const [status, setStatus]     = useState<InvoiceStatus | "">("")
+  const [status, setStatus] = useState<InvoiceStatus | "">("")
   const [reviewDialog, setReviewDialog] = useState<ReviewDialog>(null)
-  const [notes, setNotes]       = useState("")
+  const [notes, setNotes] = useState("")
 
   const { canApproveInvoice } = usePermissions()
   const { data: invoices = [], isLoading } = useInvoices({ status: status || undefined })
-  const reviewInvoice   = useReviewInvoice()
-  const runMatch        = useRunThreeWayMatch()
-  const markPaid        = useMarkInvoicePaid()
+  const { page, setPage, totalPages, totalItems, paginated, reset } = usePagination(invoices, 10)
+
+  useEffect(() => { reset() }, [status])
+
+  const reviewInvoice = useReviewInvoice()
+  const runMatch = useRunThreeWayMatch()
+  const markPaid = useMarkInvoicePaid()
 
   function handleRunMatch(invoiceId: string) {
     runMatch.mutate({ invoiceId }, {
@@ -61,17 +67,9 @@ export function InvoiceList() {
 
   return (
     <AnimatedPage>
-      <div className="p-6 space-y-6">
-        {/* Header */}
-        <div>
-          <h1 className="text-xl font-bold tracking-tight">Invoices</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {isLoading ? "Loading…" : `${invoices.length} invoice${invoices.length !== 1 ? "s" : ""}`}
-          </p>
-        </div>
-
+      <div className="flex-1 flex flex-col min-h-0 pt-4 gap-4">
         {/* Filters */}
-        <div className="flex flex-wrap items-center gap-3 p-4 rounded-xl border bg-card">
+        <div className="shrink-0 flex flex-wrap items-center gap-3 p-4 rounded-xl border bg-card">
           <Select value={status || "all"} onValueChange={(v) => setStatus(v === "all" ? "" : v as InvoiceStatus)}>
             <SelectTrigger className="w-44 h-9 text-sm"><SelectValue placeholder="All statuses" /></SelectTrigger>
             <SelectContent>
@@ -82,7 +80,7 @@ export function InvoiceList() {
         </div>
 
         {/* Table */}
-        <div className="rounded-xl border overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-auto rounded-xl border">
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/40 hover:bg-muted/40">
@@ -114,7 +112,7 @@ export function InvoiceList() {
                   </TableCell>
                 </TableRow>
               ) : (
-                invoices.map((inv, idx) => (
+                paginated.map((inv, idx) => (
                   <TableRow key={inv.id} className={`transition-colors hover:bg-accent/50 ${idx % 2 !== 0 ? "bg-muted/20" : ""}`}>
                     <TableCell>
                       <span className="font-mono text-xs bg-muted border border-border/70 rounded px-1.5 py-0.5">
@@ -168,7 +166,7 @@ export function InvoiceList() {
                           <>
                             <Button
                               size="sm" variant="ghost"
-                              className="h-7 px-2 text-green-700 hover:bg-green-50"
+                              className="h-7 px-2 text-green-600 hover:bg-green-50"
                               onClick={() => setReviewDialog({ invoice: inv, action: "approve" })}
                             >
                               <HugeiconsIcon icon={CheckmarkCircle01Icon} size={13} strokeWidth={1.5} />
@@ -200,6 +198,15 @@ export function InvoiceList() {
             </TableBody>
           </Table>
         </div>
+
+        {/* Pagination */}
+        <PaginationBar
+          page={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          onPageChange={setPage}
+          itemLabel="invoice"
+        />
       </div>
 
       {/* Review dialog */}

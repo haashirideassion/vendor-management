@@ -99,9 +99,8 @@ export function VendorRenewal() {
               return (
                 <div
                   key={dt}
-                  className={`flex items-center gap-3 rounded-lg border p-3 transition-colors ${
-                    done ? "border-green-200 bg-green-50/50" : "border-border"
-                  }`}
+                  className={`flex items-center gap-3 rounded-lg border p-3 transition-colors ${done ? "border-green-200 bg-green-50/50" : "border-border"
+                    }`}
                 >
                   <HugeiconsIcon
                     icon={done ? CheckmarkCircle01Icon : Clock01Icon}
@@ -113,7 +112,7 @@ export function VendorRenewal() {
                     {DOCUMENT_TYPE_LABELS[dt]}
                   </span>
                   {done && (
-                    <span className="ml-auto text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
+                    <span className="ml-auto text-xs bg-green-100 text-green-600 px-2 py-0.5 rounded-full font-medium">
                       Uploaded
                     </span>
                   )}
