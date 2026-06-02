@@ -62,7 +62,7 @@ describe("ForgotPasswordForm", () => {
     const mockReset = vi.mocked(supabase.auth.resetPasswordForEmail).mockResolvedValue({
       data: {},
       error: null,
-    })
+    } as any)
 
     render(
       <MemoryRouter>
@@ -94,7 +94,7 @@ describe("ForgotPasswordForm", () => {
         status: 429,
         code: "over_email_send_rate_limit",
       },
-    })
+    } as any)
 
     render(
       <MemoryRouter>
@@ -119,7 +119,7 @@ describe("ForgotPasswordForm", () => {
         status: 400,
         code: "user_not_found",
       },
-    })
+    } as any)
 
     render(
       <MemoryRouter>

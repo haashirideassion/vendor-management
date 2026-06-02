@@ -84,9 +84,9 @@ describe("SignupForm", () => {
 
   it("calls signUp with correct parameters and redirects on success", async () => {
     const mockSignUp = vi.mocked(supabase.auth.signUp).mockResolvedValue({
-      data: { user: { id: "123" }, session: null },
+      data: { user: { id: "123" }, session: null } as any,
       error: null,
-    })
+    } as any)
 
     render(
       <MemoryRouter>
@@ -127,7 +127,7 @@ describe("SignupForm", () => {
         status: 429,
         code: "over_email_send_rate_limit",
       },
-    })
+    } as any)
 
     render(
       <MemoryRouter>
@@ -156,7 +156,7 @@ describe("SignupForm", () => {
         status: 400,
         code: "email_exists",
       },
-    })
+    } as any)
 
     render(
       <MemoryRouter>
