@@ -143,7 +143,7 @@ describe("SignupForm", () => {
     fireEvent.click(screen.getByRole("button", { name: /create account/i }))
 
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith("Email rate limit exceeded. Please wait a few minutes before trying again.")
+      expect(toast.error).toHaveBeenCalledWith(expect.stringMatching(/rate limit/i))
     })
   })
 

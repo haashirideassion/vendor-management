@@ -1,9 +1,10 @@
-import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { useNavigate, Link } from "react-router-dom"
+import { useState } from "react"
 import { supabase, getRedirectUrl } from "@/lib/supabase"
+import { useEmailCooldown } from "@/hooks/useEmailCooldown"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -24,6 +25,7 @@ type FormData = z.infer<typeof schema>
 export function SignupForm() {
   const navigate = useNavigate()
   const [loading, setLoading] = useState(false)
+  const { cooldown, startCooldown, isOnCooldown } = useEmailCooldown()
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -40,11 +42,12 @@ export function SignupForm() {
       },
     })
     setLoading(false)
+    startCooldown()
 
     if (error) {
       const isRateLimit = error.status === 429 || error.code === "over_email_send_rate_limit" || error.message?.includes("rate limit")
       if (isRateLimit) {
-        toast.error("Email rate limit exceeded. Please wait a few minutes before trying again.")
+        toast.error("Email rate limit reached. Supabase allows a limited number of sign-up emails per hour. Please wait 60 seconds before retrying.")
       } else {
         toast.error(error.message)
       }
@@ -84,9 +87,9 @@ export function SignupForm() {
             {errors.confirm_password && <p className="text-xs text-destructive">{errors.confirm_password.message}</p>}
           </div>
         </CardContent>
-        <CardFooter className="flex flex-col gap-3 pt-0">
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Creating account…" : "Create account"}
+        <CardFooter className="flex flex-col gap-3 pt-4">
+          <Button type="submit" className="w-full" disabled={loading || isOnCooldown}>
+            {loading ? "Creating account…" : isOnCooldown ? `Try again in ${cooldown}s` : "Create account"}
           </Button>
           <p className="text-sm text-muted-foreground text-center">
             Already registered?{" "}

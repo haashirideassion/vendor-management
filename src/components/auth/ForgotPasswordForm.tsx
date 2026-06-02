@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { Link } from "react-router-dom"
 import { supabase, getRedirectUrl } from "@/lib/supabase"
+import { useEmailCooldown } from "@/hooks/useEmailCooldown"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -18,6 +19,7 @@ type FormData = z.infer<typeof schema>
 export function ForgotPasswordForm() {
   const [loading, setLoading] = useState(false)
   const [sent, setSent] = useState(false)
+  const { cooldown, startCooldown, isOnCooldown } = useEmailCooldown()
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -29,11 +31,12 @@ export function ForgotPasswordForm() {
       redirectTo: getRedirectUrl("/reset-password"),
     })
     setLoading(false)
+    startCooldown()
 
     if (error) {
       const isRateLimit = error.status === 429 || error.code === "over_email_send_rate_limit" || error.message?.includes("rate limit")
       if (isRateLimit) {
-        toast.error("Email rate limit exceeded. Please wait a few minutes before trying again.")
+        toast.error("Email rate limit reached. Supabase allows a limited number of reset emails per hour. Please wait 60 seconds before retrying.")
       } else {
         toast.error(error.message)
       }
@@ -76,8 +79,8 @@ export function ForgotPasswordForm() {
           </div>
         </CardContent>
         <CardFooter className="flex flex-col gap-4 pt-0">
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Sending…" : "Send reset link"}
+          <Button type="submit" className="w-full" disabled={loading || isOnCooldown}>
+            {loading ? "Sending…" : isOnCooldown ? `Try again in ${cooldown}s` : "Send reset link"}
           </Button>
           <Link to="/login" className="text-sm text-muted-foreground hover:text-primary hover:underline text-center">
             Back to sign in
