@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { useNavigate, Link } from "react-router-dom"
-import { supabase } from "@/lib/supabase"
+import { supabase, getRedirectUrl } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -36,12 +36,18 @@ export function SignupForm() {
       password: data.password,
       options: {
         data: { full_name: data.full_name, role: "vendor" },
+        emailRedirectTo: getRedirectUrl("/login"),
       },
     })
     setLoading(false)
 
     if (error) {
-      toast.error(error.message)
+      const isRateLimit = error.status === 429 || error.code === "over_email_send_rate_limit" || error.message?.includes("rate limit")
+      if (isRateLimit) {
+        toast.error("Email rate limit exceeded. Please wait a few minutes before trying again.")
+      } else {
+        toast.error(error.message)
+      }
       return
     }
 
@@ -56,7 +62,7 @@ export function SignupForm() {
         <CardDescription>Register to begin the vendor onboarding process.</CardDescription>
       </CardHeader>
       <form onSubmit={handleSubmit(onSubmit)}>
-        <CardContent className="flex flex-col gap-4">
+        <CardContent className="flex flex-col gap-4 pb-5">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="full_name">Full name</Label>
             <Input id="full_name" placeholder="Jane Smith" {...register("full_name")} />
@@ -78,7 +84,7 @@ export function SignupForm() {
             {errors.confirm_password && <p className="text-xs text-destructive">{errors.confirm_password.message}</p>}
           </div>
         </CardContent>
-        <CardFooter className="flex flex-col gap-3">
+        <CardFooter className="flex flex-col gap-3 pt-0">
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? "Creating account…" : "Create account"}
           </Button>

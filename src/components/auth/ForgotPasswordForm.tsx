@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { Link } from "react-router-dom"
-import { supabase } from "@/lib/supabase"
+import { supabase, getRedirectUrl } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -26,12 +26,17 @@ export function ForgotPasswordForm() {
   async function onSubmit(data: FormData) {
     setLoading(true)
     const { error } = await supabase.auth.resetPasswordForEmail(data.email, {
-      redirectTo: `${window.location.origin}/reset-password`,
+      redirectTo: getRedirectUrl("/reset-password"),
     })
     setLoading(false)
 
     if (error) {
-      toast.error(error.message)
+      const isRateLimit = error.status === 429 || error.code === "over_email_send_rate_limit" || error.message?.includes("rate limit")
+      if (isRateLimit) {
+        toast.error("Email rate limit exceeded. Please wait a few minutes before trying again.")
+      } else {
+        toast.error(error.message)
+      }
       return
     }
 
