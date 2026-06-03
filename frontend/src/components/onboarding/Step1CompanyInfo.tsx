@@ -10,7 +10,7 @@ import type { OnboardingData } from "./OnboardingWizard"
 const schema = z.object({
   company_name: z.string().min(2, "Required"),
   contact_name: z.string().min(2, "Required"),
-  contact_email: z.string().email("Enter a valid email"),
+  contact_email: z.email("Enter a valid email"),
   contact_phone: z.string().optional(),
 })
 type FormData = z.infer<typeof schema>

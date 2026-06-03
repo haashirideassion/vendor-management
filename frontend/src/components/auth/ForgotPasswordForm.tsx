@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { Link } from "react-router-dom"
-import { supabase, getRedirectUrl } from "@/lib/supabase"
+import { api } from "@/lib/api"
 import { useEmailCooldown } from "@/hooks/useEmailCooldown"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -12,7 +12,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { toast } from "sonner"
 
 const schema = z.object({
-  email: z.string().email("Enter a valid email"),
+  email: z.email("Enter a valid email"),
 })
 type FormData = z.infer<typeof schema>
 
@@ -27,23 +27,16 @@ export function ForgotPasswordForm() {
 
   async function onSubmit(data: FormData) {
     setLoading(true)
-    const { error } = await supabase.auth.resetPasswordForEmail(data.email, {
-      redirectTo: getRedirectUrl("/reset-password"),
-    })
-    setLoading(false)
-    startCooldown()
-
-    if (error) {
-      const isRateLimit = error.status === 429 || error.code === "over_email_send_rate_limit" || error.message?.includes("rate limit")
-      if (isRateLimit) {
-        toast.error("Email rate limit reached. Supabase allows a limited number of reset emails per hour. Please wait 60 seconds before retrying.")
-      } else {
-        toast.error(error.message)
-      }
-      return
+    try {
+      // Node.js backend generates the Supabase recovery link and sends it via Hostinger SMTP
+      await api.post("/api/auth/forgot-password", { email: data.email })
+      setSent(true)
+    } catch {
+      toast.error("Failed to send reset link. Please try again.")
+    } finally {
+      setLoading(false)
+      startCooldown()
     }
-
-    setSent(true)
   }
 
   if (sent) {

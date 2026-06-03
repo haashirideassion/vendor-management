@@ -29,7 +29,7 @@ import { toast } from "sonner"
 const schema = z.object({
   company_name: z.string().min(2, "Required"),
   contact_name: z.string().min(2, "Required"),
-  contact_email: z.string().email("Invalid email"),
+  contact_email: z.email("Invalid email"),
   contact_phone: z.string().nullable().optional(),
   tax_gst_number: z.string().nullable().optional(),
   bank_name: z.string().nullable().optional(),

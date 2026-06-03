@@ -3,7 +3,8 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { useNavigate, Link } from "react-router-dom"
 import { useState } from "react"
-import { supabase, getRedirectUrl } from "@/lib/supabase"
+import { supabase } from "@/lib/supabase"
+import { api } from "@/lib/api"
 import { useEmailCooldown } from "@/hooks/useEmailCooldown"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,7 +14,7 @@ import { toast } from "sonner"
 
 const schema = z.object({
   full_name: z.string().min(2, "Enter your full name"),
-  email: z.string().email("Enter a valid email"),
+  email: z.email("Enter a valid email"),
   password: z.string().min(8, "Password must be at least 8 characters"),
   confirm_password: z.string(),
 }).refine((d) => d.password === d.confirm_password, {
@@ -33,27 +34,37 @@ export function SignupForm() {
 
   async function onSubmit(data: FormData) {
     setLoading(true)
+
+    // Step 1: Create user in Supabase Auth
     const { error } = await supabase.auth.signUp({
       email: data.email,
       password: data.password,
       options: {
         data: { full_name: data.full_name, role: "vendor" },
-        emailRedirectTo: getRedirectUrl("/login"),
+        // emailRedirectTo omitted — Node.js backend handles confirmation email
       },
     })
-    setLoading(false)
-    startCooldown()
 
     if (error) {
-      const isRateLimit = error.status === 429 || error.code === "over_email_send_rate_limit" || error.message?.includes("rate limit")
-      if (isRateLimit) {
-        toast.error("Email rate limit reached. Supabase allows a limited number of sign-up emails per hour. Please wait 60 seconds before retrying.")
-      } else {
-        toast.error(error.message)
-      }
+      setLoading(false)
+      startCooldown()
+      toast.error(error.message)
       return
     }
 
+    // Step 2: Node.js backend generates the Supabase confirmation link and sends the branded email
+    try {
+      await api.post("/api/auth/signup-notification", {
+        email: data.email,
+        fullName: data.full_name,
+      })
+    } catch {
+      // Non-fatal: account was created successfully; email failure is logged server-side
+      console.warn("Signup notification email failed — account still created")
+    }
+
+    setLoading(false)
+    startCooldown()
     toast.success("Account created! Please check your email to confirm, then continue.")
     navigate("/onboarding")
   }

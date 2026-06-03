@@ -1,0 +1,95 @@
+import { Router, Request, Response } from "express"
+import { createClient } from "@supabase/supabase-js"
+import {
+  sendMail,
+  signupConfirmationHtml,
+  passwordResetHtml,
+  vendorSubmittedAdminHtml,
+} from "../utils/mailer"
+
+const router = Router()
+
+const supabaseAdmin = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
+
+// POST /api/auth/signup-notification
+// Called by the frontend immediately after supabase.auth.signUp() succeeds.
+// Generates a Supabase email confirmation link (admin API) and sends it via Hostinger SMTP.
+router.post("/signup-notification", async (req: Request, res: Response) => {
+  const { email, fullName } = req.body as { email?: string; fullName?: string }
+
+  if (!email || !fullName) {
+    res.status(400).json({ error: "email and fullName are required" })
+    return
+  }
+
+  try {
+    const { data, error } = await supabaseAdmin.auth.admin.generateLink({
+      type: "signup",
+      email,
+      options: { redirectTo: `${process.env.FRONTEND_URL}/login` },
+    })
+    if (error) throw error
+
+    await sendMail({
+      to: email,
+      subject: "Confirm your CogniVend account",
+      html: signupConfirmationHtml({
+        fullName,
+        confirmationLink: data.properties.action_link,
+      }),
+    })
+
+    await sendMail({
+      to: process.env.ADMIN_EMAIL!,
+      subject: `New vendor signup: ${fullName}`,
+      html: vendorSubmittedAdminHtml({
+        companyName: "Pending onboarding",
+        contactName: fullName,
+        contactEmail: email,
+        reviewUrl: `${process.env.FRONTEND_URL}/admin/vendors`,
+      }),
+    })
+
+    res.json({ ok: true })
+  } catch (err: any) {
+    console.error("[signup-notification]", err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// POST /api/auth/forgot-password
+// Generates a Supabase password recovery link (admin API) and sends it via Hostinger SMTP.
+// Replaces the frontend's direct call to supabase.auth.resetPasswordForEmail().
+router.post("/forgot-password", async (req: Request, res: Response) => {
+  const { email } = req.body as { email?: string }
+
+  if (!email) {
+    res.status(400).json({ error: "email is required" })
+    return
+  }
+
+  try {
+    const { data, error } = await supabaseAdmin.auth.admin.generateLink({
+      type: "recovery",
+      email,
+      options: { redirectTo: `${process.env.FRONTEND_URL}/reset-password` },
+    })
+    if (error) throw error
+
+    await sendMail({
+      to: email,
+      subject: "Reset your CogniVend password",
+      html: passwordResetHtml({ resetLink: data.properties.action_link }),
+    })
+  } catch (err: any) {
+    console.error("[forgot-password]", err.message)
+    // Intentionally swallowed — always return ok to prevent user enumeration
+  }
+
+  res.json({ ok: true })
+})
+
+export default router
