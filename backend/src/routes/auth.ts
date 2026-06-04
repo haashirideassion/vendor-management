@@ -29,6 +29,7 @@ router.post("/signup-notification", async (req: Request, res: Response) => {
     const { data, error } = await supabaseAdmin.auth.admin.generateLink({
       type: "signup",
       email,
+      password: "",
       options: { redirectTo: `${process.env.FRONTEND_URL}/login` },
     })
     if (error) throw error
