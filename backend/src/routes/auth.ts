@@ -1,6 +1,5 @@
 import { Router, Request, Response } from "express"
 import { createClient } from "@supabase/supabase-js"
-import ws from "ws"
 // @ts-ignore
 import { sendEmail, signupConfirmationHtml, passwordResetHtml, vendorSubmittedAdminHtml } from "../services/email.service"
 
@@ -9,8 +8,8 @@ const router = Router()
 const supabaseAdmin = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { realtime: { transport: ws } }
 )
+
 
 router.post("/signup-notification", async (req: Request, res: Response) => {
   const { email, fullName } = req.body as { email?: string; fullName?: string }
