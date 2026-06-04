@@ -21,9 +21,7 @@ const getTransporter = () => {
         const user = process.env.SMTP_USER;
         const pass = process.env.SMTP_PASS;
 
-        if (!user || !pass) {
-            console.warn("⚠️ SMTP_USER / SMTP_PASS not set");
-        }
+        console.log("[SMTP DEBUG] host:", host, "port:", port, "user:", user, "pass length:", pass?.length ?? 0);
 
         _transporter = nodemailer.createTransport({
             host,
