@@ -1,28 +1,19 @@
 import { Router, Request, Response } from "express"
 import { requireWebhookSecret } from "../middleware/auth"
-import {
-  sendMail,
-  vendorSubmittedVendorHtml,
-  vendorSubmittedAdminHtml,
-  vendorApprovedHtml,
-  vendorStatusChangedHtml,
-} from "../utils/mailer"
+// @ts-ignore
+import { sendEmail, vendorSubmittedVendorHtml, vendorSubmittedAdminHtml, vendorApprovedHtml, vendorStatusChangedHtml } from "../services/email.service"
 
 const router = Router()
 
 const FRONTEND_URL = process.env.FRONTEND_URL!
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL!
 
-// POST /api/vendor/status-change
-// Triggered by a Supabase database webhook on the vendors table (INSERT and UPDATE events).
-// Protected by the x-webhook-secret header — matches WEBHOOK_SECRET env var.
 router.post("/status-change", requireWebhookSecret, async (req: Request, res: Response) => {
   try {
     const { record: vendor, old_record: oldVendor } = req.body
 
-    // INSERT event: new vendor created
     if (!oldVendor) {
-      await sendMail({
+      await sendEmail({
         to: vendor.contact_email,
         subject: "Your vendor application has been received",
         html: vendorSubmittedVendorHtml({
@@ -32,7 +23,7 @@ router.post("/status-change", requireWebhookSecret, async (req: Request, res: Re
         }),
       })
 
-      await sendMail({
+      await sendEmail({
         to: ADMIN_EMAIL,
         subject: `New vendor application: ${vendor.company_name}`,
         html: vendorSubmittedAdminHtml({
@@ -47,15 +38,13 @@ router.post("/status-change", requireWebhookSecret, async (req: Request, res: Re
       return
     }
 
-    // UPDATE event: skip if status hasn't changed
     if (vendor.status === oldVendor?.status) {
       res.json({ ok: true, skipped: true })
       return
     }
 
-    // Approval — status transitions to active
     if (vendor.status === "active" && oldVendor.status !== "active") {
-      await sendMail({
+      await sendEmail({
         to: vendor.contact_email,
         subject: `Welcome to CogniVend — Vendor ID: ${vendor.vendor_id_code}`,
         html: vendorApprovedHtml({
@@ -74,7 +63,7 @@ router.post("/status-change", requireWebhookSecret, async (req: Request, res: Re
         adminNotes: vendor.admin_notes,
         renewalUrl: `${FRONTEND_URL}/vendor/renewal`,
       })
-      await sendMail({ to: vendor.contact_email, subject, html })
+      await sendEmail({ to: vendor.contact_email, subject, html })
     }
 
     res.json({ ok: true })

@@ -1,11 +1,7 @@
 import { Router, Request, Response } from "express"
 import { createClient } from "@supabase/supabase-js"
-import {
-  sendMail,
-  signupConfirmationHtml,
-  passwordResetHtml,
-  vendorSubmittedAdminHtml,
-} from "../utils/mailer"
+// @ts-ignore
+import { sendEmail, signupConfirmationHtml, passwordResetHtml, vendorSubmittedAdminHtml } from "../services/email.service"
 
 const router = Router()
 
@@ -14,9 +10,6 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-// POST /api/auth/signup-notification
-// Called by the frontend immediately after supabase.auth.signUp() succeeds.
-// Generates a Supabase email confirmation link (admin API) and sends it via Hostinger SMTP.
 router.post("/signup-notification", async (req: Request, res: Response) => {
   const { email, fullName } = req.body as { email?: string; fullName?: string }
 
@@ -34,7 +27,7 @@ router.post("/signup-notification", async (req: Request, res: Response) => {
     })
     if (error) throw error
 
-    await sendMail({
+    await sendEmail({
       to: email,
       subject: "Confirm your CogniVend account",
       html: signupConfirmationHtml({
@@ -43,7 +36,7 @@ router.post("/signup-notification", async (req: Request, res: Response) => {
       }),
     })
 
-    await sendMail({
+    await sendEmail({
       to: process.env.ADMIN_EMAIL!,
       subject: `New vendor signup: ${fullName}`,
       html: vendorSubmittedAdminHtml({
@@ -61,9 +54,6 @@ router.post("/signup-notification", async (req: Request, res: Response) => {
   }
 })
 
-// POST /api/auth/forgot-password
-// Generates a Supabase password recovery link (admin API) and sends it via Hostinger SMTP.
-// Replaces the frontend's direct call to supabase.auth.resetPasswordForEmail().
 router.post("/forgot-password", async (req: Request, res: Response) => {
   const { email } = req.body as { email?: string }
 
@@ -80,7 +70,7 @@ router.post("/forgot-password", async (req: Request, res: Response) => {
     })
     if (error) throw error
 
-    await sendMail({
+    await sendEmail({
       to: email,
       subject: "Reset your CogniVend password",
       html: passwordResetHtml({ resetLink: data.properties.action_link }),
