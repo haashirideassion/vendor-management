@@ -12,12 +12,6 @@ export const transporter = nodemailer.createTransport({
   },
 })
 
-// Verify SMTP connection on startup
-transporter.verify((err) => {
-  if (err) console.error("[SMTP] Connection failed:", err.message)
-  else console.log("[SMTP] Connected to Hostinger SMTP ✓")
-})
-
 // ── Shared layout ─────────────────────────────────────────────────────────────
 
 function layout(body: string): string {
