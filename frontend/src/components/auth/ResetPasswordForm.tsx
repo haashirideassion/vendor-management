@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -24,36 +24,49 @@ export function ResetPasswordForm() {
   const [loading, setLoading] = useState(false)
   const [recoveryReady, setRecoveryReady] = useState(false)
   const [tokenError, setTokenError] = useState(false)
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
   })
 
   useEffect(() => {
-    // Subscribe FIRST — before getSession — so we don't miss the event
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") {
-        if (timerRef.current) clearTimeout(timerRef.current)
-        setRecoveryReady(true)
-      }
-    })
+    async function initRecovery() {
+      // PKCE flow: Supabase redirects with ?code= query param
+      const searchParams = new URLSearchParams(window.location.search)
+      const code = searchParams.get("code")
 
-    // Also check immediately in case the event already fired (client processed hash before mount)
-    supabase.auth.getSession().then(({ data: { session } }) => {
+      // Implicit flow: Supabase redirects with #access_token= hash fragment
+      const hashParams = new URLSearchParams(window.location.hash.substring(1))
+      const accessToken = hashParams.get("access_token")
+      const refreshToken = hashParams.get("refresh_token") ?? ""
+      const type = hashParams.get("type")
+
+      if (code) {
+        // PKCE: exchange code for session
+        const { error } = await supabase.auth.exchangeCodeForSession(code)
+        if (error) setTokenError(true)
+        else setRecoveryReady(true)
+        return
+      }
+
+      if (accessToken && type === "recovery") {
+        // Implicit: set session directly from hash tokens
+        const { error } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+        if (error) setTokenError(true)
+        else setRecoveryReady(true)
+        return
+      }
+
+      // No recovery params in URL — check if session already exists (page refresh)
+      const { data: { session } } = await supabase.auth.getSession()
       if (session) {
-        if (timerRef.current) clearTimeout(timerRef.current)
         setRecoveryReady(true)
+      } else {
+        setTokenError(true)
       }
-    })
-
-    // Generous timeout — only show error if truly nothing happens
-    timerRef.current = setTimeout(() => setTokenError(true), 15000)
-
-    return () => {
-      subscription.unsubscribe()
-      if (timerRef.current) clearTimeout(timerRef.current)
     }
+
+    initRecovery()
   }, [])
 
   async function onSubmit(data: FormData) {
@@ -71,7 +84,6 @@ export function ResetPasswordForm() {
     navigate("/login")
   }
 
-  // Token expired or invalid
   if (tokenError) {
     return (
       <Card className="w-full max-w-sm shadow-md">
@@ -90,7 +102,6 @@ export function ResetPasswordForm() {
     )
   }
 
-  // Waiting for recovery session
   if (!recoveryReady) {
     return (
       <Card className="w-full max-w-sm shadow-md">
