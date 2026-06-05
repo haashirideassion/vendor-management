@@ -5,10 +5,16 @@ import { sendEmail, signupConfirmationHtml, passwordResetHtml, vendorSubmittedAd
 
 const router = Router()
 
-const supabaseAdmin = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-)
+let _supabaseAdmin: ReturnType<typeof createClient> | null = null
+const getSupabaseAdmin = () => {
+  if (!_supabaseAdmin) {
+    _supabaseAdmin = createClient(
+      process.env.SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+  }
+  return _supabaseAdmin
+}
 
 
 router.post("/signup-notification", async (req: Request, res: Response) => {
@@ -20,7 +26,7 @@ router.post("/signup-notification", async (req: Request, res: Response) => {
   }
 
   try {
-    const { data, error } = await supabaseAdmin.auth.admin.generateLink({
+    const { data, error } = await getSupabaseAdmin().auth.admin.generateLink({
       type: "signup",
       email,
       password: "",
@@ -64,7 +70,7 @@ router.post("/forgot-password", async (req: Request, res: Response) => {
   }
 
   try {
-    const { data, error } = await supabaseAdmin.auth.admin.generateLink({
+    const { data, error } = await getSupabaseAdmin().auth.admin.generateLink({
       type: "recovery",
       email,
       options: { redirectTo: `${process.env.FRONTEND_URL}/reset-password` },

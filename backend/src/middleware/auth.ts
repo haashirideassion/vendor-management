@@ -1,9 +1,16 @@
 import { Request, Response, NextFunction } from "express"
 import { createClient } from "@supabase/supabase-js"
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+
+let _supabase: ReturnType<typeof createClient> | null = null
+const getSupabase = () => {
+  if (!_supabase) {
+    _supabase = createClient(
+      process.env.SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+  }
+  return _supabase
+}
 
 // Verifies a Supabase JWT from the Authorization: Bearer <token> header.
 // Attaches the authenticated user object to req for downstream handlers.
@@ -14,7 +21,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     return
   }
 
-  const { data: { user }, error } = await supabase.auth.getUser(token)
+  const { data: { user }, error } = await getSupabase().auth.getUser(token)
   if (error || !user) {
     res.status(401).json({ error: "Invalid or expired token" })
     return
