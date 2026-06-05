@@ -1,19 +1,19 @@
 import { useQuery } from "@tanstack/react-query"
-import { supabase } from "@/lib/supabase"
+import { api } from "@/lib/api"
+import { useAuth } from "@/contexts/AuthContext"
 import type { AuditLog } from "@/lib/types"
 
 export function useAuditLog(vendorId?: string) {
+  const { accessToken } = useAuth()
+
   return useQuery({
     queryKey: ["audit_log", vendorId],
     queryFn: async () => {
-      let query = supabase
-        .from("audit_log")
-        .select("*, profiles(full_name, email)")
-        .order("created_at", { ascending: false })
-        .limit(50)
-      if (vendorId) query = query.eq("entity_id", vendorId)
-      const { data, error } = await query
-      if (error) throw error
+      const { data } = await api.post<{ data: AuditLog[] }>(
+        "/api/audit-log/list",
+        { entityId: vendorId },
+        accessToken
+      )
       return data as AuditLog[]
     },
   })

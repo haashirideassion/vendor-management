@@ -1,76 +1,71 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { supabase } from "@/lib/supabase"
+import { api } from "@/lib/api"
+import { useAuth } from "@/contexts/AuthContext"
 import type { RFQ, RFQStatus } from "@/lib/types"
 
-const SELECT_FIELDS = `
-  *,
-  engagement:engagement_id (
-    title, description, start_date, end_date, estimated_value, currency,
-    line_items:engagement_line_items ( id, description, quantity, unit_price, unit )
-  ),
-  vendor:vendor_id ( company_name )
-`
-
 export function useVendorRFQs() {
+  const { accessToken } = useAuth()
+
   return useQuery({
     queryKey: ["rfqs", "vendor"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("rfqs")
-        .select(SELECT_FIELDS)
-        .order("created_at", { ascending: false })
-      if (error) throw error
-      return data as RFQ[]
+      const { data } = await api.post<{ data: RFQ[] }>(
+        "/api/rfqs/vendor-list",
+        {},
+        accessToken
+      )
+      return data
     },
   })
 }
 
 export function useRFQ(id: string | undefined) {
+  const { accessToken } = useAuth()
+
   return useQuery({
     queryKey: ["rfqs", id],
     enabled: !!id,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("rfqs")
-        .select(SELECT_FIELDS)
-        .eq("id", id!)
-        .single()
-      if (error) throw error
-      return data as RFQ
+      const { data } = await api.post<{ data: RFQ }>(
+        "/api/rfqs/get",
+        { id },
+        accessToken
+      )
+      return data
     },
   })
 }
 
 export function useEngagementRFQs(engagementId: string | undefined) {
+  const { accessToken } = useAuth()
+
   return useQuery({
     queryKey: ["rfqs", "engagement", engagementId],
     enabled: !!engagementId,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("rfqs")
-        .select(SELECT_FIELDS)
-        .eq("engagement_id", engagementId!)
-        .order("created_at", { ascending: false })
-      if (error) throw error
-      return data as RFQ[]
+      const { data } = await api.post<{ data: RFQ[] }>(
+        "/api/rfqs/by-engagement",
+        { engagementId },
+        accessToken
+      )
+      return data
     },
   })
 }
 
 export function useUpdateRFQStatus() {
   const queryClient = useQueryClient()
+  const { accessToken } = useAuth()
 
   return useMutation({
     mutationFn: async ({ id, status }: { id: string; status: RFQStatus }) => {
-      const { data, error } = await supabase
-        .from("rfqs")
-        .update({ status })
-        .eq("id", id)
-        .select()
-        .single()
-      if (error) throw error
-      return data as RFQ
+      const { data } = await api.post<{ data: RFQ }>(
+        "/api/rfqs/update-status",
+        { id, status },
+        accessToken
+      )
+      return data
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["rfqs"] })

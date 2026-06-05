@@ -1,18 +1,20 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { supabase } from "@/lib/supabase"
+import { api } from "@/lib/api"
+import { useAuth } from "@/contexts/AuthContext"
 import type { Notification } from "@/lib/types"
 
 export function useAdminNotifications() {
+  const { accessToken } = useAuth()
+
   return useQuery({
     queryKey: ["notifications"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("notifications")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(20)
-      if (error) throw error
-      return (data ?? []) as Notification[]
+      const { data } = await api.post<{ data: Notification[] }>(
+        "/api/notifications/list",
+        {},
+        accessToken
+      )
+      return data ?? []
     },
     refetchInterval: 30_000,
   })
@@ -20,13 +22,11 @@ export function useAdminNotifications() {
 
 export function useMarkNotificationRead() {
   const qc = useQueryClient()
+  const { accessToken } = useAuth()
+
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("notifications")
-        .update({ is_read: true })
-        .eq("id", id)
-      if (error) throw error
+      await api.post("/api/notifications/mark-read", { id }, accessToken)
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["notifications"] }),
   })
@@ -34,13 +34,11 @@ export function useMarkNotificationRead() {
 
 export function useMarkAllNotificationsRead() {
   const qc = useQueryClient()
+  const { accessToken } = useAuth()
+
   return useMutation({
     mutationFn: async () => {
-      const { error } = await supabase
-        .from("notifications")
-        .update({ is_read: true })
-        .eq("is_read", false)
-      if (error) throw error
+      await api.post("/api/notifications/mark-all-read", {}, accessToken)
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["notifications"] }),
   })

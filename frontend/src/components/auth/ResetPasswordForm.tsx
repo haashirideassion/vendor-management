@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { useNavigate, useSearchParams, Link } from "react-router-dom"
 import { authFetch } from "@/contexts/AuthContext"
+import { encryptPassword } from "@/lib/crypto"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -40,10 +41,11 @@ export function ResetPasswordForm() {
     if (!token || !userId) return
     setLoading(true)
     try {
+      const encryptedPassword = await encryptPassword(data.password)
       const res = await authFetch("/api/auth/reset-password", {
         token,
         userId,
-        password: data.password,
+        password: encryptedPassword,
       })
       const json = await res.json()
       if (!res.ok) {

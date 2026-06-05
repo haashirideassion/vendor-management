@@ -1,5 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react"
-import { supabase, setSupabaseAccessToken } from "@/lib/supabase"
+import { setSupabaseAccessToken } from "@/lib/supabase"
+import { encryptPassword } from "@/lib/crypto"
+import { api } from "@/lib/api"
 import type { Profile, UserRole } from "@/lib/types"
 import { INTERNAL_ROLES } from "@/hooks/usePermissions"
 
@@ -52,11 +54,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (refreshTimer.current) clearTimeout(refreshTimer.current)
     refreshTimer.current = setTimeout(silentRefresh, 13 * 60 * 1000)
 
-    const { data: prof } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", data.user.id)
-      .single()
+    const { data: prof } = await api.post<{ data: Profile | null }>(
+      "/api/auth/profile", {}, data.accessToken
+    )
     setProfile(prof ?? null)
   }
 
@@ -89,7 +89,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   async function login(email: string, password: string): Promise<AuthUser> {
-    const res = await authFetch("/api/auth/login", { email, password })
+    const encryptedPassword = await encryptPassword(password)
+    const res = await authFetch("/api/auth/login", { email, password: encryptedPassword })
     const data = await res.json()
     if (!res.ok) throw new Error(data.error ?? "Login failed")
     await applySession(data)

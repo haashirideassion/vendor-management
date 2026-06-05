@@ -1,47 +1,39 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { supabase } from "@/lib/supabase"
+import { api } from "@/lib/api"
 import { useAuth } from "@/contexts/AuthContext"
 import type { Vendor, VendorWithDetails } from "@/lib/types"
 import { toast } from "sonner"
 
 export function useVendor() {
-  const { user } = useAuth()
+  const { user, accessToken } = useAuth()
 
   return useQuery({
     queryKey: ["vendor", user?.id],
     enabled: !!user,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("vendors")
-        .select(`
-          *,
-          vendor_categories(*, service_categories(*)),
-          vendor_services(*),
-          vendor_documents(*),
-          vendor_ratings(score)
-        `)
-        .eq("profile_id", user!.id)
-        .single()
-      if (error && error.code !== "PGRST116") throw error
-      if (!data) return null
-      const ratings = (data as VendorWithDetails).vendor_ratings ?? []
-      const avg = ratings.length ? ratings.reduce((s, r) => s + r.score, 0) / ratings.length : 0
-      return { ...data, avg_rating: avg } as VendorWithDetails
+      const { data } = await api.post<{ data: VendorWithDetails | null }>(
+        "/api/vendors/get-my-vendor",
+        { profileId: user!.id },
+        accessToken
+      )
+      if (data === null) return null
+      return data as VendorWithDetails
     },
   })
 }
 
 export function useUpdateVendor() {
   const qc = useQueryClient()
-  const { user } = useAuth()
+  const { user, accessToken } = useAuth()
 
   return useMutation({
     mutationFn: async (updates: Partial<Vendor>) => {
-      const { error } = await supabase
-        .from("vendors")
-        .update(updates)
-        .eq("profile_id", user!.id)
-      if (error) throw error
+      const { data } = await api.post<{ data: VendorWithDetails }>(
+        "/api/vendors/update",
+        { profileId: user!.id, ...updates },
+        accessToken
+      )
+      return data
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["vendor"] }),
   })
@@ -49,31 +41,22 @@ export function useUpdateVendor() {
 
 export function useUpdateVendorCategories() {
   const qc = useQueryClient()
-  const { user } = useAuth()
+  const { user, accessToken } = useAuth()
 
   return useMutation({
     mutationFn: async (categoryIds: string[]) => {
-      const { data: vendor, error: vendorError } = await supabase
-        .from("vendors")
-        .select("id")
-        .eq("profile_id", user!.id)
-        .single()
-      if (vendorError) throw vendorError
-      if (!vendor) throw new Error("Vendor not found")
+      const { data: vendorData } = await api.post<{ data: { id: string } }>(
+        "/api/vendors/get-my-vendor",
+        { profileId: user!.id },
+        accessToken
+      )
+      if (!vendorData) throw new Error("Vendor not found")
 
-      const { error: deleteError } = await supabase
-        .from("vendor_categories")
-        .delete()
-        .eq("vendor_id", vendor.id)
-      if (deleteError) throw deleteError
-
-      if (categoryIds.length > 0) {
-        const uniqueIds = [...new Set(categoryIds)]
-        const { error: insertError } = await supabase
-          .from("vendor_categories")
-          .insert(uniqueIds.map((cid) => ({ vendor_id: vendor.id, category_id: cid })))
-        if (insertError) throw insertError
-      }
+      await api.post(
+        "/api/vendors/update-categories",
+        { vendorId: vendorData.id, categoryIds },
+        accessToken
+      )
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["vendor"] })

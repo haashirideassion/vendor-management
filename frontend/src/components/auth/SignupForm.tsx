@@ -4,6 +4,7 @@ import { z } from "zod"
 import { useNavigate, Link } from "react-router-dom"
 import { useState } from "react"
 import { authFetch } from "@/contexts/AuthContext"
+import { encryptPassword } from "@/lib/crypto"
 import { useEmailCooldown } from "@/hooks/useEmailCooldown"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -34,9 +35,10 @@ export function SignupForm() {
   async function onSubmit(data: FormData) {
     setLoading(true)
     try {
+      const encryptedPassword = await encryptPassword(data.password)
       const res = await authFetch("/api/auth/register", {
         email: data.email,
-        password: data.password,
+        password: encryptedPassword,
         fullName: data.full_name,
         role: "vendor",
       })

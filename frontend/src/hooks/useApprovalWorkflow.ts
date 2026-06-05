@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { supabase } from "@/lib/supabase"
+import { api } from "@/lib/api"
 import { useAuth } from "@/contexts/AuthContext"
 import type { ApprovalEntityType, ApprovalRequest } from "@/lib/types"
 
@@ -8,20 +8,16 @@ import type { ApprovalEntityType, ApprovalRequest } from "@/lib/types"
 
 /** Fetch all approval requests for a specific entity (e.g. a single PO or engagement) */
 export function useApprovalRequests(entityType: ApprovalEntityType, entityId: string) {
+  const { accessToken } = useAuth()
+
   return useQuery({
     queryKey: ["approval-requests", entityType, entityId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("approval_requests")
-        .select(`
-          *,
-          requester:requested_by ( full_name, email ),
-          reviewer:reviewed_by  ( full_name, email )
-        `)
-        .eq("entity_type", entityType)
-        .eq("entity_id", entityId)
-        .order("created_at", { ascending: false })
-      if (error) throw error
+      const { data } = await api.post<{ data: ApprovalRequest[] }>(
+        "/api/approvals/by-entity",
+        { entityType, entityId },
+        accessToken
+      )
       return data as ApprovalRequest[]
     },
     enabled: !!entityId,
@@ -30,22 +26,16 @@ export function useApprovalRequests(entityType: ApprovalEntityType, entityId: st
 
 /** Fetch all pending approval requests — used on admin dashboards */
 export function usePendingApprovals(entityType?: ApprovalEntityType) {
+  const { accessToken } = useAuth()
+
   return useQuery({
     queryKey: ["approval-requests", "pending", entityType],
     queryFn: async () => {
-      let query = supabase
-        .from("approval_requests")
-        .select(`
-          *,
-          requester:requested_by ( full_name, email )
-        `)
-        .eq("status", "pending")
-        .order("created_at", { ascending: true })
-
-      if (entityType) query = query.eq("entity_type", entityType)
-
-      const { data, error } = await query
-      if (error) throw error
+      const { data } = await api.post<{ data: ApprovalRequest[] }>(
+        "/api/approvals/pending",
+        { entityType },
+        accessToken
+      )
       return data as ApprovalRequest[]
     },
   })
@@ -56,7 +46,7 @@ export function usePendingApprovals(entityType?: ApprovalEntityType) {
 /** Submit a new approval request for any entity */
 export function useRequestApproval() {
   const queryClient = useQueryClient()
-  const { user } = useAuth()
+  const { user, accessToken } = useAuth()
 
   return useMutation({
     mutationFn: async ({
@@ -72,19 +62,17 @@ export function useRequestApproval() {
     }) => {
       if (!user) throw new Error("Not authenticated")
 
-      const { data, error } = await supabase
-        .from("approval_requests")
-        .insert({
+      const { data } = await api.post<{ data: ApprovalRequest }>(
+        "/api/approvals/request",
+        {
           entity_type: entityType,
           entity_id: entityId,
           requested_by: user.id,
-          amount: amount ?? null,
-          notes: notes ?? null,
-        })
-        .select()
-        .single()
-
-      if (error) throw error
+          amount,
+          notes,
+        },
+        accessToken
+      )
       return data as ApprovalRequest
     },
     onSuccess: (_, { entityType, entityId }) => {
@@ -99,7 +87,7 @@ export function useRequestApproval() {
 /** Approve or reject an existing approval request */
 export function useReviewApproval() {
   const queryClient = useQueryClient()
-  const { user } = useAuth()
+  const { user, accessToken } = useAuth()
 
   return useMutation({
     mutationFn: async ({
@@ -115,19 +103,11 @@ export function useReviewApproval() {
     }) => {
       if (!user) throw new Error("Not authenticated")
 
-      const { data, error } = await supabase
-        .from("approval_requests")
-        .update({
-          status,
-          notes: notes ?? null,
-          reviewed_by: user.id,
-          reviewed_at: new Date().toISOString(),
-        })
-        .eq("id", id)
-        .select()
-        .single()
-
-      if (error) throw error
+      const { data } = await api.post<{ data: ApprovalRequest }>(
+        "/api/approvals/review",
+        { id, status, notes, reviewed_by: user.id },
+        accessToken
+      )
       return data as ApprovalRequest
     },
     onSuccess: (_, { status, entityType, entityId }) => {
@@ -142,6 +122,7 @@ export function useReviewApproval() {
 /** Cancel a pending approval request (only the requester should do this) */
 export function useCancelApproval() {
   const queryClient = useQueryClient()
+  const { accessToken } = useAuth()
 
   return useMutation({
     mutationFn: async ({
@@ -151,14 +132,11 @@ export function useCancelApproval() {
       entityType: ApprovalEntityType
       entityId: string
     }) => {
-      const { data, error } = await supabase
-        .from("approval_requests")
-        .update({ status: "cancelled" })
-        .eq("id", id)
-        .select()
-        .single()
-
-      if (error) throw error
+      const { data } = await api.post<{ data: ApprovalRequest }>(
+        "/api/approvals/cancel",
+        { id },
+        accessToken
+      )
       return data as ApprovalRequest
     },
     onSuccess: (_, { entityType, entityId }) => {

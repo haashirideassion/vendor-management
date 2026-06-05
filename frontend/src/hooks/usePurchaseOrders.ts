@@ -1,15 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { supabase } from "@/lib/supabase"
+import { api } from "@/lib/api"
 import { useAuth } from "@/contexts/AuthContext"
 import type { PurchaseOrder, POLineItem, POStatus } from "@/lib/types"
-
-const SELECT_FIELDS = `
-  *,
-  vendor:vendor_id ( company_name, contact_name ),
-  engagement:engagement_id ( title ),
-  line_items:po_line_items (*)
-`
 
 // ─── Filters ──────────────────────────────────────────────────────────────────
 
@@ -23,36 +16,37 @@ export interface POFilters {
 // ─── Queries ──────────────────────────────────────────────────────────────────
 
 export function usePurchaseOrders(filters?: POFilters) {
+  const { accessToken } = useAuth()
+
   return useQuery({
     queryKey: ["purchase-orders", filters],
     queryFn: async () => {
-      let query = supabase
-        .from("purchase_orders")
-        .select(SELECT_FIELDS)
-        .order("created_at", { ascending: false })
-
-      if (filters?.status)        query = query.eq("status", filters.status)
-      if (filters?.vendor_id)     query = query.eq("vendor_id", filters.vendor_id)
-      if (filters?.engagement_id) query = query.eq("engagement_id", filters.engagement_id)
-      if (filters?.contract_id)   query = query.eq("contract_id", filters.contract_id)
-
-      const { data, error } = await query
-      if (error) throw error
+      const { data } = await api.post<{ data: PurchaseOrder[] }>(
+        "/api/purchase-orders/list",
+        {
+          status: filters?.status,
+          vendor_id: filters?.vendor_id,
+          engagement_id: filters?.engagement_id,
+          contract_id: filters?.contract_id,
+        },
+        accessToken
+      )
       return data as PurchaseOrder[]
     },
   })
 }
 
 export function usePurchaseOrder(id: string) {
+  const { accessToken } = useAuth()
+
   return useQuery({
     queryKey: ["purchase-orders", id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("purchase_orders")
-        .select(SELECT_FIELDS)
-        .eq("id", id)
-        .single()
-      if (error) throw error
+      const { data } = await api.post<{ data: PurchaseOrder }>(
+        "/api/purchase-orders/get",
+        { id },
+        accessToken
+      )
       return data as PurchaseOrder
     },
     enabled: !!id,
@@ -76,29 +70,18 @@ export interface CreatePOInput {
 
 export function useCreatePurchaseOrder() {
   const queryClient = useQueryClient()
-  const { user } = useAuth()
+  const { user, accessToken } = useAuth()
 
   return useMutation({
     mutationFn: async ({ line_items, ...poInput }: CreatePOInput) => {
       if (!user) throw new Error("Not authenticated")
 
-      // Insert PO first to get the auto-generated ID and po_number
-      const { data: po, error: poError } = await supabase
-        .from("purchase_orders")
-        .insert({ ...poInput, created_by: user.id, status: "draft" })
-        .select()
-        .single()
-      if (poError) throw poError
-
-      // Insert line items
-      if (line_items.length > 0) {
-        const { error: lineError } = await supabase
-          .from("po_line_items")
-          .insert(line_items.map(li => ({ ...li, po_id: po.id })))
-        if (lineError) throw lineError
-      }
-
-      return po as PurchaseOrder
+      const { data } = await api.post<{ data: PurchaseOrder }>(
+        "/api/purchase-orders/create",
+        { ...poInput, line_items, created_by: user.id },
+        accessToken
+      )
+      return data as PurchaseOrder
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["purchase-orders"] })
@@ -110,16 +93,15 @@ export function useCreatePurchaseOrder() {
 
 export function useIssuePurchaseOrder() {
   const queryClient = useQueryClient()
+  const { accessToken } = useAuth()
 
   return useMutation({
     mutationFn: async ({ id }: { id: string }) => {
-      const { data, error } = await supabase
-        .from("purchase_orders")
-        .update({ status: "issued", issue_date: new Date().toISOString().slice(0, 10) })
-        .eq("id", id)
-        .select()
-        .single()
-      if (error) throw error
+      const { data } = await api.post<{ data: PurchaseOrder }>(
+        "/api/purchase-orders/issue",
+        { id },
+        accessToken
+      )
       return data as PurchaseOrder
     },
     onSuccess: (_, { id }) => {
@@ -133,16 +115,15 @@ export function useIssuePurchaseOrder() {
 
 export function useUpdatePOStatus() {
   const queryClient = useQueryClient()
+  const { accessToken } = useAuth()
 
   return useMutation({
     mutationFn: async ({ id, status }: { id: string; status: POStatus }) => {
-      const { data, error } = await supabase
-        .from("purchase_orders")
-        .update({ status })
-        .eq("id", id)
-        .select()
-        .single()
-      if (error) throw error
+      const { data } = await api.post<{ data: PurchaseOrder }>(
+        "/api/purchase-orders/update-status",
+        { id, status },
+        accessToken
+      )
       return data as PurchaseOrder
     },
     onSuccess: (_, { id }) => {

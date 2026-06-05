@@ -2,7 +2,9 @@ import { Router, Request, Response } from "express"
 import rateLimit from "express-rate-limit"
 import crypto from "crypto"
 import { getSupabaseAdmin } from "../utils/supabaseAdmin"
+import { requireAuth, AuthenticatedRequest } from "../middleware/auth"
 import { hashPassword, verifyPassword } from "../services/password.service"
+import { getKeyPair, decryptPassword } from "../services/crypto.service"
 import {
   signAccessToken,
   generateRefreshToken,
@@ -18,6 +20,28 @@ const router = Router()
 // Supabase client typed as any — new auth tables not in generated schema
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function db(): any { return getSupabaseAdmin() }
+
+// ─── GET /api/auth/public-key ─────────────────────────────────────────────────
+router.get("/public-key", (_req: Request, res: Response) => {
+  res.json({ publicKey: getKeyPair().publicKeyPem })
+})
+
+// ─── POST /api/auth/profile ───────────────────────────────────────────────────
+router.post("/profile", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const userId = (req as AuthenticatedRequest).user.id
+    const { data, error } = await db()
+      .from("profiles")
+      .select("*")
+      .eq("id", userId)
+      .maybeSingle()
+    if (error) throw error
+    res.json({ data })
+  } catch (err: any) {
+    console.error("[auth/profile]", err.message)
+    res.status(500).json({ error: "Failed to load profile" })
+  }
+})
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -47,7 +71,15 @@ router.post("/register", authLimiter, async (req: Request, res: Response) => {
     res.status(400).json({ error: "email, password, and fullName are required" })
     return
   }
-  if (password.length < 8) {
+
+  let plainPassword: string
+  try {
+    plainPassword = decryptPassword(password)
+  } catch {
+    res.status(400).json({ error: "Invalid password encoding" })
+    return
+  }
+  if (plainPassword.length < 8) {
     res.status(400).json({ error: "Password must be at least 8 characters" })
     return
   }
@@ -65,7 +97,7 @@ router.post("/register", authLimiter, async (req: Request, res: Response) => {
       return
     }
 
-    const passwordHash = await hashPassword(password)
+    const passwordHash = await hashPassword(plainPassword)
 
     // Insert user
     const { data: user, error: userErr } = await db()
@@ -173,6 +205,14 @@ router.post("/login", authLimiter, async (req: Request, res: Response) => {
     return
   }
 
+  let plainPassword: string
+  try {
+    plainPassword = decryptPassword(password)
+  } catch {
+    res.status(400).json({ error: "Invalid password encoding" })
+    return
+  }
+
   try {
     const { data: user } = await db()
       .from("users")
@@ -183,8 +223,8 @@ router.post("/login", authLimiter, async (req: Request, res: Response) => {
     // Constant-time-ish: always hash even if user not found (prevent timing attacks)
     const dummyHash = "$argon2id$v=19$m=65536,t=3,p=1$dummy"
     const valid = user
-      ? await verifyPassword(user.password_hash, password)
-      : await verifyPassword(dummyHash, password).catch(() => false)
+      ? await verifyPassword(user.password_hash, plainPassword)
+      : await verifyPassword(dummyHash, plainPassword).catch(() => false)
 
     if (!user || !valid) {
       res.status(401).json({ error: "Invalid email or password" })
@@ -365,7 +405,15 @@ router.post("/reset-password", async (req: Request, res: Response) => {
     res.status(400).json({ error: "token, userId, and password are required" })
     return
   }
-  if (password.length < 8) {
+
+  let plainPassword: string
+  try {
+    plainPassword = decryptPassword(password)
+  } catch {
+    res.status(400).json({ error: "Invalid password encoding" })
+    return
+  }
+  if (plainPassword.length < 8) {
     res.status(400).json({ error: "Password must be at least 8 characters" })
     return
   }
@@ -393,7 +441,7 @@ router.post("/reset-password", async (req: Request, res: Response) => {
       return
     }
 
-    const passwordHash = await hashPassword(password)
+    const passwordHash = await hashPassword(plainPassword)
 
     await Promise.all([
       db().from("users").update({ password_hash: passwordHash }).eq("id", userId),

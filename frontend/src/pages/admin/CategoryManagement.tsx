@@ -20,7 +20,8 @@ import { HugeiconsIcon } from "@hugeicons/react"
 import type { ServiceCategory } from "@/lib/types"
 import { format } from "date-fns"
 import { toast } from "sonner"
-import { supabase } from "@/lib/supabase"
+import { api } from "@/lib/api"
+import { useAuth } from "@/contexts/AuthContext"
 
 const PAGE_SIZE = 10
 
@@ -180,6 +181,7 @@ function CategoryTable({
 }
 
 export function CategoryManagement() {
+  const { accessToken } = useAuth()
   const { data: categories = [], isLoading } = useCategories()
   const createCategory = useCreateCategory()
   const updateCategory = useUpdateCategory()
@@ -194,7 +196,9 @@ export function CategoryManagement() {
   const { data: vcRows = [] } = useQuery({
     queryKey: ["vendor-category-counts"],
     queryFn: async () => {
-      const { data } = await supabase.from("vendor_categories").select("category_id")
+      const { data } = await api.post<{ data: Array<{ category_id: string }> }>(
+        "/api/categories/vendor-counts", {}, accessToken
+      )
       return data ?? []
     },
   })

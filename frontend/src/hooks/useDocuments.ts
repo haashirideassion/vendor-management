@@ -1,18 +1,21 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { supabase } from "@/lib/supabase"
+import { api } from "@/lib/api"
+import { useAuth } from "@/contexts/AuthContext"
 import type { VendorDocument, DocumentType } from "@/lib/types"
 
 export function useDocuments(vendorId: string | undefined) {
+  const { accessToken } = useAuth()
+
   return useQuery({
     queryKey: ["documents", vendorId],
     enabled: !!vendorId,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("vendor_documents")
-        .select("*")
-        .eq("vendor_id", vendorId!)
-        .order("uploaded_at", { ascending: false })
-      if (error) throw error
+      const { data } = await api.post<{ data: VendorDocument[] }>(
+        "/api/documents/by-vendor",
+        { vendorId },
+        accessToken
+      )
       return data as VendorDocument[]
     },
   })
@@ -20,6 +23,7 @@ export function useDocuments(vendorId: string | undefined) {
 
 export function useUploadDocument() {
   const qc = useQueryClient()
+  const { accessToken } = useAuth()
 
   return useMutation({
     mutationFn: async ({
@@ -41,18 +45,17 @@ export function useUploadDocument() {
         .upload(storagePath, file, { upsert: false })
       if (uploadError) throw uploadError
 
-      const { data, error } = await supabase
-        .from("vendor_documents")
-        .insert({
+      const { data } = await api.post<{ data: VendorDocument }>(
+        "/api/documents/create",
+        {
           vendor_id: vendorId,
           document_type: documentType,
           file_name: file.name,
           storage_path: storagePath,
           expires_at: expiresAt ?? null,
-        })
-        .select()
-        .single()
-      if (error) throw error
+        },
+        accessToken
+      )
       return data as VendorDocument
     },
     onSuccess: (_data, vars) => {
@@ -65,6 +68,7 @@ export function useUploadDocument() {
 
 export function useVerifyDocument() {
   const qc = useQueryClient()
+  const { accessToken } = useAuth()
 
   return useMutation({
     mutationFn: async ({
@@ -76,19 +80,17 @@ export function useVerifyDocument() {
       verified: boolean
       notes?: string
     }) => {
-      const updates: Partial<VendorDocument> = {
-        verified,
-        verified_at: verified ? new Date().toISOString() : null,
-        notes: notes ?? null,
-      }
-      const { data, error } = await supabase
-        .from("vendor_documents")
-        .update(updates)
-        .eq("id", docId)
-        .select()
-        .single()
-      if (error) throw error
-      return data
+      const { data } = await api.post<{ data: VendorDocument }>(
+        "/api/documents/verify",
+        {
+          id: docId,
+          verified,
+          verified_at: verified ? new Date().toISOString() : null,
+          notes: notes ?? null,
+        },
+        accessToken
+      )
+      return data as VendorDocument
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["documents"] })

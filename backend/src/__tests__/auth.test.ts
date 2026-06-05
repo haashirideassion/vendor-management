@@ -5,6 +5,12 @@ import { hashPassword } from "../services/password.service"
 import { signAccessToken } from "../services/jwt.service"
 import crypto from "crypto"
 
+// ─── Mock crypto service (bypass RSA decryption in tests) ────────────────────
+jest.mock("../services/crypto.service", () => ({
+  getKeyPair: jest.fn().mockReturnValue({ publicKeyPem: "mock-pem" }),
+  decryptPassword: jest.fn((s: string) => s), // treat input as already plain text
+}))
+
 // ─── Mock email service (no real SMTP in tests) ───────────────────────────────
 jest.mock("../services/email.service", () => ({
   sendEmail: jest.fn().mockResolvedValue(undefined),

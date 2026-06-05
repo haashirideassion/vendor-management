@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
-import { supabase } from "@/lib/supabase"
+import { api } from "@/lib/api"
+import { useAuth } from "@/contexts/AuthContext"
 import { format, subMonths, differenceInDays } from "date-fns"
 
 // ─── Narrow row shapes for aggregate queries ──────────────────────────────────
@@ -52,33 +53,32 @@ export interface ProcurementAnalytics {
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useProcurementKPIs() {
+  const { accessToken } = useAuth()
+
   return useQuery<ProcurementAnalytics>({
     queryKey: ["analytics", "procurement"],
     staleTime: 60_000,
     queryFn: async () => {
-      const [posRes, invoicesRes, contractsRes, grnsRes, engagementsRes] = await Promise.allSettled([
-        supabase
-          .from("purchase_orders")
-          .select("id, total_value, status, created_at, vendor:vendor_id(company_name)"),
-        supabase
-          .from("invoices")
-          .select("id, total_amount, status"),
-        supabase
-          .from("contracts")
-          .select("id, status, expiry_date, title, contract_ref, contract_type"),
-        supabase
-          .from("grns")
-          .select("id, status"),
-        supabase
-          .from("engagements")
-          .select("id, status, estimated_value"),
-      ])
+      let pos: PORow[] = []
+      let invoices: InvoiceRow[] = []
+      let contracts: ContractRow[] = []
+      let grns: GRNRow[] = []
+      let engagements: EngagementRow[] = []
 
-      const pos         = (posRes.status         === "fulfilled" ? posRes.value.data         ?? [] : []) as unknown as PORow[]
-      const invoices    = (invoicesRes.status    === "fulfilled" ? invoicesRes.value.data    ?? [] : []) as InvoiceRow[]
-      const contracts   = (contractsRes.status   === "fulfilled" ? contractsRes.value.data   ?? [] : []) as ContractRow[]
-      const grns        = (grnsRes.status        === "fulfilled" ? grnsRes.value.data        ?? [] : []) as GRNRow[]
-      const engagements = (engagementsRes.status === "fulfilled" ? engagementsRes.value.data ?? [] : []) as EngagementRow[]
+      try {
+        const raw = await api.post<{ purchase_orders: PORow[], invoices: InvoiceRow[], contracts: ContractRow[], grns: GRNRow[], engagements: EngagementRow[] }>(
+          "/api/analytics/procurement-kpis",
+          {},
+          accessToken
+        )
+        pos         = raw.purchase_orders ?? []
+        invoices    = raw.invoices ?? []
+        contracts   = raw.contracts ?? []
+        grns        = raw.grns ?? []
+        engagements = raw.engagements ?? []
+      } catch {
+        // Fall through with empty arrays — all KPIs will show 0
+      }
 
       // ── KPIs ───────────────────────────────────────────────────────────────
 

@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { supabase } from "@/lib/supabase"
+import { api } from "@/lib/api"
 import { useAuth } from "@/contexts/AuthContext"
 import type { Attachment, AttachmentEntityType } from "@/lib/types"
 
@@ -54,29 +55,24 @@ export function useAttachments(
   entityType: AttachmentEntityType | undefined,
   entityId:   string | undefined
 ) {
+  const { accessToken } = useAuth()
+
   return useQuery({
     queryKey: ["attachments", entityType, entityId],
     enabled:  !!entityType && !!entityId,
     retry:    false,
     queryFn:  async () => {
-      const { data, error } = await supabase
-        .from("attachments")
-        .select("*")
-        .eq("entity_type", entityType!)
-        .eq("entity_id",   entityId!)
-        .eq("is_deleted",  false)
-        .order("created_at", { ascending: true })
-      if (error) {
-        // Migration not yet applied — table doesn't exist; return empty silently
-        if (
-          error.code === "42P01" ||
-          (error as unknown as { status?: number }).status === 404 ||
-          error.message?.includes("relation") ||
-          error.message?.includes("does not exist")
-        ) return []
-        throw error
+      try {
+        const { data } = await api.post<{ data: Attachment[] }>(
+          "/api/attachments/list",
+          { entityType, entityId },
+          accessToken
+        )
+        return data
+      } catch {
+        // Table may not exist yet — return empty silently
+        return []
       }
-      return data as Attachment[]
     },
   })
 }
@@ -110,7 +106,7 @@ export interface UploadResult {
 
 export function useUploadAttachments() {
   const queryClient = useQueryClient()
-  const { user } = useAuth()
+  const { user, accessToken } = useAuth()
 
   return useMutation({
     mutationFn: async ({ entityType, entityId, files }: UploadAttachmentsInput): Promise<UploadResult> => {
@@ -142,23 +138,24 @@ export function useUploadAttachments() {
           continue
         }
 
-        // Insert metadata record
-        const { error: insertErr } = await supabase
-          .from("attachments")
-          .insert({
-            entity_type:    entityType,
-            entity_id:      entityId,
-            file_name:      sanitizedName,
-            original_name:  file.name,
-            file_extension: ext,
-            mime_type:      file.type,
-            file_size:      file.size,
-            storage_path:   storagePath,
-            uploaded_by:    user.id,
-            is_deleted:     false,
-          })
-
-        if (insertErr) {
+        // Insert metadata record via API
+        try {
+          await api.post(
+            "/api/attachments/create",
+            {
+              entity_type:    entityType,
+              entity_id:      entityId,
+              file_name:      sanitizedName,
+              original_name:  file.name,
+              file_extension: ext,
+              mime_type:      file.type,
+              file_size:      file.size,
+              storage_path:   storagePath,
+              uploaded_by:    user.id,
+            },
+            accessToken
+          )
+        } catch {
           // Clean up orphaned storage file
           await supabase.storage.from("vendor-documents").remove([storagePath])
           result.failed.push(`"${file.name}" — failed to save record`)
@@ -186,6 +183,7 @@ export function useUploadAttachments() {
 
 export function useDeleteAttachment() {
   const queryClient = useQueryClient()
+  const { accessToken } = useAuth()
 
   return useMutation({
     mutationFn: async ({
@@ -199,12 +197,8 @@ export function useDeleteAttachment() {
       entityType:  AttachmentEntityType
       entityId:    string
     }) => {
-      // Soft-delete in DB first
-      const { error } = await supabase
-        .from("attachments")
-        .update({ is_deleted: true })
-        .eq("id", id)
-      if (error) throw error
+      // Soft-delete in DB via API
+      await api.post("/api/attachments/delete", { id }, accessToken)
 
       // Remove from storage (best-effort — ignore failures)
       await supabase.storage.from("vendor-documents").remove([storagePath])
