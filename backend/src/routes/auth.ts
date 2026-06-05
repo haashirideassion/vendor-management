@@ -50,10 +50,11 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
 })
 
+const isProd = process.env.NODE_ENV === "production"
 const cookieOpts = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite: "strict" as const,
+  secure: isProd,
+  sameSite: (isProd ? "none" : "strict") as "none" | "strict",
   maxAge: REFRESH_TTL_DAYS * 24 * 60 * 60 * 1000,
   path: "/",
 }
@@ -284,7 +285,7 @@ router.post("/refresh", async (req: Request, res: Response) => {
       .maybeSingle()
 
     if (!record || record.revoked || new Date(record.expires_at) < new Date()) {
-      res.clearCookie(REFRESH_COOKIE_NAME, { path: "/" })
+      res.clearCookie(REFRESH_COOKIE_NAME, { path: "/", secure: isProd, sameSite: isProd ? "none" : "strict" })
       res.status(401).json({ error: "Refresh token invalid or expired" })
       return
     }
@@ -342,7 +343,7 @@ router.post("/logout", async (req: Request, res: Response) => {
     await db().from("refresh_tokens").update({ revoked: true }).eq("token_hash", tokenHash)
   }
 
-  res.clearCookie(REFRESH_COOKIE_NAME, { path: "/" })
+  res.clearCookie(REFRESH_COOKIE_NAME, { path: "/", secure: isProd, sameSite: isProd ? "none" : "strict" })
   res.json({ ok: true })
 })
 
@@ -450,7 +451,7 @@ router.post("/reset-password", async (req: Request, res: Response) => {
       db().from("refresh_tokens").update({ revoked: true }).eq("user_id", userId),
     ])
 
-    res.clearCookie(REFRESH_COOKIE_NAME, { path: "/" })
+    res.clearCookie(REFRESH_COOKIE_NAME, { path: "/", secure: isProd, sameSite: isProd ? "none" : "strict" })
     res.json({ ok: true })
   } catch (err: any) {
     console.error("[reset-password]", err.message)
