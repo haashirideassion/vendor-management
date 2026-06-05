@@ -35,7 +35,7 @@ app.get("/health", (_req, res) => res.json({ ok: true, service: "CogniVend API" 
 app.use("/api/auth", authRoutes)
 app.use("/api/vendor", vendorRoutes)
 
-if (process.env.NODE_ENV !== "production") {
+if (process.env.NODE_ENV !== "production" && process.env.NODE_ENV !== "test") {
   app.listen(PORT, () => {
     console.log(`CogniVend API running on port ${PORT}`)
   })
