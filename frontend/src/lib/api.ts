@@ -20,8 +20,8 @@ async function request<T>(
 }
 
 export const api = {
-  post: <T>(path: string, body: unknown, token?: string) =>
-    request<T>(path, { method: "POST", body: JSON.stringify(body), token }),
-  get: <T>(path: string, token?: string) =>
-    request<T>(path, { method: "GET", token }),
+  post: <T>(path: string, body: unknown, token?: string | null) =>
+    request<T>(path, { method: "POST", body: JSON.stringify(body), token: token ?? undefined }),
+  get: <T>(path: string, token?: string | null) =>
+    request<T>(path, { method: "GET", token: token ?? undefined }),
 }
