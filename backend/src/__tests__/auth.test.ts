@@ -326,7 +326,7 @@ describe("requireAuth middleware", () => {
   })
 
   it("calls next() with valid token", async () => {
-    const token = signAccessToken({ sub: "uid-1", email: "a@b.com", role: "admin" })
+    const token = signAccessToken({ sub: "uid-1", email: "a@b.com", appRole: "admin" })
     const { requireAuth } = await import("../middleware/auth")
     const mockReq: any = { headers: { authorization: `Bearer ${token}` } }
     const mockRes: any = { status: jest.fn().mockReturnThis(), json: jest.fn() }

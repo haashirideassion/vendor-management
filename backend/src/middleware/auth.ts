@@ -15,7 +15,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 
   try {
     const payload = verifyAccessToken(token)
-    ;(req as AuthenticatedRequest).user = { id: payload.sub, email: payload.email, role: payload.role }
+    ;(req as AuthenticatedRequest).user = { id: payload.sub, email: payload.email, role: payload.app_role }
     next()
   } catch {
     res.status(401).json({ error: "Invalid or expired token" })

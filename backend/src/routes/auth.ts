@@ -204,7 +204,7 @@ router.post("/login", authLimiter, async (req: Request, res: Response) => {
 
     const role = profile?.role ?? "vendor"
 
-    const accessToken = signAccessToken({ sub: user.id, email: user.email, role })
+    const accessToken = signAccessToken({ sub: user.id, email: user.email, appRole: role })
 
     const { raw, hash, expiresAt } = generateRefreshToken()
 
@@ -280,7 +280,7 @@ router.post("/refresh", async (req: Request, res: Response) => {
       }),
     ])
 
-    const accessToken = signAccessToken({ sub: user.id, email: user.email, role })
+    const accessToken = signAccessToken({ sub: user.id, email: user.email, appRole: role })
 
     res.cookie(REFRESH_COOKIE_NAME, newRaw, cookieOpts)
     res.json({
