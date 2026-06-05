@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { supabase } from "@/lib/supabase"
+import { useAuth } from "@/contexts/AuthContext"
 import type { ApprovalEntityType, ApprovalRequest } from "@/lib/types"
 
 // ─── Queries ──────────────────────────────────────────────────────────────────
@@ -55,6 +56,7 @@ export function usePendingApprovals(entityType?: ApprovalEntityType) {
 /** Submit a new approval request for any entity */
 export function useRequestApproval() {
   const queryClient = useQueryClient()
+  const { user } = useAuth()
 
   return useMutation({
     mutationFn: async ({
@@ -68,7 +70,6 @@ export function useRequestApproval() {
       amount?: number
       notes?: string
     }) => {
-      const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error("Not authenticated")
 
       const { data, error } = await supabase
@@ -98,6 +99,7 @@ export function useRequestApproval() {
 /** Approve or reject an existing approval request */
 export function useReviewApproval() {
   const queryClient = useQueryClient()
+  const { user } = useAuth()
 
   return useMutation({
     mutationFn: async ({
@@ -111,7 +113,6 @@ export function useReviewApproval() {
       entityType: ApprovalEntityType
       entityId: string
     }) => {
-      const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error("Not authenticated")
 
       const { data, error } = await supabase

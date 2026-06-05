@@ -9,7 +9,11 @@ async function request<T>(
     "Content-Type": "application/json",
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   }
-  const res = await fetch(`${API_BASE}${path}`, { ...fetchOptions, headers })
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...fetchOptions,
+    headers,
+    credentials: "include",
+  })
   const json = await res.json()
   if (!res.ok) throw new Error(json.error ?? `API error ${res.status}`)
   return json as T
@@ -18,4 +22,6 @@ async function request<T>(
 export const api = {
   post: <T>(path: string, body: unknown, token?: string) =>
     request<T>(path, { method: "POST", body: JSON.stringify(body), token }),
+  get: <T>(path: string, token?: string) =>
+    request<T>(path, { method: "GET", token }),
 }

@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { supabase } from "@/lib/supabase"
+import { useAuth } from "@/contexts/AuthContext"
 import type { GRN, GRNLineItem, GRNStatus } from "@/lib/types"
 
 const SELECT_FIELDS = `
@@ -68,10 +69,10 @@ export interface CreateGRNInput {
 
 export function useCreateGRN() {
   const queryClient = useQueryClient()
+  const { user } = useAuth()
 
   return useMutation({
     mutationFn: async ({ line_items, ...grnInput }: CreateGRNInput) => {
-      const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error("Not authenticated")
 
       const { data: grn, error: grnError } = await supabase
@@ -106,6 +107,7 @@ export function useCreateGRN() {
 
 export function useUpdateGRNStatus() {
   const queryClient = useQueryClient()
+  const { user } = useAuth()
 
   return useMutation({
     mutationFn: async ({
@@ -117,7 +119,6 @@ export function useUpdateGRNStatus() {
       status: GRNStatus
       notes?: string
     }) => {
-      const { data: { user } } = await supabase.auth.getUser()
       const update: Partial<GRN> = { status, notes: notes ?? null }
 
       if (status === "verified") {

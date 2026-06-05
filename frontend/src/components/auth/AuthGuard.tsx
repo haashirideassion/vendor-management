@@ -9,7 +9,7 @@ interface AuthGuardProps {
 }
 
 export function AuthGuard({ children, role }: AuthGuardProps) {
-  const { session, profile, loading } = useAuth()
+  const { user, profile, loading } = useAuth()
   const location = useLocation()
 
   if (loading) {
@@ -20,7 +20,7 @@ export function AuthGuard({ children, role }: AuthGuardProps) {
     )
   }
 
-  if (!session) {
+  if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />
   }
 

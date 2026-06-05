@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { useNavigate, Link } from "react-router-dom"
-import { supabase } from "@/lib/supabase"
+import { useAuth } from "@/contexts/AuthContext"
 import { INTERNAL_ROLES } from "@/hooks/usePermissions"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,12 +13,13 @@ import { toast } from "sonner"
 
 const schema = z.object({
   email: z.email("Enter a valid email"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
 })
 type FormData = z.infer<typeof schema>
 
 export function LoginForm() {
   const navigate = useNavigate()
+  const { login } = useAuth()
   const [loading, setLoading] = useState(false)
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
@@ -28,32 +29,11 @@ export function LoginForm() {
   async function onSubmit(data: FormData) {
     setLoading(true)
     try {
-      const { error, data: authData } = await supabase.auth.signInWithPassword({
-        email: data.email,
-        password: data.password,
-      })
-
-      if (error) {
-        toast.error(error.message)
-        return
-      }
-
-      const userId = authData.user?.id
-      if (!userId) {
-        toast.error("Authentication failed. Please try again.")
-        return
-      }
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", userId)
-        .single()
-
-      const isInternal = profile?.role && INTERNAL_ROLES.includes(profile.role as never)
+      const user = await login(data.email, data.password)
+      const isInternal = INTERNAL_ROLES.includes(user.role as never)
       navigate(isInternal ? "/admin/dashboard" : "/vendor/dashboard")
-    } catch {
-      toast.error("An unexpected error occurred. Please try again.")
+    } catch (err: any) {
+      toast.error(err.message ?? "Login failed. Please try again.")
     } finally {
       setLoading(false)
     }

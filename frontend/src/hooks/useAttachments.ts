@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { supabase } from "@/lib/supabase"
+import { useAuth } from "@/contexts/AuthContext"
 import type { Attachment, AttachmentEntityType } from "@/lib/types"
 
 // ─── Validation constants ─────────────────────────────────────────────────────
@@ -109,13 +110,13 @@ export interface UploadResult {
 
 export function useUploadAttachments() {
   const queryClient = useQueryClient()
+  const { user } = useAuth()
 
   return useMutation({
     mutationFn: async ({ entityType, entityId, files }: UploadAttachmentsInput): Promise<UploadResult> => {
       if (files.length === 0) return { uploaded: [], failed: [] }
 
-      const { data: { user }, error: authErr } = await supabase.auth.getUser()
-      if (authErr || !user) throw new Error("Not authenticated")
+      if (!user) throw new Error("Not authenticated")
 
       const result: UploadResult = { uploaded: [], failed: [] }
 

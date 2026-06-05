@@ -2,8 +2,8 @@ import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { useNavigate, Link } from "react-router-dom"
-import { supabase } from "@/lib/supabase"
+import { useNavigate, useSearchParams, Link } from "react-router-dom"
+import { authFetch } from "@/contexts/AuthContext"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -21,67 +21,43 @@ type FormData = z.infer<typeof schema>
 
 export function ResetPasswordForm() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [loading, setLoading] = useState(false)
-  const [recoveryReady, setRecoveryReady] = useState(false)
   const [tokenError, setTokenError] = useState(false)
+
+  const token = searchParams.get("token")
+  const userId = searchParams.get("id")
+
+  useEffect(() => {
+    if (!token || !userId) setTokenError(true)
+  }, [token, userId])
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
   })
 
-  useEffect(() => {
-    async function initRecovery() {
-      // PKCE flow: Supabase redirects with ?code= query param
-      const searchParams = new URLSearchParams(window.location.search)
-      const code = searchParams.get("code")
-
-      // Implicit flow: Supabase redirects with #access_token= hash fragment
-      const hashParams = new URLSearchParams(window.location.hash.substring(1))
-      const accessToken = hashParams.get("access_token")
-      const refreshToken = hashParams.get("refresh_token") ?? ""
-      const type = hashParams.get("type")
-
-      if (code) {
-        // PKCE: exchange code for session
-        const { error } = await supabase.auth.exchangeCodeForSession(code)
-        if (error) setTokenError(true)
-        else setRecoveryReady(true)
-        return
-      }
-
-      if (accessToken && type === "recovery") {
-        // Implicit: set session directly from hash tokens
-        const { error } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
-        if (error) setTokenError(true)
-        else setRecoveryReady(true)
-        return
-      }
-
-      // No recovery params in URL — check if session already exists (page refresh)
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session) {
-        setRecoveryReady(true)
-      } else {
-        setTokenError(true)
-      }
-    }
-
-    initRecovery()
-  }, [])
-
   async function onSubmit(data: FormData) {
+    if (!token || !userId) return
     setLoading(true)
-    const { error } = await supabase.auth.updateUser({ password: data.password })
-    setLoading(false)
-
-    if (error) {
-      toast.error(error.message)
-      return
+    try {
+      const res = await authFetch("/api/auth/reset-password", {
+        token,
+        userId,
+        password: data.password,
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        toast.error(json.error ?? "Reset failed")
+        if (res.status === 400) setTokenError(true)
+        return
+      }
+      toast.success("Password updated successfully. Please sign in.")
+      navigate("/login")
+    } catch {
+      toast.error("An unexpected error occurred.")
+    } finally {
+      setLoading(false)
     }
-
-    await supabase.auth.signOut()
-    toast.success("Password updated successfully. Please sign in.")
-    navigate("/login")
   }
 
   if (tokenError) {
@@ -98,20 +74,6 @@ export function ResetPasswordForm() {
             <Button variant="outline" className="w-full">Request a new reset link</Button>
           </Link>
         </CardFooter>
-      </Card>
-    )
-  }
-
-  if (!recoveryReady) {
-    return (
-      <Card className="w-full max-w-sm shadow-md">
-        <CardHeader className="pb-4">
-          <CardTitle className="text-xl">Verifying reset link…</CardTitle>
-          <CardDescription>Please wait while we verify your reset link.</CardDescription>
-        </CardHeader>
-        <CardContent className="flex justify-center py-4">
-          <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-        </CardContent>
       </Card>
     )
   }

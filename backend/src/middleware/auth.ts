@@ -1,22 +1,11 @@
 import { Request, Response, NextFunction } from "express"
-import { createClient } from "@supabase/supabase-js"
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const ws = typeof WebSocket === "undefined" ? require("ws") : undefined
+import { verifyAccessToken } from "../services/jwt.service"
+import { getSupabaseClient } from "../utils/supabaseAdmin"
 
-let _supabase: ReturnType<typeof createClient> | null = null
-const getSupabase = () => {
-  if (!_supabase) {
-    _supabase = createClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      ws ? { realtime: { transport: ws as any } } : {}
-    )
-  }
-  return _supabase
+export interface AuthenticatedRequest extends Request {
+  user: { id: string; email: string; role: string }
 }
 
-// Verifies a Supabase JWT from the Authorization: Bearer <token> header.
-// Attaches the authenticated user object to req for downstream handlers.
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
   const token = req.headers.authorization?.replace("Bearer ", "")
   if (!token) {
@@ -24,18 +13,15 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     return
   }
 
-  const { data: { user }, error } = await getSupabase().auth.getUser(token)
-  if (error || !user) {
+  try {
+    const payload = verifyAccessToken(token)
+    ;(req as AuthenticatedRequest).user = { id: payload.sub, email: payload.email, role: payload.role }
+    next()
+  } catch {
     res.status(401).json({ error: "Invalid or expired token" })
-    return
   }
-
-  ;(req as any).user = user
-  next()
 }
 
-// Validates the shared secret Supabase sends in the x-webhook-secret header.
-// Must match WEBHOOK_SECRET in backend .env.
 export function requireWebhookSecret(req: Request, res: Response, next: NextFunction) {
   const secret = req.headers["x-webhook-secret"]
   if (!secret || secret !== process.env.WEBHOOK_SECRET) {
@@ -44,3 +30,6 @@ export function requireWebhookSecret(req: Request, res: Response, next: NextFunc
   }
   next()
 }
+
+// Keep for any routes that still need direct Supabase user lookup
+export { getSupabaseClient }

@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { supabase } from "@/lib/supabase"
+import { useAuth } from "@/contexts/AuthContext"
 import type { Engagement, EngagementLineItem, EngagementStatus } from "@/lib/types"
 
 const SELECT_FIELDS = `
@@ -75,10 +76,10 @@ export interface CreateEngagementInput {
 
 export function useCreateEngagement() {
   const queryClient = useQueryClient()
+  const { user } = useAuth()
 
   return useMutation({
     mutationFn: async (input: CreateEngagementInput) => {
-      const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error("Not authenticated")
 
       const { data: eng, error: engError } = await supabase
@@ -149,6 +150,7 @@ export function useCreateEngagement() {
 
 export function useUpdateEngagementStatus() {
   const queryClient = useQueryClient()
+  const { user } = useAuth()
 
   return useMutation({
     mutationFn: async ({
@@ -160,7 +162,6 @@ export function useUpdateEngagementStatus() {
       status: EngagementStatus
       notes?: string
     }) => {
-      const { data: { user } } = await supabase.auth.getUser()
       const update: Partial<Engagement> = { status, notes: notes ?? null }
 
       if (status === "approved") {

@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { supabase } from "@/lib/supabase"
+import { useAuth } from "@/contexts/AuthContext"
 import type { Invoice, InvoiceStatus } from "@/lib/types"
 
 const SELECT_FIELDS = `
@@ -79,10 +80,10 @@ export interface SubmitInvoiceInput {
 
 export function useSubmitInvoice() {
   const queryClient = useQueryClient()
+  const { user } = useAuth()
 
   return useMutation({
     mutationFn: async (input: SubmitInvoiceInput) => {
-      const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error("Not authenticated")
 
       let resolvedPoId = input.po_id ?? undefined
@@ -141,6 +142,7 @@ export function useRunThreeWayMatch() {
 
 export function useReviewInvoice() {
   const queryClient = useQueryClient()
+  const { user } = useAuth()
 
   return useMutation({
     mutationFn: async ({
@@ -152,8 +154,6 @@ export function useReviewInvoice() {
       status: "approved" | "rejected"
       notes?: string
     }) => {
-      const { data: { user } } = await supabase.auth.getUser()
-
       const { data, error } = await supabase
         .from("invoices")
         .update({

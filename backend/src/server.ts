@@ -1,6 +1,7 @@
 import "dotenv/config"
 import express from "express"
 import cors from "cors"
+import cookieParser from "cookie-parser"
 import authRoutes from "./routes/auth"
 import vendorRoutes from "./routes/vendor"
 
@@ -22,11 +23,13 @@ app.use(cors({
       callback(new Error("Not allowed by CORS"))
     }
   },
-  methods: ["GET", "POST"],
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
   allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true,
 }))
 
 app.use(express.json())
+app.use(cookieParser())
 
 app.get("/health", (_req, res) => res.json({ ok: true, service: "CogniVend API" }))
 app.use("/api/auth", authRoutes)

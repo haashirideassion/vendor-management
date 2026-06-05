@@ -1,74 +1,118 @@
-import { createContext, useContext, useEffect, useState } from "react"
-import type { Session, User } from "@supabase/supabase-js"
-import { supabase } from "@/lib/supabase"
+import { createContext, useContext, useEffect, useRef, useState } from "react"
+import { supabase, setSupabaseAccessToken } from "@/lib/supabase"
 import type { Profile, UserRole } from "@/lib/types"
 import { INTERNAL_ROLES } from "@/hooks/usePermissions"
 
+const API = import.meta.env.VITE_API_URL as string
+
+export interface AuthUser {
+  id: string
+  email: string
+  role: UserRole
+  fullName: string
+}
+
 interface AuthContextValue {
-  session: Session | null
-  user: User | null
+  user: AuthUser | null
   profile: Profile | null
   role: UserRole | null
-  /** True for any non-vendor role (hr_user, manager, procurement_admin, finance_ap, super_admin, admin) */
   isInternalUser: boolean
   loading: boolean
+  accessToken: string | null
+  login: (email: string, password: string) => Promise<AuthUser>
   signOut: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null)
-  const [profile, setProfile] = useState<Profile | null>(null)
-  const [loading, setLoading] = useState(true)
+export function authFetch(path: string, body?: unknown, token?: string) {
+  const headers: Record<string, string> = { "Content-Type": "application/json" }
+  if (token) headers["Authorization"] = `Bearer ${token}`
+  return fetch(`${API}${path}`, {
+    method: "POST",
+    credentials: "include",
+    headers,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  })
+}
 
-  async function fetchProfile(userId: string) {
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<AuthUser | null>(null)
+  const [profile, setProfile] = useState<Profile | null>(null)
+  const [accessToken, setAccessTokenState] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  async function applySession(data: { accessToken: string; user: AuthUser }) {
+    setAccessTokenState(data.accessToken)
+    setSupabaseAccessToken(data.accessToken)
+    setUser(data.user)
+
+    // Schedule silent refresh at 13 min (token lifetime is 15 min)
+    if (refreshTimer.current) clearTimeout(refreshTimer.current)
+    refreshTimer.current = setTimeout(silentRefresh, 13 * 60 * 1000)
+
+    const { data: prof } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", data.user.id)
+      .single()
+    setProfile(prof ?? null)
+  }
+
+  async function silentRefresh() {
     try {
-      const { data } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", userId)
-        .single()
-      setProfile(data ?? null)
+      const res = await fetch(`${API}/api/auth/refresh`, {
+        method: "POST",
+        credentials: "include",
+      })
+      if (!res.ok) { clearSession(); return }
+      const data = await res.json()
+      await applySession(data)
     } catch {
-      setProfile(null)
+      clearSession()
     }
   }
 
+  function clearSession() {
+    if (refreshTimer.current) clearTimeout(refreshTimer.current)
+    setAccessTokenState(null)
+    setUser(null)
+    setProfile(null)
+    setSupabaseAccessToken(null)
+  }
+
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-      if (session?.user) fetchProfile(session.user.id).finally(() => setLoading(false))
-      else setLoading(false)
-    })
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session)
-      if (session?.user) {
-        fetchProfile(session.user.id)
-      } else {
-        setProfile(null)
-        setLoading(false)
-      }
-    })
-
-    return () => subscription.unsubscribe()
+    silentRefresh().finally(() => setLoading(false))
+    return () => { if (refreshTimer.current) clearTimeout(refreshTimer.current) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  async function signOut() {
-    await supabase.auth.signOut()
-    setProfile(null)
+  async function login(email: string, password: string): Promise<AuthUser> {
+    const res = await authFetch("/api/auth/login", { email, password })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error ?? "Login failed")
+    await applySession(data)
+    return data.user as AuthUser
   }
+
+  async function signOut() {
+    await fetch(`${API}/api/auth/logout`, { method: "POST", credentials: "include" }).catch(() => {})
+    clearSession()
+  }
+
+  const role = user?.role ?? null
 
   return (
     <AuthContext.Provider
       value={{
-        session,
-        user: session?.user ?? null,
+        user,
         profile,
-        role: profile?.role ?? null,
-        isInternalUser: profile ? INTERNAL_ROLES.includes(profile.role) : false,
+        role,
+        isInternalUser: role ? INTERNAL_ROLES.includes(role) : false,
         loading,
+        accessToken,
+        login,
         signOut,
       }}
     >

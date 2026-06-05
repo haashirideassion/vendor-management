@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { supabase } from "@/lib/supabase"
+import { useAuth } from "@/contexts/AuthContext"
 import type { Contract, ContractAmendment, ContractStatus, ContractType } from "@/lib/types"
 
 const SELECT_FIELDS = `
@@ -67,10 +68,10 @@ export type CreateContractInput = Pick<
 
 export function useCreateContract() {
   const queryClient = useQueryClient()
+  const { user } = useAuth()
 
   return useMutation({
     mutationFn: async (input: CreateContractInput) => {
-      const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error("Not authenticated")
 
       const { data, error } = await supabase
@@ -184,6 +185,7 @@ export function useMarkContractSigned() {
 
 export function useAddAmendment() {
   const queryClient = useQueryClient()
+  const { user } = useAuth()
 
   return useMutation({
     mutationFn: async ({
@@ -197,7 +199,6 @@ export function useAddAmendment() {
       description?: string
       effective_date?: string
     }) => {
-      const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error("Not authenticated")
 
       // Get next amendment number

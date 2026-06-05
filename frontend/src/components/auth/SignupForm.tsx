@@ -3,8 +3,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { useNavigate, Link } from "react-router-dom"
 import { useState } from "react"
-import { supabase } from "@/lib/supabase"
-import { api } from "@/lib/api"
+import { authFetch } from "@/contexts/AuthContext"
 import { useEmailCooldown } from "@/hooks/useEmailCooldown"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -34,39 +33,27 @@ export function SignupForm() {
 
   async function onSubmit(data: FormData) {
     setLoading(true)
-
-    // Step 1: Create user in Supabase Auth
-    const { error } = await supabase.auth.signUp({
-      email: data.email,
-      password: data.password,
-      options: {
-        data: { full_name: data.full_name, role: "vendor" },
-        // emailRedirectTo omitted — Node.js backend handles confirmation email
-      },
-    })
-
-    if (error) {
-      setLoading(false)
-      startCooldown()
-      toast.error(error.message)
-      return
-    }
-
-    // Step 2: Node.js backend generates the Supabase confirmation link and sends the branded email
     try {
-      await api.post("/api/auth/signup-notification", {
+      const res = await authFetch("/api/auth/register", {
         email: data.email,
+        password: data.password,
         fullName: data.full_name,
+        role: "vendor",
       })
+      const json = await res.json()
+      if (!res.ok) {
+        toast.error(json.error ?? "Registration failed")
+        startCooldown()
+        return
+      }
+      startCooldown()
+      toast.success("Account created! Check your email to verify, then sign in.")
+      navigate("/login")
     } catch {
-      // Non-fatal: account was created successfully; email failure is logged server-side
-      console.warn("Signup notification email failed — account still created")
+      toast.error("An unexpected error occurred. Please try again.")
+    } finally {
+      setLoading(false)
     }
-
-    setLoading(false)
-    startCooldown()
-    toast.success("Account created! Please check your email to confirm, then continue.")
-    navigate("/onboarding")
   }
 
   return (

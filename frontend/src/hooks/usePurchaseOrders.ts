@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { supabase } from "@/lib/supabase"
+import { useAuth } from "@/contexts/AuthContext"
 import type { PurchaseOrder, POLineItem, POStatus } from "@/lib/types"
 
 const SELECT_FIELDS = `
@@ -75,10 +76,10 @@ export interface CreatePOInput {
 
 export function useCreatePurchaseOrder() {
   const queryClient = useQueryClient()
+  const { user } = useAuth()
 
   return useMutation({
     mutationFn: async ({ line_items, ...poInput }: CreatePOInput) => {
-      const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error("Not authenticated")
 
       // Insert PO first to get the auto-generated ID and po_number

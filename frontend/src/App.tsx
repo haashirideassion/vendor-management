@@ -15,6 +15,7 @@ import { SignupForm } from "@/components/auth/SignupForm"
 import { ForgotPasswordForm } from "@/components/auth/ForgotPasswordForm"
 import { ResetPasswordForm } from "@/components/auth/ResetPasswordForm"
 import { NotFound } from "@/pages/NotFound"
+import { VerifyEmailPage } from "@/pages/VerifyEmailPage"
 
 // Onboarding
 import { OnboardingPage } from "@/pages/onboarding/OnboardingPage"
@@ -64,6 +65,7 @@ export default function App() {
                 <Route path="/signup" element={<SignupForm />} />
                 <Route path="/forgot-password" element={<ForgotPasswordForm />} />
                 <Route path="/reset-password" element={<ResetPasswordForm />} />
+                <Route path="/verify-email" element={<VerifyEmailPage />} />
               </Route>
 
               {/* Onboarding — vendor accounts only */}
