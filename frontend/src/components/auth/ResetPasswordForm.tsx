@@ -1,8 +1,8 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, Link } from "react-router-dom"
 import { supabase } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -22,10 +22,40 @@ type FormData = z.infer<typeof schema>
 export function ResetPasswordForm() {
   const navigate = useNavigate()
   const [loading, setLoading] = useState(false)
+  const [recoveryReady, setRecoveryReady] = useState(false)
+  const [tokenError, setTokenError] = useState(false)
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
   })
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>
+    let unsubscribe: (() => void) | undefined
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        // Recovery session already established (e.g. page refresh)
+        setRecoveryReady(true)
+      } else {
+        // Wait for Supabase to parse the hash and fire PASSWORD_RECOVERY
+        timer = setTimeout(() => setTokenError(true), 5000)
+
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+          if (event === "PASSWORD_RECOVERY") {
+            clearTimeout(timer)
+            setRecoveryReady(true)
+          }
+        })
+        unsubscribe = () => subscription.unsubscribe()
+      }
+    })
+
+    return () => {
+      clearTimeout(timer)
+      unsubscribe?.()
+    }
+  }, [])
 
   async function onSubmit(data: FormData) {
     setLoading(true)
@@ -37,8 +67,43 @@ export function ResetPasswordForm() {
       return
     }
 
+    await supabase.auth.signOut()
     toast.success("Password updated successfully. Please sign in.")
     navigate("/login")
+  }
+
+  // Token expired or invalid
+  if (tokenError) {
+    return (
+      <Card className="w-full max-w-sm shadow-md">
+        <CardHeader className="pb-4">
+          <CardTitle className="text-xl text-destructive">Link expired</CardTitle>
+          <CardDescription>
+            This password reset link has expired or is invalid.
+          </CardDescription>
+        </CardHeader>
+        <CardFooter>
+          <Link to="/forgot-password" className="w-full">
+            <Button variant="outline" className="w-full">Request a new reset link</Button>
+          </Link>
+        </CardFooter>
+      </Card>
+    )
+  }
+
+  // Waiting for recovery session
+  if (!recoveryReady) {
+    return (
+      <Card className="w-full max-w-sm shadow-md">
+        <CardHeader className="pb-4">
+          <CardTitle className="text-xl">Verifying reset link…</CardTitle>
+          <CardDescription>Please wait while we verify your reset link.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex justify-center py-4">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        </CardContent>
+      </Card>
+    )
   }
 
   return (
