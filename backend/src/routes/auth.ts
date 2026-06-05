@@ -1,5 +1,7 @@
 import { Router, Request, Response } from "express"
 import { createClient } from "@supabase/supabase-js"
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const ws = typeof WebSocket === "undefined" ? require("ws") : undefined
 // @ts-ignore
 import { sendEmail, signupConfirmationHtml, passwordResetHtml, vendorSubmittedAdminHtml } from "../services/email.service"
 
@@ -10,7 +12,8 @@ const getSupabaseAdmin = () => {
   if (!_supabaseAdmin) {
     _supabaseAdmin = createClient(
       process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      ws ? { realtime: { transport: ws as any } } : {}
     )
   }
   return _supabaseAdmin

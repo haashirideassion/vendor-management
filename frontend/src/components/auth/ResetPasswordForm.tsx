@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -24,36 +24,35 @@ export function ResetPasswordForm() {
   const [loading, setLoading] = useState(false)
   const [recoveryReady, setRecoveryReady] = useState(false)
   const [tokenError, setTokenError] = useState(false)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
   })
 
   useEffect(() => {
-    let timer: ReturnType<typeof setTimeout>
-    let unsubscribe: (() => void) | undefined
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        // Recovery session already established (e.g. page refresh)
+    // Subscribe FIRST — before getSession — so we don't miss the event
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") {
+        if (timerRef.current) clearTimeout(timerRef.current)
         setRecoveryReady(true)
-      } else {
-        // Wait for Supabase to parse the hash and fire PASSWORD_RECOVERY
-        timer = setTimeout(() => setTokenError(true), 5000)
-
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-          if (event === "PASSWORD_RECOVERY") {
-            clearTimeout(timer)
-            setRecoveryReady(true)
-          }
-        })
-        unsubscribe = () => subscription.unsubscribe()
       }
     })
 
+    // Also check immediately in case the event already fired (client processed hash before mount)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        if (timerRef.current) clearTimeout(timerRef.current)
+        setRecoveryReady(true)
+      }
+    })
+
+    // Generous timeout — only show error if truly nothing happens
+    timerRef.current = setTimeout(() => setTokenError(true), 15000)
+
     return () => {
-      clearTimeout(timer)
-      unsubscribe?.()
+      subscription.unsubscribe()
+      if (timerRef.current) clearTimeout(timerRef.current)
     }
   }, [])
 

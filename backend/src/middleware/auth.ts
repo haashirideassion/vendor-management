@@ -1,12 +1,15 @@
 import { Request, Response, NextFunction } from "express"
 import { createClient } from "@supabase/supabase-js"
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const ws = typeof WebSocket === "undefined" ? require("ws") : undefined
 
 let _supabase: ReturnType<typeof createClient> | null = null
 const getSupabase = () => {
   if (!_supabase) {
     _supabase = createClient(
       process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      ws ? { realtime: { transport: ws as any } } : {}
     )
   }
   return _supabase
