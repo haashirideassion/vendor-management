@@ -4,7 +4,7 @@ import { z } from "zod"
 import { useNavigate, Link } from "react-router-dom"
 import { useState } from "react"
 import { authFetch } from "@/contexts/AuthContext"
-import { encryptPassword } from "@/lib/crypto"
+import { encryptPassword, clearPublicKeyCache } from "@/lib/crypto"
 import { useEmailCooldown } from "@/hooks/useEmailCooldown"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -35,22 +35,29 @@ export function SignupForm() {
   async function onSubmit(data: FormData) {
     setLoading(true)
     try {
-      const encryptedPassword = await encryptPassword(data.password)
-      const res = await authFetch("/api/auth/register", {
-        email: data.email,
-        password: encryptedPassword,
-        fullName: data.full_name,
-        role: "vendor",
-      })
-      const json = await res.json()
-      if (!res.ok) {
-        toast.error(json.error ?? "Registration failed")
+      async function attempt(isRetry = false) {
+        const encryptedPassword = await encryptPassword(data.password)
+        const res = await authFetch("/api/auth/register", {
+          email: data.email,
+          password: encryptedPassword,
+          fullName: data.full_name,
+          role: "vendor",
+        })
+        const json = await res.json()
+        if (!res.ok) {
+          if (!isRetry && json.error === "Invalid password encoding") {
+            clearPublicKeyCache()
+            return attempt(true)
+          }
+          toast.error(json.error ?? "Registration failed")
+          startCooldown()
+          return
+        }
         startCooldown()
-        return
+        toast.success("Account created! Check your email to verify, then sign in.")
+        navigate("/login")
       }
-      startCooldown()
-      toast.success("Account created! Check your email to verify, then sign in.")
-      navigate("/login")
+      await attempt()
     } catch {
       toast.error("An unexpected error occurred. Please try again.")
     } finally {

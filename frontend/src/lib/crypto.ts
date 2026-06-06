@@ -1,14 +1,16 @@
 const API = import.meta.env.VITE_API_URL as string
 
 let _cachedKey: CryptoKey | null = null
+let _cacheTime = 0
+const KEY_TTL_MS = 5 * 60 * 1000
 
 async function getPublicKey(): Promise<CryptoKey> {
-  if (_cachedKey) return _cachedKey
+  if (_cachedKey && Date.now() - _cacheTime < KEY_TTL_MS) return _cachedKey
 
   const res = await fetch(`${API}/api/auth/public-key`)
+  if (!res.ok) throw new Error("Failed to fetch public key")
   const { publicKey: pem } = await res.json()
 
-  // Strip PEM headers and decode base64
   const b64 = pem
     .replace(/-----BEGIN PUBLIC KEY-----/, "")
     .replace(/-----END PUBLIC KEY-----/, "")
@@ -22,6 +24,7 @@ async function getPublicKey(): Promise<CryptoKey> {
     false,
     ["encrypt"]
   )
+  _cacheTime = Date.now()
   return _cachedKey
 }
 
@@ -32,7 +35,7 @@ export async function encryptPassword(plain: string): Promise<string> {
   return btoa(String.fromCharCode(...new Uint8Array(encrypted)))
 }
 
-// Call on logout or key rotation to force re-fetch of public key
 export function clearPublicKeyCache() {
   _cachedKey = null
+  _cacheTime = 0
 }

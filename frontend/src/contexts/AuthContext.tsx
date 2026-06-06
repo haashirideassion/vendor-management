@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react"
 import { setSupabaseAccessToken } from "@/lib/supabase"
-import { encryptPassword } from "@/lib/crypto"
+import { encryptPassword, clearPublicKeyCache } from "@/lib/crypto"
 import { api } from "@/lib/api"
 import type { Profile, UserRole } from "@/lib/types"
 import { INTERNAL_ROLES } from "@/hooks/usePermissions"
@@ -89,12 +89,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   async function login(email: string, password: string): Promise<AuthUser> {
-    const encryptedPassword = await encryptPassword(password)
-    const res = await authFetch("/api/auth/login", { email, password: encryptedPassword })
-    const data = await res.json()
-    if (!res.ok) throw new Error(data.error ?? "Login failed")
-    await applySession(data)
-    return data.user as AuthUser
+    async function attempt(isRetry = false): Promise<AuthUser> {
+      const encryptedPassword = await encryptPassword(password)
+      const res = await authFetch("/api/auth/login", { email, password: encryptedPassword })
+      const data = await res.json()
+      if (!res.ok) {
+        if (!isRetry && data.error === "Invalid password encoding") {
+          clearPublicKeyCache()
+          return attempt(true)
+        }
+        throw new Error(data.error ?? "Login failed")
+      }
+      await applySession(data)
+      return data.user as AuthUser
+    }
+    return attempt()
   }
 
   async function signOut() {

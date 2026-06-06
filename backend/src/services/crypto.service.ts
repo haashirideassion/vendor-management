@@ -16,8 +16,8 @@ export function getKeyPair(): KeyPair {
 
   if (envPublic && envPrivate) {
     // Vercel stores newlines as \n literals in env vars — restore them
-    const publicPem  = envPublic.replace(/\\n/g, "\n")
-    const privatePem = envPrivate.replace(/\\n/g, "\n")
+    const publicPem  = envPublic.replace(/\\n/g, "\n").trim()
+    const privatePem = envPrivate.replace(/\\n/g, "\n").trim()
     _keyPair = {
       publicKey:    crypto.createPublicKey(publicPem),
       privateKey:   crypto.createPrivateKey(privatePem),

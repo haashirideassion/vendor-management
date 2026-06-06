@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { useNavigate, useSearchParams, Link } from "react-router-dom"
 import { authFetch } from "@/contexts/AuthContext"
-import { encryptPassword } from "@/lib/crypto"
+import { encryptPassword, clearPublicKeyCache } from "@/lib/crypto"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -41,20 +41,27 @@ export function ResetPasswordForm() {
     if (!token || !userId) return
     setLoading(true)
     try {
-      const encryptedPassword = await encryptPassword(data.password)
-      const res = await authFetch("/api/auth/reset-password", {
-        token,
-        userId,
-        password: encryptedPassword,
-      })
-      const json = await res.json()
-      if (!res.ok) {
-        toast.error(json.error ?? "Reset failed")
-        if (res.status === 400) setTokenError(true)
-        return
+      async function attempt(isRetry = false) {
+        const encryptedPassword = await encryptPassword(data.password)
+        const res = await authFetch("/api/auth/reset-password", {
+          token,
+          userId,
+          password: encryptedPassword,
+        })
+        const json = await res.json()
+        if (!res.ok) {
+          if (!isRetry && json.error === "Invalid password encoding") {
+            clearPublicKeyCache()
+            return attempt(true)
+          }
+          toast.error(json.error ?? "Reset failed")
+          if (res.status === 400) setTokenError(true)
+          return
+        }
+        toast.success("Password updated successfully. Please sign in.")
+        navigate("/login")
       }
-      toast.success("Password updated successfully. Please sign in.")
-      navigate("/login")
+      await attempt()
     } catch {
       toast.error("An unexpected error occurred.")
     } finally {
