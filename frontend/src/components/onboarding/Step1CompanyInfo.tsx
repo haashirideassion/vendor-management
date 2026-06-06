@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { RequiredLabel } from "@/components/ui/RequiredLabel"
 import type { OnboardingData } from "./OnboardingWizard"
 
 const schema = z.object({
@@ -35,17 +36,17 @@ export function Step1CompanyInfo({ defaultValues, onNext }: Props) {
       <form onSubmit={handleSubmit(onNext)}>
         <CardContent className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
-            <Label>Company name *</Label>
+            <Label><RequiredLabel>Company name</RequiredLabel></Label>
             <Input placeholder="Acme Corp Ltd." {...register("company_name")} />
             {errors.company_name && <p className="text-xs text-destructive">{errors.company_name.message}</p>}
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label>Contact name *</Label>
+            <Label><RequiredLabel>Contact name</RequiredLabel></Label>
             <Input placeholder="Jane Smith" {...register("contact_name")} />
             {errors.contact_name && <p className="text-xs text-destructive">{errors.contact_name.message}</p>}
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label>Contact email *</Label>
+            <Label><RequiredLabel>Contact email</RequiredLabel></Label>
             <Input type="email" placeholder="jane@acme.com" {...register("contact_email")} />
             {errors.contact_email && <p className="text-xs text-destructive">{errors.contact_email.message}</p>}
           </div>

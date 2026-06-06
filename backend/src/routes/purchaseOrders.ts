@@ -77,33 +77,29 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
       return res.status(400).json({ error: "vendor_id, total_value, and created_by are required" })
     }
 
-    const poPayload: any = {
-      vendor_id,
-      total_value,
-      status: "draft",
-      created_by,
-    }
-    if (engagement_id !== undefined) poPayload.engagement_id = engagement_id
-    if (currency !== undefined) poPayload.currency = currency
-    if (issue_date !== undefined) poPayload.issue_date = issue_date
-    if (expected_delivery_date !== undefined) poPayload.expected_delivery_date = expected_delivery_date
-    if (delivery_address !== undefined) poPayload.delivery_address = delivery_address
-    if (payment_terms !== undefined) poPayload.payment_terms = payment_terms
-    if (notes !== undefined) poPayload.notes = notes
-
-    const { data: po, error: poError } = await db()
-      .from("purchase_orders")
-      .insert(poPayload)
-      .select()
-      .single()
+    const { data: poId, error: poError } = await db().rpc("create_po_with_line_items", {
+      p_engagement_id: engagement_id ?? null,
+      p_vendor_id: vendor_id,
+      p_total_value: total_value,
+      p_currency: currency ?? null,
+      p_issue_date: issue_date ?? null,
+      p_expected_delivery_date: expected_delivery_date ?? null,
+      p_delivery_address: delivery_address ?? null,
+      p_payment_terms: payment_terms ?? null,
+      p_notes: notes ?? null,
+      p_created_by: created_by,
+      p_line_items: Array.isArray(line_items) && line_items.length > 0 ? JSON.stringify(line_items) : null,
+    })
 
     if (poError) throw poError
 
-    if (Array.isArray(line_items) && line_items.length > 0) {
-      const lineRows = line_items.map((item: any) => ({ ...item, po_id: po.id }))
-      const { error: lineError } = await db().from("po_line_items").insert(lineRows)
-      if (lineError) throw lineError
-    }
+    const { data: po, error: getError } = await db()
+      .from("purchase_orders")
+      .select("*, vendor:vendor_id(company_name, contact_name), engagement:engagement_id(title), line_items:po_line_items(*)")
+      .eq("id", poId)
+      .single()
+
+    if (getError) throw getError
 
     res.json({ data: po })
   } catch (err: any) {

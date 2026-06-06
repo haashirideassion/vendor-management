@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { DOCUMENT_TYPE_LABELS } from "@/lib/constants"
+import { DOCUMENT_TYPE_LABELS, REQUIRED_DOCUMENTS } from "@/lib/constants"
 import type { OnboardingData, LocalDocument } from "./OnboardingWizard"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
@@ -71,8 +71,10 @@ function Row({ label, value }: { label: string; value?: string | null }) {
 export function Step6Review({ data, localDocs, onEdit, onSubmit, submitting }: Props) {
   const hasCompany = !!(data.company_name && data.contact_name && data.contact_email)
   const hasCategories = !!(data.category_ids?.length)
+  const uploadedTypes = new Set(localDocs.map((d) => d.type))
+  const hasRequiredDocs = REQUIRED_DOCUMENTS.every((t) => uploadedTypes.has(t))
 
-  const missingRequired = !hasCompany || !hasCategories
+  const missingRequired = !hasCompany || !hasCategories || !hasRequiredDocs
 
   return (
     <div className="space-y-4">
@@ -128,7 +130,7 @@ export function Step6Review({ data, localDocs, onEdit, onSubmit, submitting }: P
 
       {/* Documents */}
       <SectionCard title="Documents" step={3} onEdit={onEdit} icon={File01Icon}>
-        {localDocs.length > 0 ? (
+        {localDocs.length > 0 && (
           <div className="space-y-1.5">
             {localDocs.map((doc) => (
               <div key={doc.type} className="flex items-center justify-between gap-3">
@@ -137,8 +139,15 @@ export function Step6Review({ data, localDocs, onEdit, onSubmit, submitting }: P
               </div>
             ))}
           </div>
-        ) : (
-          <p className="text-xs text-muted-foreground">No documents selected.</p>
+        )}
+        {!hasRequiredDocs && (
+          <div className="space-y-0.5 mt-1">
+            {REQUIRED_DOCUMENTS.filter((t) => !uploadedTypes.has(t)).map((t) => (
+              <p key={t} className="text-xs text-destructive">
+                {DOCUMENT_TYPE_LABELS[t]} is required — please edit and upload.
+              </p>
+            ))}
+          </div>
         )}
       </SectionCard>
 

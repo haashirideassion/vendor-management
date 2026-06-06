@@ -51,21 +51,23 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Missing required fields" })
     }
 
-    const { data: quotation, error: quotationError } = await db()
-      .from("quotations")
-      .insert({ rfq_id, engagement_id, vendor_id, notes: notes ?? null, status: "draft" })
-      .select()
-      .single()
+    const { data: quotId, error: quotationError } = await db().rpc("create_quotation_with_line_items", {
+      p_rfq_id: rfq_id,
+      p_engagement_id: engagement_id,
+      p_vendor_id: vendor_id,
+      p_notes: notes ?? null,
+      p_line_items: line_items.length > 0 ? JSON.stringify(line_items) : null,
+    })
 
     if (quotationError) throw quotationError
 
-    if (line_items.length > 0) {
-      const lineItemRows = line_items.map((item: any) => ({ ...item, quotation_id: quotation.id }))
-      const { error: lineItemsError } = await db()
-        .from("quotation_line_items")
-        .insert(lineItemRows)
-      if (lineItemsError) throw lineItemsError
-    }
+    const { data: quotation, error: getError } = await db()
+      .from("quotations")
+      .select("*, vendor:vendor_id(company_name), line_items:quotation_line_items(*)")
+      .eq("id", quotId)
+      .single()
+
+    if (getError) throw getError
 
     return res.json(quotation)
   } catch (err: any) {

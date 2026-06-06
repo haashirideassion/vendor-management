@@ -62,19 +62,11 @@ export function VendorList() {
           <TabsList className="h-9">
             <TabsTrigger value="active" className="text-sm gap-1.5">
               Active
-              {activeCount > 0 && (
-                <span className="rounded-full bg-primary/15 text-primary px-1.5 py-0.5 text-[11px] font-semibold">
-                  {activeCount}
-                </span>
-              )}
+              {activeCount > 0 && <span className="tab-count">{activeCount}</span>}
             </TabsTrigger>
             <TabsTrigger value="dormant" className="text-sm gap-1.5">
               Dormant
-              {dormantCount > 0 && (
-                <span className="rounded-full bg-muted text-muted-foreground px-1.5 py-0.5 text-[11px] font-semibold">
-                  {dormantCount}
-                </span>
-              )}
+              {dormantCount > 0 && <span className="tab-count">{dormantCount}</span>}
             </TabsTrigger>
           </TabsList>
         </Tabs>

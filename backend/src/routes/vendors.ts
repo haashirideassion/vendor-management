@@ -178,27 +178,68 @@ router.post("/update-categories", requireAuth, async (req: Request, res: Respons
       return res.status(400).json({ error: "vendorId and categoryIds are required" })
     }
 
-    const { error: deleteError } = await db()
-      .from("vendor_categories")
-      .delete()
-      .eq("vendor_id", vendorId)
+    const { error } = await db().rpc("update_vendor_categories", {
+      p_vendor_id: vendorId,
+      p_category_ids: categoryIds.length > 0 ? categoryIds : null,
+    })
 
-    if (deleteError) throw deleteError
-
-    if (categoryIds.length > 0) {
-      const rows = categoryIds.map((cid: string) => ({
-        vendor_id: vendorId,
-        category_id: cid,
-      }))
-
-      const { error: insertError } = await db().from("vendor_categories").insert(rows)
-      if (insertError) throw insertError
-    }
+    if (error) throw error
 
     res.json({ ok: true })
   } catch (err: any) {
     console.error("[vendors/update-categories]", err.message)
     res.status(500).json({ error: "Failed to update vendor categories" })
+  }
+})
+
+// POST /api/vendors/create
+router.post("/create", requireAuth, async (req: Request, res: Response) => {
+  const profileId = (req as AuthenticatedRequest).user.id
+  try {
+    const {
+      company_name, contact_name, contact_email, contact_phone,
+      tax_gst_number, bank_name, bank_account_number, bank_routing_number,
+      category_ids,
+    } = req.body
+
+    if (!company_name || !contact_name || !contact_email) {
+      return res.status(400).json({ error: "company_name, contact_name, and contact_email are required" })
+    }
+
+    // Check for existing vendor record for this profile
+    const { data: existing } = await db()
+      .from("vendors")
+      .select("id, status")
+      .eq("profile_id", profileId)
+      .maybeSingle()
+
+    if (existing) {
+      // Idempotent: allow retrying onboarding if still pending_review
+      if (existing.status === "pending_review") {
+        return res.status(200).json({ data: { id: existing.id } })
+      }
+      return res.status(409).json({ error: "A vendor record already exists for this account" })
+    }
+
+    const { data: vendorId, error: vendorErr } = await db().rpc("create_vendor_with_categories", {
+      p_profile_id: profileId,
+      p_company_name: company_name,
+      p_contact_name: contact_name,
+      p_contact_email: contact_email,
+      p_contact_phone: contact_phone || null,
+      p_tax_gst_number: tax_gst_number || null,
+      p_bank_name: bank_name || null,
+      p_bank_account_number: bank_account_number || null,
+      p_bank_routing_number: bank_routing_number || null,
+      p_category_ids: Array.isArray(category_ids) && category_ids.length > 0 ? category_ids : null,
+    })
+
+    if (vendorErr) throw vendorErr
+
+    return res.status(201).json({ data: { id: vendorId } })
+  } catch (err: any) {
+    console.error("[vendors/create] full error:", err)
+    res.status(500).json({ error: err?.message ?? "Failed to submit onboarding" })
   }
 })
 

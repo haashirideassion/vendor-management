@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { Toaster } from "@/components/ui/sonner"
 import { AuthProvider } from "@/contexts/AuthContext"
 import { AuthGuard } from "@/components/auth/AuthGuard"
+import { VendorStatusGuard } from "@/components/auth/VendorStatusGuard"
 import { AdminLayout } from "@/components/layout/AdminLayout"
 import { VendorLayout } from "@/components/layout/VendorLayout"
 import { AuthLayout } from "@/components/layout/AuthLayout"
@@ -74,15 +75,47 @@ export default function App() {
               {/* Vendor portal */}
               <Route path="/vendor" element={<AuthGuard role="vendor"><VendorLayout /></AuthGuard>}>
                 <Route index element={<Navigate to="/vendor/dashboard" replace />} />
-                <Route path="dashboard"  element={<VendorDashboard />} />
-                <Route path="profile"    element={<VendorProfile />} />
-                <Route path="documents"  element={<VendorDocuments />} />
-                <Route path="contracts"      element={<VendorContracts />} />
-                <Route path="contracts/:id"  element={<ContractDetail />} />
-                <Route path="renewal"        element={<VendorRenewal />} />
-                <Route path="rfqs"           element={<VendorRFQ />} />
-                <Route path="rfqs/:id"       element={<VendorRFQDetail />} />
-                <Route path="invoices"   element={<VendorInvoices />} />
+                <Route path="dashboard" element={
+                  <VendorStatusGuard allowedStages={["APPROVED"]}>
+                    <VendorDashboard />
+                  </VendorStatusGuard>
+                } />
+                <Route path="profile" element={<VendorProfile />} />
+                <Route path="documents" element={
+                  <VendorStatusGuard allowedStages={["ONBOARDING_COMPLETED", "APPROVED"]}>
+                    <VendorDocuments />
+                  </VendorStatusGuard>
+                } />
+                <Route path="contracts" element={
+                  <VendorStatusGuard allowedStages={["APPROVED"]}>
+                    <VendorContracts />
+                  </VendorStatusGuard>
+                } />
+                <Route path="contracts/:id" element={
+                  <VendorStatusGuard allowedStages={["APPROVED"]}>
+                    <ContractDetail />
+                  </VendorStatusGuard>
+                } />
+                <Route path="renewal" element={
+                  <VendorStatusGuard allowedStages={["APPROVED"]}>
+                    <VendorRenewal />
+                  </VendorStatusGuard>
+                } />
+                <Route path="rfqs" element={
+                  <VendorStatusGuard allowedStages={["APPROVED"]}>
+                    <VendorRFQ />
+                  </VendorStatusGuard>
+                } />
+                <Route path="rfqs/:id" element={
+                  <VendorStatusGuard allowedStages={["APPROVED"]}>
+                    <VendorRFQDetail />
+                  </VendorStatusGuard>
+                } />
+                <Route path="invoices" element={
+                  <VendorStatusGuard allowedStages={["APPROVED"]}>
+                    <VendorInvoices />
+                  </VendorStatusGuard>
+                } />
               </Route>
 
               {/* Admin portal — all internal roles (hr_user, manager, procurement_admin, finance_ap, super_admin, admin) */}

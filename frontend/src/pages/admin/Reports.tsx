@@ -122,31 +122,31 @@ export function Reports() {
 
           {/* Vendor KPI cards */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            <Card className="shadow-none bg-blue-50 dark:bg-blue-950/30 border-blue-100 dark:border-blue-900/50">
+            <Card className="shadow-none border-blue-200 dark:border-blue-800 overflow-hidden bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900/60 dark:to-blue-800/40">
               <CardContent className="pt-5 pb-4 px-5">
-                <div className="mb-3 p-1.5 w-fit rounded-lg bg-white/60 dark:bg-black/20 shadow-sm">
-                  <HugeiconsIcon icon={UserGroup02Icon} size={18} strokeWidth={1.5} className="text-blue-600 dark:text-blue-400" />
+                <div className="mb-3 p-1.5 w-fit rounded-lg bg-blue-200/60 dark:bg-blue-700/40 shadow-sm">
+                  <HugeiconsIcon icon={UserGroup02Icon} size={18} strokeWidth={1.5} className="text-blue-700 dark:text-blue-300" />
                 </div>
-                <p className="text-3xl font-bold tracking-tight text-blue-700 dark:text-blue-300">{vendors.length}</p>
-                <p className="text-xs text-muted-foreground mt-1 font-medium">Total Vendors</p>
+                <p className="text-3xl font-bold tracking-tight text-blue-800 dark:text-blue-100">{vendors.length}</p>
+                <p className="text-xs text-blue-600 dark:text-blue-400 mt-1 font-medium">Total Vendors</p>
               </CardContent>
             </Card>
-            <Card className="shadow-none bg-green-50 dark:bg-green-950/30 border-green-100 dark:border-green-900/50">
+            <Card className="shadow-none border-green-200 dark:border-green-800 overflow-hidden bg-gradient-to-br from-green-100 to-green-200 dark:from-green-900/60 dark:to-green-800/40">
               <CardContent className="pt-5 pb-4 px-5">
-                <div className="mb-3 p-1.5 w-fit rounded-lg bg-white/60 dark:bg-black/20 shadow-sm">
-                  <HugeiconsIcon icon={ChartBarIncreasingIcon} size={18} strokeWidth={1.5} className="text-green-600 dark:text-green-400" />
+                <div className="mb-3 p-1.5 w-fit rounded-lg bg-green-200/60 dark:bg-green-700/40 shadow-sm">
+                  <HugeiconsIcon icon={ChartBarIncreasingIcon} size={18} strokeWidth={1.5} className="text-green-700 dark:text-green-300" />
                 </div>
-                <p className="text-3xl font-bold tracking-tight text-green-600 dark:text-green-300">{totalActive}</p>
-                <p className="text-xs text-muted-foreground mt-1 font-medium">Active Vendors</p>
+                <p className="text-3xl font-bold tracking-tight text-green-800 dark:text-green-100">{totalActive}</p>
+                <p className="text-xs text-green-600 dark:text-green-400 mt-1 font-medium">Active Vendors</p>
               </CardContent>
             </Card>
-            <Card className="shadow-none bg-orange-50 dark:bg-orange-950/30 border-orange-100 dark:border-orange-900/50">
+            <Card className="shadow-none border-orange-200 dark:border-orange-800 overflow-hidden bg-gradient-to-br from-orange-100 to-orange-200 dark:from-orange-900/60 dark:to-orange-800/40">
               <CardContent className="pt-5 pb-4 px-5">
-                <div className="mb-3 p-1.5 w-fit rounded-lg bg-white/60 dark:bg-black/20 shadow-sm">
-                  <HugeiconsIcon icon={Clock01Icon} size={18} strokeWidth={1.5} className="text-orange-600 dark:text-orange-400" />
+                <div className="mb-3 p-1.5 w-fit rounded-lg bg-orange-200/60 dark:bg-orange-700/40 shadow-sm">
+                  <HugeiconsIcon icon={Clock01Icon} size={18} strokeWidth={1.5} className="text-orange-700 dark:text-orange-300" />
                 </div>
-                <p className="text-3xl font-bold tracking-tight text-orange-700 dark:text-orange-300">{pendingCount}</p>
-                <p className="text-xs text-muted-foreground mt-1 font-medium">Pending Review</p>
+                <p className="text-3xl font-bold tracking-tight text-orange-800 dark:text-orange-100">{pendingCount}</p>
+                <p className="text-xs text-orange-600 dark:text-orange-400 mt-1 font-medium">Pending Review</p>
               </CardContent>
             </Card>
           </div>
@@ -241,48 +241,48 @@ export function Reports() {
 
           {/* Procurement KPI cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <Card className="shadow-none bg-violet-50 dark:bg-violet-950/30 border-violet-100 dark:border-violet-900/50">
+            <Card className="shadow-none border-violet-200 dark:border-violet-800 overflow-hidden bg-gradient-to-br from-violet-100 to-violet-200 dark:from-violet-900/60 dark:to-violet-800/40">
               <CardContent className="pt-5 pb-4 px-5">
-                <div className="mb-3 p-1.5 w-fit rounded-lg bg-white/60 dark:bg-black/20 shadow-sm">
-                  <HugeiconsIcon icon={Invoice01Icon} size={18} strokeWidth={1.5} className="text-violet-600 dark:text-violet-400" />
+                <div className="mb-3 p-1.5 w-fit rounded-lg bg-violet-200/60 dark:bg-violet-700/40 shadow-sm">
+                  <HugeiconsIcon icon={Invoice01Icon} size={18} strokeWidth={1.5} className="text-violet-700 dark:text-violet-300" />
                 </div>
-                <p className="text-2xl font-bold tracking-tight text-violet-700 dark:text-violet-300 tabular-nums">
+                <p className="text-2xl font-bold tracking-tight text-violet-800 dark:text-violet-100 tabular-nums">
                   {kpis ? compactNum(kpis.totalPoSpend) : "—"}
                 </p>
-                <p className="text-xs text-muted-foreground mt-1 font-medium">Total PO Spend</p>
+                <p className="text-xs text-violet-600 dark:text-violet-400 mt-1 font-medium">Total PO Spend</p>
               </CardContent>
             </Card>
-            <Card className="shadow-none bg-blue-50 dark:bg-blue-950/30 border-blue-100 dark:border-blue-900/50">
+            <Card className="shadow-none border-blue-200 dark:border-blue-800 overflow-hidden bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900/60 dark:to-blue-800/40">
               <CardContent className="pt-5 pb-4 px-5">
-                <div className="mb-3 p-1.5 w-fit rounded-lg bg-white/60 dark:bg-black/20 shadow-sm">
-                  <HugeiconsIcon icon={Briefcase01Icon} size={18} strokeWidth={1.5} className="text-blue-600 dark:text-blue-400" />
+                <div className="mb-3 p-1.5 w-fit rounded-lg bg-blue-200/60 dark:bg-blue-700/40 shadow-sm">
+                  <HugeiconsIcon icon={Briefcase01Icon} size={18} strokeWidth={1.5} className="text-blue-700 dark:text-blue-300" />
                 </div>
-                <p className="text-2xl font-bold tracking-tight text-blue-700 dark:text-blue-300 tabular-nums">
+                <p className="text-2xl font-bold tracking-tight text-blue-800 dark:text-blue-100 tabular-nums">
                   {kpis?.activePOCount ?? "—"}
                 </p>
-                <p className="text-xs text-muted-foreground mt-1 font-medium">Open Purchase Orders</p>
+                <p className="text-xs text-blue-600 dark:text-blue-400 mt-1 font-medium">Open Purchase Orders</p>
               </CardContent>
             </Card>
-            <Card className="shadow-none bg-green-50 dark:bg-green-950/30 border-green-100 dark:border-green-900/50">
+            <Card className="shadow-none border-green-200 dark:border-green-800 overflow-hidden bg-gradient-to-br from-green-100 to-green-200 dark:from-green-900/60 dark:to-green-800/40">
               <CardContent className="pt-5 pb-4 px-5">
-                <div className="mb-3 p-1.5 w-fit rounded-lg bg-white/60 dark:bg-black/20 shadow-sm">
-                  <HugeiconsIcon icon={File01Icon} size={18} strokeWidth={1.5} className="text-green-600 dark:text-green-400" />
+                <div className="mb-3 p-1.5 w-fit rounded-lg bg-green-200/60 dark:bg-green-700/40 shadow-sm">
+                  <HugeiconsIcon icon={File01Icon} size={18} strokeWidth={1.5} className="text-green-700 dark:text-green-300" />
                 </div>
-                <p className="text-2xl font-bold tracking-tight text-green-600 dark:text-green-300 tabular-nums">
+                <p className="text-2xl font-bold tracking-tight text-green-800 dark:text-green-100 tabular-nums">
                   {kpis?.activeContractCount ?? "—"}
                 </p>
-                <p className="text-xs text-muted-foreground mt-1 font-medium">Active Contracts</p>
+                <p className="text-xs text-green-600 dark:text-green-400 mt-1 font-medium">Active Contracts</p>
               </CardContent>
             </Card>
-            <Card className="shadow-none bg-orange-50 dark:bg-orange-950/30 border-orange-100 dark:border-orange-900/50">
+            <Card className="shadow-none border-orange-200 dark:border-orange-800 overflow-hidden bg-gradient-to-br from-orange-100 to-orange-200 dark:from-orange-900/60 dark:to-orange-800/40">
               <CardContent className="pt-5 pb-4 px-5">
-                <div className="mb-3 p-1.5 w-fit rounded-lg bg-white/60 dark:bg-black/20 shadow-sm">
-                  <HugeiconsIcon icon={AlertCircleIcon} size={18} strokeWidth={1.5} className="text-orange-600 dark:text-orange-400" />
+                <div className="mb-3 p-1.5 w-fit rounded-lg bg-orange-200/60 dark:bg-orange-700/40 shadow-sm">
+                  <HugeiconsIcon icon={AlertCircleIcon} size={18} strokeWidth={1.5} className="text-orange-700 dark:text-orange-300" />
                 </div>
-                <p className="text-2xl font-bold tracking-tight text-orange-700 dark:text-orange-300 tabular-nums">
+                <p className="text-2xl font-bold tracking-tight text-orange-800 dark:text-orange-100 tabular-nums">
                   {kpis?.pendingInvoiceCount ?? "—"}
                 </p>
-                <p className="text-xs text-muted-foreground mt-1 font-medium">Pending Invoices</p>
+                <p className="text-xs text-orange-600 dark:text-orange-400 mt-1 font-medium">Pending Invoices</p>
               </CardContent>
             </Card>
           </div>

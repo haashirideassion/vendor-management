@@ -309,17 +309,17 @@ router.post("/refresh", async (req: Request, res: Response) => {
 
     const role = profile?.role ?? "vendor"
 
-    // Rotate refresh token
+    // Rotate refresh token atomically
     const { raw: newRaw, hash: newHash, expiresAt } = generateRefreshToken()
 
-    await Promise.all([
-      db().from("refresh_tokens").update({ revoked: true }).eq("id", record.id),
-      db().from("refresh_tokens").insert({
-        user_id: user.id,
-        token_hash: newHash,
-        expires_at: expiresAt.toISOString(),
-      }),
-    ])
+    const { error: rotateError } = await db().rpc("rotate_refresh_token", {
+      p_old_token_id: record.id,
+      p_user_id: user.id,
+      p_new_hash: newHash,
+      p_expires_at: expiresAt.toISOString(),
+    })
+
+    if (rotateError) throw rotateError
 
     const accessToken = signAccessToken({ sub: user.id, email: user.email, appRole: role })
 

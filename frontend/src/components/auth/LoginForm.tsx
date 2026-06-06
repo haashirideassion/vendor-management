@@ -31,7 +31,7 @@ export function LoginForm() {
     try {
       const user = await login(data.email, data.password)
       const isInternal = INTERNAL_ROLES.includes(user.role as never)
-      navigate(isInternal ? "/admin/dashboard" : "/vendor/dashboard")
+      navigate(isInternal ? "/admin/dashboard" : "/vendor/profile")
     } catch (err: any) {
       toast.error(err.message ?? "Login failed. Please try again.")
     } finally {

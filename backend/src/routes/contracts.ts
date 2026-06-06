@@ -160,35 +160,24 @@ router.post("/mark-signed", requireAuth, async (req: Request, res: Response) => 
     const { id, signed_by_vendor, signed_by_internal } = req.body
     if (!id) return res.status(400).json({ error: "id is required" })
 
-    // Read current state to determine if both parties have now signed
-    const { data: current, error: readError } = await db()
-      .from("contracts")
-      .select("signed_by_vendor, signed_by_internal")
-      .eq("id", id)
-      .single()
-    if (readError) throw readError
-
-    const updates: any = {}
-    if (signed_by_vendor !== undefined) updates.signed_by_vendor = signed_by_vendor
-    if (signed_by_internal !== undefined) updates.signed_by_internal = signed_by_internal
-
-    const nowVendorSigned   = updates.signed_by_vendor   ?? current.signed_by_vendor
-    const nowInternalSigned = updates.signed_by_internal ?? current.signed_by_internal
-    if (nowVendorSigned && nowInternalSigned) updates.signed_at = new Date().toISOString()
+    const { error: rpcError } = await db().rpc("mark_contract_signed", {
+      p_contract_id:       id,
+      p_signed_by_vendor:   signed_by_vendor   ?? null,
+      p_signed_by_internal: signed_by_internal ?? null,
+    })
+    if (rpcError) throw rpcError
 
     const { data, error } = await db()
       .from("contracts")
-      .update(updates)
+      .select("*, vendor:vendor_id(company_name, contact_name), parent:parent_id(contract_ref, title), amendments:contract_amendments(*)")
       .eq("id", id)
-      .select()
       .single()
-
     if (error) throw error
 
     res.json({ data })
   } catch (err: any) {
     console.error("[contracts/mark-signed]", err.message)
-    res.status(500).json({ error: "Failed to mark contract as signed" })
+    res.status(500).json({ error: err.message || "Failed to mark contract as signed" })
   }
 })
 
@@ -203,29 +192,26 @@ router.post("/add-amendment", requireAuth, async (req: Request, res: Response) =
       })
     }
 
-    // Auto-compute next amendment number
-    const { count } = await db()
-      .from("contract_amendments")
-      .select("*", { count: "exact", head: true })
-      .eq("contract_id", contract_id)
-    const amendment_number = (count ?? 0) + 1
-
-    const payload: any = { contract_id, amendment_number, title, created_by }
-    if (description !== undefined) payload.description = description
-    if (effective_date !== undefined) payload.effective_date = effective_date
+    const { data: amendmentId, error: rpcError } = await db().rpc("add_contract_amendment", {
+      p_contract_id:    contract_id,
+      p_title:          title,
+      p_description:    description    ?? null,
+      p_effective_date: effective_date ?? null,
+      p_created_by:     created_by,
+    })
+    if (rpcError) throw rpcError
 
     const { data, error } = await db()
       .from("contract_amendments")
-      .insert(payload)
-      .select()
+      .select("*")
+      .eq("id", amendmentId)
       .single()
-
     if (error) throw error
 
     res.json({ data })
   } catch (err: any) {
     console.error("[contracts/add-amendment]", err.message)
-    res.status(500).json({ error: "Failed to add contract amendment" })
+    res.status(500).json({ error: err.message || "Failed to add contract amendment" })
   }
 })
 

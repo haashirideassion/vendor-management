@@ -73,8 +73,7 @@ export function useCreateGRN() {
         "/api/grns/create",
         {
           ...grnInput,
-          created_by:  user.id,
-          verified_by: user.id,
+          created_by: user.id,
           line_items,
         },
         accessToken
@@ -83,7 +82,7 @@ export function useCreateGRN() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["grns"] })
-      toast.success("GRN recorded and verified")
+      toast.success("GRN recorded")
     },
     onError: () => toast.error("Failed to create GRN"),
   })

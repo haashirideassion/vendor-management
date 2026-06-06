@@ -265,19 +265,11 @@ export function CategoryManagement() {
           <TabsList className="h-9">
             <TabsTrigger value="active" className="text-sm">
               Active
-              {activeCategories.length > 0 && (
-                <span className="ml-1.5 rounded-full bg-primary/15 text-primary px-1.5 py-0.5 text-[11px] font-semibold">
-                  {activeCategories.length}
-                </span>
-              )}
+              {activeCategories.length > 0 && <span className="tab-count">{activeCategories.length}</span>}
             </TabsTrigger>
             <TabsTrigger value="dormant" className="text-sm">
               Dormant
-              {dormantCategories.length > 0 && (
-                <span className="ml-1.5 rounded-full bg-muted text-muted-foreground px-1.5 py-0.5 text-[11px] font-semibold">
-                  {dormantCategories.length}
-                </span>
-              )}
+              {dormantCategories.length > 0 && <span className="tab-count">{dormantCategories.length}</span>}
             </TabsTrigger>
           </TabsList>
           <Button size="sm" onClick={openCreate} className="gap-1.5 shrink-0">

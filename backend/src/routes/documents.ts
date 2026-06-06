@@ -6,7 +6,7 @@ const router = Router()
 function db(): any { return getSupabaseAdmin() }
 
 // POST /api/documents/by-vendor — { vendorId }
-router.post("/by-vendor", async (req: Request, res: Response) => {
+router.post("/by-vendor", requireAuth, async (req: Request, res: Response) => {
   try {
     const { vendorId } = req.body
     if (!vendorId) return res.status(400).json({ error: "vendorId is required" })
@@ -23,7 +23,7 @@ router.post("/by-vendor", async (req: Request, res: Response) => {
 })
 
 // POST /api/documents/create — { vendor_id, document_type, file_name, storage_path, expires_at? }
-router.post("/create", async (req: Request, res: Response) => {
+router.post("/create", requireAuth, async (req: Request, res: Response) => {
   try {
     const { vendor_id, document_type, file_name, storage_path, expires_at } = req.body
     if (!vendor_id) return res.status(400).json({ error: "vendor_id is required" })
@@ -45,7 +45,7 @@ router.post("/create", async (req: Request, res: Response) => {
 })
 
 // POST /api/documents/verify — { id, verified, verified_at, notes? }
-router.post("/verify", async (req: Request, res: Response) => {
+router.post("/verify", requireAuth, async (req: Request, res: Response) => {
   try {
     const { id, verified, verified_at, notes } = req.body
     if (!id) return res.status(400).json({ error: "id is required" })

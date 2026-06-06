@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from "react"
-import { Link } from "react-router-dom"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -21,7 +20,6 @@ import {
   CheckmarkCircle01Icon,
   Building06Icon,
   Tag01Icon,
-  Settings01Icon,
   Delete01Icon,
 } from "@hugeicons/core-free-icons"
 import { toast } from "sonner"
@@ -140,19 +138,14 @@ export function VendorProfile() {
   if (!vendor) {
     return (
       <AnimatedPage>
-        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 p-6 text-center">
+        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-2 p-6 text-center">
           <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
             <HugeiconsIcon icon={UserCircleIcon} size={32} strokeWidth={1.5} className="text-muted-foreground" />
           </div>
-          <div className="space-y-1">
-            <p className="text-sm font-medium">No profile found</p>
-            <p className="text-sm text-muted-foreground">
-              Complete your onboarding to set up your vendor profile.
-            </p>
-          </div>
-          <Button asChild>
-            <Link to="/onboarding">Complete onboarding</Link>
-          </Button>
+          <p className="text-sm font-medium">No profile found</p>
+          <p className="text-sm text-muted-foreground">
+            Complete your onboarding to set up your vendor profile.
+          </p>
         </div>
       </AnimatedPage>
     )
@@ -340,31 +333,6 @@ export function VendorProfile() {
             </CardContent>
           </Card>
 
-          {/* Service Offerings (read-only) */}
-          <Card>
-            <CardHeader className="pb-4">
-              <div className="flex items-center gap-2">
-                <HugeiconsIcon icon={Settings01Icon} size={16} strokeWidth={1.5} className="text-primary" />
-                <CardTitle className="text-base">Service Offerings</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {vendor.vendor_services && vendor.vendor_services.length > 0 ? (
-                <div className="space-y-2">
-                  {vendor.vendor_services.map((svc) => (
-                    <div key={svc.id} className="rounded-lg border p-3">
-                      <p className="text-sm font-medium">{svc.name}</p>
-                      {svc.description && (
-                        <p className="text-xs text-muted-foreground mt-0.5">{svc.description}</p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">No service offerings listed yet.</p>
-              )}
-            </CardContent>
-          </Card>
         </div>
       </form>
     </AnimatedPage>

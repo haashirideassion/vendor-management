@@ -248,15 +248,11 @@ export function VendorContracts() {
           <TabsList className="mb-4">
             <TabsTrigger value="active">
               Active Contracts
-              <span className="ml-1.5 rounded-full bg-primary/15 text-primary px-1.5 py-0.5 text-[10px] font-semibold">
-                {isLoading ? "…" : active.length}
-              </span>
+              <span className="tab-count">{isLoading ? "…" : active.length}</span>
             </TabsTrigger>
             <TabsTrigger value="dormant">
               Dormant Contracts
-              <span className="ml-1.5 rounded-full bg-muted text-muted-foreground px-1.5 py-0.5 text-[10px] font-semibold">
-                {isLoading ? "…" : dormant.length}
-              </span>
+              <span className="tab-count">{isLoading ? "…" : dormant.length}</span>
             </TabsTrigger>
           </TabsList>
 

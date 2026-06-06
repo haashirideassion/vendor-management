@@ -78,76 +78,34 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
       })
     }
 
-    // 1. Insert engagement
-    const engPayload: any = {
-      title,
-      currency,
-      created_by,
-      category_id: category_ids[0] ?? null,
-      vendor_id: null,
-    }
-    if (description !== undefined) engPayload.description = description
-    if (estimated_value !== undefined) engPayload.estimated_value = estimated_value
-    if (start_date !== undefined) engPayload.start_date = start_date
-    if (end_date !== undefined) engPayload.end_date = end_date
-    if (notes !== undefined) engPayload.notes = notes
-
-    const { data: eng, error: engError } = await db()
-      .from("engagements")
-      .insert(engPayload)
-      .select()
-      .single()
+    const { data: engId, error: engError } = await db().rpc("create_engagement_full", {
+      p_title: title,
+      p_description: description ?? null,
+      p_category_id: category_ids[0] ?? null,
+      p_estimated_value: estimated_value ?? null,
+      p_currency: currency,
+      p_start_date: start_date ?? null,
+      p_end_date: end_date ?? null,
+      p_notes: notes ?? null,
+      p_created_by: created_by,
+      p_vendor_ids: vendor_ids.length > 0 ? JSON.stringify(vendor_ids) : null,
+      p_line_items: Array.isArray(line_items) && line_items.length > 0 ? JSON.stringify(line_items) : null,
+    })
 
     if (engError) throw engError
 
-    // 2. Insert line items
-    if (Array.isArray(line_items) && line_items.length > 0) {
-      const lineRows = line_items.map((item: any) => ({ ...item, engagement_id: eng.id }))
-      const { error: lineError } = await db().from("engagement_line_items").insert(lineRows)
-      if (lineError) throw lineError
-    }
-
-    // 3. Insert engagement_vendors and rfqs
-    if (vendor_ids.length > 0) {
-      const vendorRows = vendor_ids.map((vid: string) => ({
-        engagement_id: eng.id,
-        vendor_id: vid,
-      }))
-      const { error: evError } = await db().from("engagement_vendors").insert(vendorRows)
-      if (evError) throw evError
-
-      const rfqRows = vendor_ids.map((vid: string) => ({
-        engagement_id: eng.id,
-        vendor_id: vid,
-        status: "pending",
-      }))
-      const { error: rfqError } = await db()
-        .from("rfqs")
-        .upsert(rfqRows, { onConflict: "engagement_id,vendor_id" })
-      if (rfqError) throw rfqError
-    }
-
-    // 4. Insert approval request
-    const { error: approvalError } = await db().from("approval_requests").insert({
-      entity_type: "engagement",
-      entity_id: eng.id,
-      requested_by: created_by,
-      amount: estimated_value ?? null,
-      notes: null,
-    })
-    if (approvalError) throw approvalError
-
-    // 5. Update engagement status to pending_approval
-    const { error: statusError } = await db()
+    const { data: eng, error: getError } = await db()
       .from("engagements")
-      .update({ status: "pending_approval" })
-      .eq("id", eng.id)
-    if (statusError) throw statusError
+      .select("*, vendor:vendor_id(company_name, contact_name), category:category_id(name), creator:created_by(full_name, email), line_items:engagement_line_items(*), engagement_vendors(vendor:vendor_id(id, company_name))")
+      .eq("id", engId)
+      .single()
+
+    if (getError) throw getError
 
     res.json({ data: eng })
   } catch (err: any) {
-    console.error("[engagements/create]", err.message)
-    res.status(500).json({ error: "Failed to create engagement" })
+    console.error("[engagements/create]", err?.message ?? err)
+    res.status(500).json({ error: err?.message ?? "Failed to create engagement" })
   }
 })
 

@@ -114,8 +114,9 @@ export function ThemeProvider({
         root.classList.add("light")
       } else if (nextTheme === "dark") {
         root.classList.add("dark")
+      } else {
+        root.classList.add(getSystemTheme())
       }
-      // "system" → no class added; CSS @media handles it automatically
 
       if (restoreTransitions) {
         restoreTransitions()

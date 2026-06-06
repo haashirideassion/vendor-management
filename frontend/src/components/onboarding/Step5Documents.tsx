@@ -51,7 +51,7 @@ function DocRow({
   return (
     <div className={cn(
       "flex items-center justify-between rounded-lg border p-3 gap-3 transition-colors",
-      existingDoc ? "border-green-200 bg-green-50/50" : "bg-background"
+      existingDoc ? "border-green-500/40 bg-green-500/10" : "bg-background"
     )}>
       <div className="flex items-center gap-3 min-w-0">
         <HugeiconsIcon

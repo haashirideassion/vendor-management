@@ -54,30 +54,25 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Missing required fields" })
     }
 
-    const { data: grn, error: grnError } = await db()
-      .from("grns")
-      .insert({
-        po_id,
-        vendor_id,
-        received_date,
-        notes: notes ?? null,
-        created_by,
-        status: "verified",
-        verified_by: verified_by ?? null,
-        verified_at: new Date().toISOString(),
-      })
-      .select()
-      .single()
+    const { data: grnId, error: grnError } = await db().rpc("create_grn_with_line_items", {
+      p_po_id: po_id,
+      p_vendor_id: vendor_id,
+      p_received_date: received_date,
+      p_notes: notes ?? null,
+      p_created_by: created_by,
+      p_verified_by: verified_by ?? null,
+      p_line_items: line_items.length > 0 ? JSON.stringify(line_items) : null,
+    })
 
     if (grnError) throw grnError
 
-    if (line_items.length > 0) {
-      const lineItemRows = line_items.map((item: any) => ({ ...item, grn_id: grn.id }))
-      const { error: lineItemsError } = await db()
-        .from("grn_line_items")
-        .insert(lineItemRows)
-      if (lineItemsError) throw lineItemsError
-    }
+    const { data: grn, error: getError } = await db()
+      .from("grns")
+      .select("*, vendor:vendor_id(company_name), purchase_order:po_id(po_number), line_items:grn_line_items(*)")
+      .eq("id", grnId)
+      .single()
+
+    if (getError) throw getError
 
     return res.json(grn)
   } catch (err: any) {

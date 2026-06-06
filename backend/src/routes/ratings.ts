@@ -6,7 +6,7 @@ const router = Router()
 function db(): any { return getSupabaseAdmin() }
 
 // POST /api/ratings/by-vendor — { vendorId }
-router.post("/by-vendor", async (req: Request, res: Response) => {
+router.post("/by-vendor", requireAuth, async (req: Request, res: Response) => {
   try {
     const { vendorId } = req.body
     if (!vendorId) return res.status(400).json({ error: "vendorId is required" })
@@ -23,12 +23,13 @@ router.post("/by-vendor", async (req: Request, res: Response) => {
 })
 
 // POST /api/ratings/upsert — { vendor_id, rated_by, score, comment? }
-router.post("/upsert", async (req: Request, res: Response) => {
+router.post("/upsert", requireAuth, async (req: Request, res: Response) => {
   try {
     const { vendor_id, rated_by, score, comment } = req.body
     if (!vendor_id) return res.status(400).json({ error: "vendor_id is required" })
     if (!rated_by) return res.status(400).json({ error: "rated_by is required" })
     if (score === undefined || score === null) return res.status(400).json({ error: "score is required" })
+    if (!Number.isInteger(score) || score < 1 || score > 5) return res.status(400).json({ error: "score must be an integer between 1 and 5" })
     const payload: any = { vendor_id, rated_by, score }
     if (comment !== undefined) payload.comment = comment
     const { data, error } = await db()

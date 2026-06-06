@@ -46,12 +46,22 @@ import { toast } from "sonner"
 
 type ActionConfig = { label: string; status: VendorStatus; variant: "default" | "success" | "danger" | "outline" | "secondary" }
 
-const ALL_ACTIONS: ActionConfig[] = [
-  { label: "Approve",      status: "active",          variant: "success" },
-  { label: "Request Info", status: "pending_review",  variant: "outline" },
-  { label: "Suspend",      status: "suspended",       variant: "danger" },
-  { label: "Reject",       status: "rejected",        variant: "danger" },
-]
+const ACTIONS_BY_STATUS: Partial<Record<VendorStatus, ActionConfig[]>> = {
+  pending_review: [
+    { label: "Approve", status: "active",    variant: "success" },
+    { label: "Reject",  status: "rejected",  variant: "danger"  },
+  ],
+  active: [
+    { label: "Suspend", status: "suspended", variant: "danger" },
+  ],
+  suspended: [
+    { label: "Approve", status: "active",    variant: "success" },
+    { label: "Reject",  status: "rejected",  variant: "danger"  },
+  ],
+  rejected: [
+    { label: "Approve", status: "active",    variant: "success" },
+  ],
+}
 
 export function VendorDetail() {
   const { id } = useParams<{ id: string }>()
@@ -70,6 +80,11 @@ export function VendorDetail() {
   // Status action dialog
   const [actionDialog, setActionDialog] = useState<ActionConfig | null>(null)
   const [adminNotes, setAdminNotes] = useState("")
+
+  function closeDialog() {
+    setActionDialog(null)
+    setAdminNotes("")
+  }
 
   // Rating
   const [ratingScore, setRatingScore] = useState(0)
@@ -100,8 +115,7 @@ export function VendorDetail() {
     try {
       await updateStatus.mutateAsync({ id, status: actionDialog.status, admin_notes: adminNotes || undefined })
       toast.success(`Vendor ${actionDialog.label.toLowerCase()}d`)
-      setActionDialog(null)
-      setAdminNotes("")
+      closeDialog()
     } catch (e: unknown) { toast.error((e as Error).message) }
   }
 
@@ -141,7 +155,7 @@ export function VendorDetail() {
 
   const assignedCategoryIds = new Set(vendor.vendor_categories?.map((vc) => vc.category_id) ?? [])
   const availableCategories = categories.filter((c) => !assignedCategoryIds.has(c.id) && c.is_active)
-  const actions = ALL_ACTIONS.filter((a) => a.status !== vendor.status)
+  const actions = ACTIONS_BY_STATUS[vendor.status] ?? []
   const avgRating = ratings.length ? ratings.reduce((s, r) => s + r.score, 0) / ratings.length : 0
   const docs = vendor.vendor_documents ?? []
   const verifiedCount = docs.filter((d) => d.verified).length
@@ -179,15 +193,33 @@ export function VendorDetail() {
         {/* Action bar */}
         <div className="border-b px-6 py-2.5 flex flex-wrap gap-2 bg-muted/30">
           {actions.map((a) => (
+            a.variant === "success" ? (
+              <button
+                key={a.status}
+                className="btn-grad h-8 text-xs !m-0 !py-0 !px-4 cursor-pointer"
+                onClick={() => setActionDialog(a)}
+              >
+                {a.label}
+              </button>
+            ) : a.variant === "danger" ? (
+              <button
+                key={a.status}
+                className="btn-grad-danger h-8 text-xs !m-0 !py-0 !px-4 cursor-pointer"
+                onClick={() => setActionDialog(a)}
+              >
+                {a.label}
+              </button>
+            ) : (
             <Button
               key={a.status}
               size="sm"
               variant={a.variant}
               className="h-8 text-xs"
-              onClick={() => { setAdminNotes(vendor.admin_notes ?? ""); setActionDialog(a) }}
+              onClick={() => setActionDialog(a)}
             >
               {a.label}
             </Button>
+            )
           ))}
         </div>
 
@@ -198,16 +230,12 @@ export function VendorDetail() {
                 <HugeiconsIcon icon={Building06Icon} size={14} strokeWidth={1.5} />
                 Overview
               </TabsTrigger>
-              <TabsTrigger value="documents" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm gap-1.5 text-sm h-8 px-3">
+              <TabsTrigger value="documents" className="gap-1.5 text-sm h-8 px-3">
                 <HugeiconsIcon icon={File01Icon} size={14} strokeWidth={1.5} />
                 Documents
                 {docs.length > 0 && (
-                  <Badge variant="secondary" className="ml-0.5 text-xs h-4 px-1">{verifiedCount}/{docs.length}</Badge>
+                  <span className="tab-count">{verifiedCount}/{docs.length}</span>
                 )}
-              </TabsTrigger>
-              <TabsTrigger value="services" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm gap-1.5 text-sm h-8 px-3">
-                <HugeiconsIcon icon={Tag01Icon} size={14} strokeWidth={1.5} />
-                Services
               </TabsTrigger>
               <TabsTrigger value="categories" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm gap-1.5 text-sm h-8 px-3">
                 <HugeiconsIcon icon={Tag01Icon} size={14} strokeWidth={1.5} />
@@ -359,22 +387,6 @@ export function VendorDetail() {
                           <HugeiconsIcon icon={EyeIcon} size={15} strokeWidth={1.5} />
                         </Button>
                       </div>
-                    </CardContent>
-                  </Card>
-                ))
-              )}
-            </TabsContent>
-
-            {/* ── Services ── */}
-            <TabsContent value="services" className="space-y-3 mt-0">
-              {!vendor.vendor_services?.length ? (
-                <EmptyState title="No services listed" description="This vendor hasn't added any services yet." />
-              ) : (
-                vendor.vendor_services.map((svc) => (
-                  <Card key={svc.id} className="shadow-none">
-                    <CardContent className="py-4">
-                      <p className="text-sm font-medium">{svc.name}</p>
-                      {svc.description && <p className="text-xs text-muted-foreground mt-1">{svc.description}</p>}
                     </CardContent>
                   </Card>
                 ))
@@ -565,7 +577,7 @@ export function VendorDetail() {
         </div>
 
         {/* Status action dialog */}
-        <Dialog open={!!actionDialog} onOpenChange={(o) => !o && setActionDialog(null)}>
+        <Dialog open={!!actionDialog} onOpenChange={(o) => !o && closeDialog()}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>{actionDialog?.label} vendor?</DialogTitle>
@@ -588,11 +600,11 @@ export function VendorDetail() {
             </div>
             <Separator />
             <DialogFooter>
-              <Button variant="outline" onClick={() => setActionDialog(null)} disabled={updateStatus.isPending}>
+              <Button variant="outline" onClick={closeDialog} disabled={updateStatus.isPending}>
                 Cancel
               </Button>
-              <Button
-                variant={actionDialog?.variant ?? "default"}
+              <button
+                className={`${actionDialog?.variant === "success" ? "btn-grad" : "btn-grad-danger"} !m-0 !py-2 !px-5 cursor-pointer disabled:opacity-50`}
                 onClick={handleStatusChange}
                 disabled={
                   updateStatus.isPending ||
@@ -600,7 +612,7 @@ export function VendorDetail() {
                 }
               >
                 {updateStatus.isPending ? "Processing…" : actionDialog?.label}
-              </Button>
+              </button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

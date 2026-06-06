@@ -107,7 +107,7 @@ function MultiSelect({
       <PopoverContent className="w-[320px] p-0" align="start">
         <Command>
           <CommandInput placeholder={searchPlaceholder ?? "Search…"} />
-          <CommandList>
+          <CommandList className="max-h-56 overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: "var(--border) transparent" }}>
             <CommandEmpty>No results found.</CommandEmpty>
             {options.map((opt) => (
               <CommandItem key={opt.id} value={opt.label} onSelect={() => toggle(opt.id)}>

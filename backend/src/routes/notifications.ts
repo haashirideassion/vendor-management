@@ -8,9 +8,11 @@ function db(): any { return getSupabaseAdmin() }
 // POST /api/notifications/list
 router.post("/list", requireAuth, async (req: Request, res: Response) => {
   try {
+    const userId = (req as AuthenticatedRequest).user?.id
     const { data, error } = await db()
       .from("notifications")
       .select("*")
+      .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(20)
 
@@ -42,9 +44,11 @@ router.post("/mark-read", requireAuth, async (req: Request, res: Response) => {
 // POST /api/notifications/mark-all-read
 router.post("/mark-all-read", requireAuth, async (req: Request, res: Response) => {
   try {
+    const userId = (req as AuthenticatedRequest).user?.id
     const { error } = await db()
       .from("notifications")
       .update({ is_read: true })
+      .eq("user_id", userId)
       .eq("is_read", false)
 
     if (error) throw error

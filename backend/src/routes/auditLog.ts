@@ -6,7 +6,7 @@ const router = Router()
 function db(): any { return getSupabaseAdmin() }
 
 // POST /api/audit-log/list — { entityId? }
-router.post("/list", async (req: Request, res: Response) => {
+router.post("/list", requireAuth, async (req: Request, res: Response) => {
   try {
     const { entityId } = req.body
     let query = db()

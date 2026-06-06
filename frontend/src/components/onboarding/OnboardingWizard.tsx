@@ -7,6 +7,7 @@ import { Step3Categories } from "./Step3Categories"
 import { Step5Documents } from "./Step5Documents"
 import { Step6Review } from "./Step6Review"
 import { supabase } from "@/lib/supabase"
+import { api } from "@/lib/api"
 import { useAuth } from "@/contexts/AuthContext"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
@@ -51,7 +52,7 @@ const STEPS = ["Company Info", "Tax & Banking", "Services", "Documents", "Review
 const STORAGE_KEY = "vms_onboarding_draft"
 
 export function OnboardingWizard() {
-  const { user } = useAuth()
+  const { user, accessToken } = useAuth()
   const navigate = useNavigate()
   const [step, setStep] = useState(() => {
     try { return Number(sessionStorage.getItem(`${STORAGE_KEY}_step`) ?? 0) } catch { return 0 }
@@ -59,7 +60,13 @@ export function OnboardingWizard() {
   const [data, setData] = useState<Partial<OnboardingData>>(() => {
     try {
       const saved = sessionStorage.getItem(STORAGE_KEY)
-      return saved ? (JSON.parse(saved) as Partial<OnboardingData>) : {}
+      const draft = saved ? (JSON.parse(saved) as Partial<OnboardingData>) : {}
+      // Pre-fill contact fields from registered user if not already saved in draft
+      return {
+        contact_name: user?.fullName ?? "",
+        contact_email: user?.email ?? "",
+        ...draft,
+      }
     } catch { return {} }
   })
   const [localDocs, setLocalDocs] = useState<LocalDocument[]>([])
@@ -89,11 +96,10 @@ export function OnboardingWizard() {
     const final = data as OnboardingData
     setSubmitting(true)
     try {
-      // 1. Create vendor record
-      const { data: vendor, error: vendorError } = await supabase
-        .from("vendors")
-        .insert({
-          profile_id: user!.id,
+      // 1. Create vendor record + categories via backend
+      const { data: vendor } = await api.post<{ data: { id: string } }>(
+        "/api/vendors/create",
+        {
           company_name: final.company_name,
           contact_name: final.contact_name,
           contact_email: final.contact_email,
@@ -102,22 +108,12 @@ export function OnboardingWizard() {
           bank_name: final.bank_name || null,
           bank_account_number: final.bank_account_number || null,
           bank_routing_number: final.bank_routing_number || null,
-          status: "pending_review",
-        })
-        .select()
-        .single()
+          category_ids: final.category_ids ?? [],
+        },
+        accessToken
+      )
 
-      if (vendorError) throw vendorError
-
-      // 2. Assign categories
-      if (final.category_ids?.length) {
-        const { error: catError } = await supabase
-          .from("vendor_categories")
-          .insert(final.category_ids.map((cid) => ({ vendor_id: vendor.id, category_id: cid })))
-        if (catError) throw catError
-      }
-
-      // 3. Upload documents — rollback vendor on failure
+      // 2. Upload documents to Supabase Storage (Storage uses bearer-token auth, stays on frontend)
       try {
         for (const doc of localDocs) {
           const ext = doc.fileName.split(".").pop() ?? "bin"
@@ -159,7 +155,7 @@ export function OnboardingWizard() {
     setData({})
     setLocalDocs([])
     setStep(0)
-    navigate("/vendor/dashboard")
+    navigate("/vendor/profile")
   }
 
   return (
