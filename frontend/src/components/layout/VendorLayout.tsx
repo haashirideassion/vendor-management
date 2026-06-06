@@ -107,7 +107,7 @@ function SidebarContent({
             {vendor.vendor_id_code && (
               <p className="text-[10px] text-muted-foreground font-mono">{vendor.vendor_id_code}</p>
             )}
-            <StatusBadge status={vendor.status} />
+            <StatusBadge status={vendor.status as import("@/lib/types").VendorStatus} />
           </div>
         )}
       </div>
