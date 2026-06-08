@@ -63,14 +63,8 @@ export function useAttachments(
     retry:    false,
     queryFn:  async () => {
       try {
-        const { data } = await api.post<{ data: Attachment[] }>(
-          "/api/attachments/list",
-          { entityType, entityId },
-          accessToken
-        )
-        return data
+        return await api.post<Attachment[]>("/api/attachments/list", { entityType, entityId }, accessToken)
       } catch {
-        // Table may not exist yet — return empty silently
         return []
       }
     },

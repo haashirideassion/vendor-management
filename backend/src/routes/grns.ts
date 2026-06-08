@@ -54,27 +54,47 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Missing required fields" })
     }
 
-    const { data: grnId, error: grnError } = await db().rpc("create_grn_with_line_items", {
-      p_po_id: po_id,
-      p_vendor_id: vendor_id,
-      p_received_date: received_date,
-      p_notes: notes ?? null,
-      p_created_by: created_by,
-      p_verified_by: verified_by ?? null,
-      p_line_items: line_items.length > 0 ? JSON.stringify(line_items) : null,
-    })
-
+    const { data: grn, error: grnError } = await db()
+      .from("grns")
+      .insert({
+        po_id, vendor_id, received_date,
+        notes:       notes       ?? null,
+        created_by,
+        verified_by: verified_by ?? null,
+        status: "submitted",
+      })
+      .select("id")
+      .single()
     if (grnError) throw grnError
+    const grnId: string = grn.id
 
-    const { data: grn, error: getError } = await db()
+    if (line_items.length > 0) {
+      const { error: liError } = await db()
+        .from("grn_line_items")
+        .insert(
+          line_items.map((item: any) => ({
+            grn_id:            grnId,
+            po_line_item_id:   item.po_line_item_id   ?? null,
+            description:       item.description,
+            quantity_received: item.quantity_received  ?? null,
+            unit_price:        item.unit_price         ?? null,
+            unit:              item.unit               ?? null,
+          }))
+        )
+      if (liError) {
+        await db().from("grns").delete().eq("id", grnId)
+        throw liError
+      }
+    }
+
+    const { data: full, error: getError } = await db()
       .from("grns")
       .select("*, vendor:vendor_id(company_name), purchase_order:po_id(po_number), line_items:grn_line_items(*)")
       .eq("id", grnId)
       .single()
-
     if (getError) throw getError
 
-    return res.json(grn)
+    return res.json(full)
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Unexpected error" })
   }

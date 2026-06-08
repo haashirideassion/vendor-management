@@ -99,7 +99,6 @@ export function useRunThreeWayMatch() {
     onSuccess: (_, { invoiceId }) => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] })
       queryClient.invalidateQueries({ queryKey: ["invoices", invoiceId] })
-      toast.success("Three-way match complete")
     },
     onError: () => toast.error("Three-way match failed"),
   })
@@ -126,10 +125,9 @@ export function useReviewInvoice() {
       )
       return data as Invoice
     },
-    onSuccess: (_, { id, status }) => {
+    onSuccess: (_, { id }) => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] })
       queryClient.invalidateQueries({ queryKey: ["invoices", id] })
-      toast.success(`Invoice ${status}`)
     },
     onError: () => toast.error("Failed to review invoice"),
   })

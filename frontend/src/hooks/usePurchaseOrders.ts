@@ -107,7 +107,6 @@ export function useIssuePurchaseOrder() {
     onSuccess: (_, { id }) => {
       queryClient.invalidateQueries({ queryKey: ["purchase-orders"] })
       queryClient.invalidateQueries({ queryKey: ["purchase-orders", id] })
-      toast.success("Purchase order issued")
     },
     onError: () => toast.error("Failed to issue purchase order"),
   })

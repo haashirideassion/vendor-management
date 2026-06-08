@@ -51,22 +51,40 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Missing required fields" })
     }
 
-    const { data: quotId, error: quotationError } = await db().rpc("create_quotation_with_line_items", {
-      p_rfq_id: rfq_id,
-      p_engagement_id: engagement_id,
-      p_vendor_id: vendor_id,
-      p_notes: notes ?? null,
-      p_line_items: line_items.length > 0 ? JSON.stringify(line_items) : null,
-    })
+    // Step 1: create quotation header
+    const { data: quot, error: quotError } = await db()
+      .from("quotations")
+      .insert({ rfq_id, engagement_id, vendor_id, notes: notes ?? null, status: "draft" })
+      .select("id")
+      .single()
+    if (quotError) throw quotError
+    const quotId: string = quot.id
 
-    if (quotationError) throw quotationError
+    // Step 2: insert line items
+    if (line_items.length > 0) {
+      const { error: liError } = await db()
+        .from("quotation_line_items")
+        .insert(
+          line_items.map((item: any) => ({
+            quotation_id: quotId,
+            description:  item.description,
+            quantity:     item.quantity   ?? null,
+            unit_price:   item.unit_price ?? null,
+            tax_rate:     item.tax_rate   ?? null,
+            remarks:      item.remarks    ?? null,
+          }))
+        )
+      if (liError) {
+        await db().from("quotations").delete().eq("id", quotId)
+        throw liError
+      }
+    }
 
     const { data: quotation, error: getError } = await db()
       .from("quotations")
       .select("*, vendor:vendor_id(company_name), line_items:quotation_line_items(*)")
       .eq("id", quotId)
       .single()
-
     if (getError) throw getError
 
     return res.json(quotation)
@@ -85,10 +103,74 @@ router.post("/submit", requireAuth, async (req: Request, res: Response) => {
       .from("quotations")
       .update({ status: "submitted", total_amount, submitted_at: new Date().toISOString() })
       .eq("id", id)
-      .select()
+      .select("*, vendor:vendor_id(company_name)")
       .single()
 
     if (error) throw error
+
+    // Update engagement status and notify admins (fire-and-forget, don't fail the response)
+    const engagementId: string = data.engagement_id
+    if (engagementId) {
+      try {
+        // Count total vendors on engagement
+        const { count: vendorCount } = await db()
+          .from("engagement_vendors")
+          .select("*", { count: "exact", head: true })
+          .eq("engagement_id", engagementId)
+
+        // Count submitted quotations for engagement (including this one)
+        const { count: submittedCount } = await db()
+          .from("quotations")
+          .select("*", { count: "exact", head: true })
+          .eq("engagement_id", engagementId)
+          .eq("status", "submitted")
+
+        const allQuoted = (submittedCount ?? 0) >= (vendorCount ?? 1)
+        const newEngStatus = allQuoted ? "quotations_received" : "in_review"
+
+        await db()
+          .from("engagements")
+          .update({ status: newEngStatus })
+          .eq("id", engagementId)
+          .in("status", ["approved", "in_review"])
+
+        // Fetch engagement title for notification message
+        const { data: eng } = await db()
+          .from("engagements")
+          .select("title")
+          .eq("id", engagementId)
+          .single()
+
+        const vendorName: string = (data.vendor as any)?.company_name ?? "A vendor"
+        const engTitle: string   = eng?.title ?? "an engagement"
+        const notifTitle  = allQuoted ? "All Quotations Received" : "Quotation Received"
+        const notifMsg    = allQuoted
+          ? `All vendors have submitted quotations for "${engTitle}"`
+          : `${vendorName} submitted a quotation for "${engTitle}"`
+
+        // Get all admin user IDs
+        const { data: admins } = await db()
+          .from("profiles")
+          .select("id")
+          .eq("role", "admin")
+
+        if (Array.isArray(admins) && admins.length > 0) {
+          await db().from("notifications").insert(
+            admins.map((admin: { id: string }) => ({
+              user_id:             admin.id,
+              type:                "new_quotation",
+              title:               notifTitle,
+              message:             notifMsg,
+              module_reference_id: engagementId,
+              is_read:             false,
+            }))
+          )
+        }
+      } catch (sideEffectErr: any) {
+        console.error("[quotations/submit] side-effect error:", sideEffectErr.message)
+      }
+    }
+
     return res.json(data)
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Unexpected error" })

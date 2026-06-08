@@ -78,31 +78,71 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
       })
     }
 
-    const { data: engId, error: engError } = await db().rpc("create_engagement_full", {
-      p_title: title,
-      p_description: description ?? null,
-      p_category_id: category_ids[0] ?? null,
-      p_estimated_value: estimated_value ?? null,
-      p_currency: currency,
-      p_start_date: start_date ?? null,
-      p_end_date: end_date ?? null,
-      p_notes: notes ?? null,
-      p_created_by: created_by,
-      p_vendor_ids: vendor_ids.length > 0 ? JSON.stringify(vendor_ids) : null,
-      p_line_items: Array.isArray(line_items) && line_items.length > 0 ? JSON.stringify(line_items) : null,
-    })
-
-    if (engError) throw engError
-
-    const { data: eng, error: getError } = await db()
+    // Step 1: create engagement
+    const { data: eng, error: engError } = await db()
       .from("engagements")
-      .select("*, vendor:vendor_id(company_name, contact_name), category:category_id(name), creator:created_by(full_name, email), line_items:engagement_line_items(*), engagement_vendors(vendor:vendor_id(id, company_name))")
+      .insert({
+        title,
+        description:     description     || null,
+        category_id:     category_ids[0] || null,
+        estimated_value: estimated_value || null,
+        currency,
+        start_date:      start_date      || null,
+        end_date:        end_date        || null,
+        notes:           notes           || null,
+        created_by,
+        status: "approved",
+      })
+      .select("id")
+      .single()
+    if (engError) throw engError
+    const engId: string = eng.id
+
+    // Helper: rollback engagement if a later step fails
+    const rollback = async () => {
+      await db().from("engagements").delete().eq("id", engId)
+    }
+
+    // Step 2: line items
+    if (Array.isArray(line_items) && line_items.length > 0) {
+      const { error: liError } = await db()
+        .from("engagement_line_items")
+        .insert(
+          line_items.map((item: any) => ({
+            engagement_id: engId,
+            description:   item.description,
+            quantity:      item.quantity    ?? null,
+            unit_price:    item.unit_price  ?? null,
+          }))
+        )
+      if (liError) { await rollback(); throw liError }
+    }
+
+    // Step 3: vendor assignments + RFQs
+    if (vendor_ids.length > 0) {
+      const { error: evError } = await db()
+        .from("engagement_vendors")
+        .insert(vendor_ids.map((vid: string) => ({ engagement_id: engId, vendor_id: vid })))
+      if (evError) { await rollback(); throw evError }
+
+      const { error: rfqError } = await db()
+        .from("rfqs")
+        .upsert(
+          vendor_ids.map((vid: string) => ({ engagement_id: engId, vendor_id: vid, status: "pending" })),
+          { onConflict: "engagement_id,vendor_id" }
+        )
+      if (rfqError) { await rollback(); throw rfqError }
+    }
+
+    // Fetch full engagement for response
+    const { data: full, error: getError } = await db()
+      .from("engagements")
+      .select("*, category:category_id(name), creator:created_by(full_name, email), line_items:engagement_line_items(*), engagement_vendors(vendor:vendor_id(id, company_name))")
       .eq("id", engId)
       .single()
-
     if (getError) throw getError
 
-    res.json({ data: eng })
+    res.json({ data: full })
   } catch (err: any) {
     console.error("[engagements/create]", err?.message ?? err)
     res.status(500).json({ error: err?.message ?? "Failed to create engagement" })

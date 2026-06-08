@@ -28,6 +28,14 @@ const lineItemSchema = z.object({
   unit_price:  z.coerce.number().min(0, "Must be ≥ 0"),
   tax_rate:    z.coerce.number().min(0).max(100).default(0),
   remarks:     z.string().optional(),
+}).superRefine((item, ctx) => {
+  if (Number(item.unit_price) === 0 && !item.remarks?.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Reason required when rate is ₹0",
+      path: ["remarks"],
+    })
+  }
 })
 
 const quotationSchema = z.object({
@@ -300,13 +308,22 @@ export function VendorRFQDetail() {
                         <Input type="number" min={0.01} step="any" {...form.register(`line_items.${i}.quantity`)} placeholder="1" className="h-8 text-xs" />
                       </div>
                       <div className="col-span-2">
-                        <Input type="number" min={0} step="any" {...form.register(`line_items.${i}.unit_price`)} placeholder="0" className="h-8 text-xs" />
+                        <Input
+                          type="number" min={0} step="any"
+                          {...form.register(`line_items.${i}.unit_price`, {
+                            onChange: () => form.trigger(`line_items.${i}.remarks`),
+                          })}
+                          placeholder="0" className="h-8 text-xs"
+                        />
                       </div>
                       <div className="col-span-2">
                         <Input type="number" min={0} max={100} step="any" {...form.register(`line_items.${i}.tax_rate`)} placeholder="0" className="h-8 text-xs" />
                       </div>
                       <div className="col-span-2">
-                        <Input {...form.register(`line_items.${i}.remarks`)} placeholder="Optional" className="h-8 text-xs" />
+                        <Input {...form.register(`line_items.${i}.remarks`)} placeholder="Optional" className={`h-8 text-xs ${form.formState.errors.line_items?.[i]?.remarks ? "border-destructive" : ""}`} />
+                        {form.formState.errors.line_items?.[i]?.remarks && (
+                          <p className="text-[10px] text-destructive mt-0.5">{form.formState.errors.line_items[i]!.remarks!.message}</p>
+                        )}
                       </div>
                       <div className="col-span-1 flex justify-center pt-1">
                         {fields.length > 1 && (

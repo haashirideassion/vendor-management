@@ -189,7 +189,7 @@ export type RFQStatus = "pending" | "viewed" | "responded" | "closed"
 export type QuotationStatus = "draft" | "submitted" | "accepted" | "rejected"
 
 export type EngagementStatus =
-  | "draft" | "pending_approval" | "approved" | "rejected" | "cancelled" | "completed"
+  | "draft" | "pending_approval" | "approved" | "in_review" | "quotations_received" | "rejected" | "cancelled" | "completed"
 
 export type POStatus =
   | "draft" | "issued" | "partially_received" | "fully_received" | "cancelled" | "closed"

@@ -31,6 +31,7 @@ export function useEngagements(filters?: EngagementFilters) {
       )
       return data
     },
+    refetchInterval: 30_000,
   })
 }
 

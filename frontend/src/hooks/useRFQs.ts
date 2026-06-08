@@ -9,14 +9,8 @@ export function useVendorRFQs() {
 
   return useQuery({
     queryKey: ["rfqs", "vendor"],
-    queryFn: async () => {
-      const { data } = await api.post<{ data: RFQ[] }>(
-        "/api/rfqs/vendor-list",
-        {},
-        accessToken
-      )
-      return data
-    },
+    queryFn: () =>
+      api.post<RFQ[]>("/api/rfqs/vendor-list", {}, accessToken),
   })
 }
 
@@ -26,14 +20,8 @@ export function useRFQ(id: string | undefined) {
   return useQuery({
     queryKey: ["rfqs", id],
     enabled: !!id,
-    queryFn: async () => {
-      const { data } = await api.post<{ data: RFQ }>(
-        "/api/rfqs/get",
-        { id },
-        accessToken
-      )
-      return data
-    },
+    queryFn: () =>
+      api.post<RFQ>("/api/rfqs/get", { id }, accessToken),
   })
 }
 
@@ -43,14 +31,8 @@ export function useEngagementRFQs(engagementId: string | undefined) {
   return useQuery({
     queryKey: ["rfqs", "engagement", engagementId],
     enabled: !!engagementId,
-    queryFn: async () => {
-      const { data } = await api.post<{ data: RFQ[] }>(
-        "/api/rfqs/by-engagement",
-        { engagementId },
-        accessToken
-      )
-      return data
-    },
+    queryFn: () =>
+      api.post<RFQ[]>("/api/rfqs/by-engagement", { engagementId }, accessToken),
   })
 }
 
@@ -59,14 +41,8 @@ export function useUpdateRFQStatus() {
   const { accessToken } = useAuth()
 
   return useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: RFQStatus }) => {
-      const { data } = await api.post<{ data: RFQ }>(
-        "/api/rfqs/update-status",
-        { id, status },
-        accessToken
-      )
-      return data
-    },
+    mutationFn: ({ id, status }: { id: string; status: RFQStatus }) =>
+      api.post<RFQ>("/api/rfqs/update-status", { id, status }, accessToken),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["rfqs"] })
       queryClient.invalidateQueries({ queryKey: ["rfqs", data.id] })

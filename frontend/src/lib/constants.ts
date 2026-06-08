@@ -47,21 +47,25 @@ export const VENDOR_STATUSES: VendorStatus[] = [
 import type { EngagementStatus, POStatus, GRNStatus, InvoiceStatus, MatchStatus, RFQStatus, QuotationStatus } from "./types"
 
 export const ENGAGEMENT_STATUS_LABELS: Record<EngagementStatus, string> = {
-  draft: "Draft",
-  pending_approval: "Pending Approval",
-  approved: "Approved",
-  rejected: "Rejected",
-  cancelled: "Cancelled",
-  completed: "Completed",
+  draft:                "Draft",
+  pending_approval:     "Pending Approval",
+  approved:             "Approved",
+  in_review:            "In Review",
+  quotations_received:  "Quotations Received",
+  rejected:             "Rejected",
+  cancelled:            "Cancelled",
+  completed:            "Completed",
 }
 
 export const ENGAGEMENT_STATUS_COLORS: Record<EngagementStatus, string> = {
-  draft:            "bg-gray-100 text-gray-700 border-gray-200",
-  pending_approval: "bg-yellow-100 text-yellow-800 border-yellow-200",
-  approved:         "bg-blue-100 text-blue-800 border-blue-200",
-  rejected:         "bg-red-100 text-red-800 border-red-200",
-  cancelled:        "bg-gray-100 text-gray-400 border-gray-200",
-  completed:        "bg-green-100 text-green-800 border-green-200",
+  draft:               "bg-gray-100 text-gray-700 border-gray-200",
+  pending_approval:    "bg-yellow-100 text-yellow-800 border-yellow-200",
+  approved:            "bg-blue-100 text-blue-800 border-blue-200",
+  in_review:           "bg-purple-100 text-purple-800 border-purple-200",
+  quotations_received: "bg-emerald-100 text-emerald-800 border-emerald-200",
+  rejected:            "bg-red-100 text-red-800 border-red-200",
+  cancelled:           "bg-gray-100 text-gray-400 border-gray-200",
+  completed:           "bg-green-100 text-green-800 border-green-200",
 }
 
 export const PO_STATUS_LABELS: Record<POStatus, string> = {

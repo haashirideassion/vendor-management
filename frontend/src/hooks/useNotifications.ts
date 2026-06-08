@@ -8,14 +8,8 @@ export function useAdminNotifications() {
 
   return useQuery({
     queryKey: ["notifications"],
-    queryFn: async () => {
-      const { data } = await api.post<{ data: Notification[] }>(
-        "/api/notifications/list",
-        {},
-        accessToken
-      )
-      return data ?? []
-    },
+    queryFn: () =>
+      api.post<Notification[]>("/api/notifications/list", {}, accessToken).then((d) => d ?? []),
     refetchInterval: 30_000,
   })
 }

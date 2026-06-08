@@ -10,14 +10,8 @@ export function useQuotationByRFQ(rfqId: string | undefined) {
   return useQuery({
     queryKey: ["quotations", "rfq", rfqId],
     enabled: !!rfqId,
-    queryFn: async () => {
-      const { data } = await api.post<{ data: Quotation | null }>(
-        "/api/quotations/by-rfq",
-        { rfqId },
-        accessToken
-      )
-      return data
-    },
+    queryFn: () =>
+      api.post<Quotation | null>("/api/quotations/by-rfq", { rfqId }, accessToken),
   })
 }
 
@@ -27,14 +21,8 @@ export function useEngagementQuotations(engagementId: string | undefined) {
   return useQuery({
     queryKey: ["quotations", "engagement", engagementId],
     enabled: !!engagementId,
-    queryFn: async () => {
-      const { data } = await api.post<{ data: Quotation[] }>(
-        "/api/quotations/by-engagement",
-        { engagementId },
-        accessToken
-      )
-      return data
-    },
+    queryFn: () =>
+      api.post<Quotation[]>("/api/quotations/by-engagement", { engagementId }, accessToken),
   })
 }
 
@@ -51,14 +39,8 @@ export function useCreateQuotation() {
   const { accessToken } = useAuth()
 
   return useMutation({
-    mutationFn: async ({ rfq_id, engagement_id, vendor_id, notes, line_items }: CreateQuotationInput) => {
-      const { data } = await api.post<{ data: Quotation }>(
-        "/api/quotations/create",
-        { rfq_id, engagement_id, vendor_id, notes, line_items },
-        accessToken
-      )
-      return data
-    },
+    mutationFn: (input: CreateQuotationInput) =>
+      api.post<Quotation>("/api/quotations/create", input, accessToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["quotations"] })
     },
@@ -71,14 +53,8 @@ export function useSubmitQuotation() {
   const { accessToken } = useAuth()
 
   return useMutation({
-    mutationFn: async ({ id, total_amount }: { id: string; total_amount: number }) => {
-      const { data } = await api.post<{ data: Quotation }>(
-        "/api/quotations/submit",
-        { id, total_amount },
-        accessToken
-      )
-      return data
-    },
+    mutationFn: ({ id, total_amount }: { id: string; total_amount: number }) =>
+      api.post<Quotation>("/api/quotations/submit", { id, total_amount }, accessToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["quotations"] })
       toast.success("Quotation submitted")
@@ -92,14 +68,8 @@ export function useUpdateQuotationStatus() {
   const { accessToken } = useAuth()
 
   return useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: QuotationStatus }) => {
-      const { data } = await api.post<{ data: Quotation }>(
-        "/api/quotations/update-status",
-        { id, status },
-        accessToken
-      )
-      return data
-    },
+    mutationFn: ({ id, status }: { id: string; status: QuotationStatus }) =>
+      api.post<Quotation>("/api/quotations/update-status", { id, status }, accessToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["quotations"] })
     },

@@ -77,34 +77,55 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
       return res.status(400).json({ error: "vendor_id, total_value, and created_by are required" })
     }
 
-    const { data: poId, error: poError } = await db().rpc("create_po_with_line_items", {
-      p_engagement_id: engagement_id ?? null,
-      p_vendor_id: vendor_id,
-      p_total_value: total_value,
-      p_currency: currency ?? null,
-      p_issue_date: issue_date ?? null,
-      p_expected_delivery_date: expected_delivery_date ?? null,
-      p_delivery_address: delivery_address ?? null,
-      p_payment_terms: payment_terms ?? null,
-      p_notes: notes ?? null,
-      p_created_by: created_by,
-      p_line_items: Array.isArray(line_items) && line_items.length > 0 ? JSON.stringify(line_items) : null,
-    })
-
+    const { data: po, error: poError } = await db()
+      .from("purchase_orders")
+      .insert({
+        engagement_id:          engagement_id          ?? null,
+        vendor_id,
+        total_value,
+        currency:               currency               ?? null,
+        issue_date:             issue_date             ?? null,
+        expected_delivery_date: expected_delivery_date ?? null,
+        delivery_address:       delivery_address       ?? null,
+        payment_terms:          payment_terms          ?? null,
+        notes:                  notes                  ?? null,
+        created_by,
+        status: "draft",
+      })
+      .select("id")
+      .single()
     if (poError) throw poError
+    const poId: string = po.id
 
-    const { data: po, error: getError } = await db()
+    if (Array.isArray(line_items) && line_items.length > 0) {
+      const { error: liError } = await db()
+        .from("po_line_items")
+        .insert(
+          line_items.map((item: any) => ({
+            po_id:       poId,
+            description: item.description,
+            quantity:    item.quantity   ?? null,
+            unit_price:  item.unit_price ?? null,
+            unit:        item.unit       ?? null,
+          }))
+        )
+      if (liError) {
+        await db().from("purchase_orders").delete().eq("id", poId)
+        throw liError
+      }
+    }
+
+    const { data: full, error: getError } = await db()
       .from("purchase_orders")
       .select("*, vendor:vendor_id(company_name, contact_name), engagement:engagement_id(title), line_items:po_line_items(*)")
       .eq("id", poId)
       .single()
-
     if (getError) throw getError
 
-    res.json({ data: po })
+    res.json({ data: full })
   } catch (err: any) {
     console.error("[purchase-orders/create]", err.message)
-    res.status(500).json({ error: "Failed to create purchase order" })
+    res.status(500).json({ error: err.message || "Failed to create purchase order" })
   }
 })
 

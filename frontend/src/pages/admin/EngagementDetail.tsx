@@ -182,18 +182,6 @@ export function EngagementDetail() {
 
         {/* Action buttons */}
         <div className="flex flex-wrap gap-2">
-          {status === "pending_approval" && canApproveEngagement && (
-            <>
-              <Button size="sm" variant="success" onClick={() => setDialog("approve")}>
-                <HugeiconsIcon icon={CheckmarkCircle01Icon} size={14} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" className="mr-1.5" />
-                Approve
-              </Button>
-              <Button size="sm" variant="danger" onClick={() => setDialog("reject")}>
-                <HugeiconsIcon icon={Cancel01Icon} size={14} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" className="mr-1.5" />
-                Reject
-              </Button>
-            </>
-          )}
           {status === "approved" && (
             <Button size="sm" variant="outline" onClick={() => setPoDialogOpen(true)}>
               <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" className="mr-1.5" />
@@ -451,9 +439,9 @@ export function EngagementDetail() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
-            <Button onClick={handleApprove} disabled={reviewApproval.isPending || updateStatus.isPending}>
+            <button className="btn-grad !py-1.5 !px-4 text-sm cursor-pointer" onClick={handleApprove} disabled={reviewApproval.isPending || updateStatus.isPending}>
               {reviewApproval.isPending ? "Approving…" : "Approve"}
-            </Button>
+            </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -467,9 +455,9 @@ export function EngagementDetail() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
-            <Button variant="danger" onClick={handleReject} disabled={reviewApproval.isPending || updateStatus.isPending}>
+            <button className="btn-grad-danger !py-1.5 !px-4 text-sm cursor-pointer" onClick={handleReject} disabled={reviewApproval.isPending || updateStatus.isPending}>
               {reviewApproval.isPending ? "Rejecting…" : "Reject"}
-            </Button>
+            </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

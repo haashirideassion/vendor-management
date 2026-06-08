@@ -19,18 +19,8 @@ export function useGRNs(filters?: GRNFilters) {
 
   return useQuery({
     queryKey: ["grns", filters],
-    queryFn: async () => {
-      const { data } = await api.post<{ data: GRN[] }>(
-        "/api/grns/list",
-        {
-          status:    filters?.status,
-          vendor_id: filters?.vendor_id,
-          po_id:     filters?.po_id,
-        },
-        accessToken
-      )
-      return data
-    },
+    queryFn: () =>
+      api.post<GRN[]>("/api/grns/list", { status: filters?.status, vendor_id: filters?.vendor_id, po_id: filters?.po_id }, accessToken),
   })
 }
 
@@ -39,14 +29,7 @@ export function useGRN(id: string) {
 
   return useQuery({
     queryKey: ["grns", id],
-    queryFn: async () => {
-      const { data } = await api.post<{ data: GRN }>(
-        "/api/grns/get",
-        { id },
-        accessToken
-      )
-      return data
-    },
+    queryFn: () => api.post<GRN>("/api/grns/get", { id }, accessToken),
     enabled: !!id,
   })
 }
@@ -69,16 +52,11 @@ export function useCreateGRN() {
     mutationFn: async ({ line_items, ...grnInput }: CreateGRNInput) => {
       if (!user) throw new Error("Not authenticated")
 
-      const { data } = await api.post<{ data: GRN }>(
+      return api.post<GRN>(
         "/api/grns/create",
-        {
-          ...grnInput,
-          created_by: user.id,
-          line_items,
-        },
+        { ...grnInput, created_by: user.id, line_items },
         accessToken
       )
-      return data
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["grns"] })
@@ -102,17 +80,11 @@ export function useUpdateGRNStatus() {
       status: GRNStatus
       notes?: string
     }) => {
-      const { data } = await api.post<{ data: GRN }>(
+      return api.post<GRN>(
         "/api/grns/update-status",
-        {
-          id,
-          status,
-          notes,
-          ...(status === "verified" ? { verified_by: user?.id } : {}),
-        },
+        { id, status, notes, ...(status === "verified" ? { verified_by: user?.id } : {}) },
         accessToken
       )
-      return data
     },
     onSuccess: (_, { id }) => {
       queryClient.invalidateQueries({ queryKey: ["grns"] })

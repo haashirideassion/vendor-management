@@ -236,15 +236,23 @@ export function InvoiceList() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setReviewDialog(null); setNotes("") }}>Cancel</Button>
-            <Button
-              variant={reviewDialog?.action === "reject" ? "danger" : "success"}
-              onClick={handleReview}
-              disabled={reviewInvoice.isPending}
-            >
-              {reviewInvoice.isPending
-                ? (reviewDialog?.action === "approve" ? "Approving…" : "Rejecting…")
-                : (reviewDialog?.action === "approve" ? "Approve" : "Reject")}
-            </Button>
+            {reviewDialog?.action === "approve" ? (
+              <button
+                className="btn-grad !py-1.5 !px-4 text-sm cursor-pointer"
+                onClick={handleReview}
+                disabled={reviewInvoice.isPending}
+              >
+                {reviewInvoice.isPending ? "Approving…" : "Approve"}
+              </button>
+            ) : (
+              <button
+                className="btn-grad-danger !py-1.5 !px-4 text-sm cursor-pointer"
+                onClick={handleReview}
+                disabled={reviewInvoice.isPending}
+              >
+                {reviewInvoice.isPending ? "Rejecting…" : "Reject"}
+              </button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

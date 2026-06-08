@@ -36,7 +36,7 @@ import { FileUploadZone } from "@/components/shared/FileUploadZone"
 import { useUploadAttachments } from "@/hooks/useAttachments"
 
 const STATUSES: EngagementStatus[] = [
-  "draft", "pending_approval", "approved", "rejected", "cancelled", "completed",
+  "draft", "pending_approval", "approved", "in_review", "quotations_received", "rejected", "cancelled", "completed",
 ]
 
 const lineItemSchema = z.object({
