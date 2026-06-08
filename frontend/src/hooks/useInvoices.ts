@@ -149,7 +149,6 @@ export function useMarkInvoicePaid() {
     onSuccess: (_, { id }) => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] })
       queryClient.invalidateQueries({ queryKey: ["invoices", id] })
-      toast.success("Invoice marked as paid")
     },
     onError: () => toast.error("Failed to mark invoice as paid"),
   })
