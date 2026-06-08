@@ -27,7 +27,7 @@ import {
 } from "@/lib/constants"
 import { formatCurrency } from "@/lib/utils"
 import { format } from "date-fns"
-import { CheckmarkCircle01Icon, Cancel01Icon, ArrowLeft01Icon, Add01Icon, EyeIcon, InformationCircleIcon } from "@hugeicons/core-free-icons"
+import { ArrowLeft01Icon, Add01Icon, EyeIcon, InformationCircleIcon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import type { EngagementStatus, POStatus, QuotationStatus, QuotationLineItem } from "@/lib/types"
 
@@ -54,7 +54,7 @@ export function EngagementDetail() {
   const updateStatus = useUpdateEngagementStatus()
   const reviewApproval = useReviewApproval()
   const createPO = useCreatePurchaseOrder()
-  const { canApproveEngagement, canCreateEngagement, canCreatePO } = usePermissions()
+  const { canCreateEngagement, canCreatePO } = usePermissions()
 
   // POs have already been dispatched for this engagement — lock the selection UI
   const posSent = pos.length > 0
