@@ -30,9 +30,6 @@ const getTransporter = () => {
             port,
             secure: port === 465,
             auth: { user, pass },
-            pool: true,
-            maxConnections: 2,
-            maxMessages: 50,
             tls: { rejectUnauthorized: false }
         });
 
@@ -49,10 +46,22 @@ const getTransporter = () => {
    Config
 ============================================================ */
 
-const getFrom = () => ({
-    email: process.env.SES_FROM_EMAIL || "noreply-cognivend@ideassionlive.in",
-    name: process.env.SES_FROM_NAME || "CogniVend"
-});
+const getFrom = () => {
+    const smtpFrom = process.env.SMTP_FROM;
+    if (smtpFrom) {
+        const match = smtpFrom.match(/^(?:"?([^"]*)"?\s)?<([^>]+)>$/);
+        if (match) {
+            return {
+                name: match[1] || "CogniVend",
+                email: match[2]
+            };
+        }
+    }
+    return {
+        email: process.env.SES_FROM_EMAIL || process.env.SMTP_USER || "noreply-cognivend@ideassionlive.in",
+        name: process.env.SES_FROM_NAME || "CogniVend"
+    };
+};
 
 const RATE_LIMIT = parseInt(process.env.EMAIL_RATE_LIMIT_PER_MIN || "30", 10);
 const MAX_RETRIES = 3;
@@ -161,7 +170,6 @@ export const sendEmail = async ({ to, subject, html, text }) => {
         text: text || stripHtml(html),
         replyTo: FROM_EMAIL,
         headers: {
-            "Message-ID": `<${Date.now()}-${Math.random()}@ideassionlive.in>`,
             "X-Mailer": "CogniVend Mailer"
         }
     };
