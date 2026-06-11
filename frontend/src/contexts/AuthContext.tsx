@@ -1,9 +1,12 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react"
+import { useLocation } from "react-router-dom"
 import { setSupabaseAccessToken } from "@/lib/supabase"
 import { encryptPassword, clearPublicKeyCache } from "@/lib/crypto"
 import { api } from "@/lib/api"
 import type { Profile, UserRole } from "@/lib/types"
 import { INTERNAL_ROLES } from "@/hooks/usePermissions"
+
+const PUBLIC_PATHS = new Set(["/login", "/signup", "/forgot-password", "/reset-password", "/verify-email"])
 
 const API = import.meta.env.VITE_API_URL as string
 
@@ -39,6 +42,7 @@ export function authFetch(path: string, body?: unknown, token?: string) {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const { pathname } = useLocation()
   const [user, setUser] = useState<AuthUser | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [accessToken, setAccessTokenState] = useState<string | null>(null)
@@ -83,6 +87,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
+    if (PUBLIC_PATHS.has(pathname)) {
+      setLoading(false)
+      return
+    }
     silentRefresh().finally(() => setLoading(false))
     return () => { if (refreshTimer.current) clearTimeout(refreshTimer.current) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
