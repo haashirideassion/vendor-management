@@ -6,7 +6,6 @@ import { Step2TaxBanking } from "./Step2TaxBanking"
 import { Step3Categories } from "./Step3Categories"
 import { Step5Documents } from "./Step5Documents"
 import { Step6Review } from "./Step6Review"
-import { supabase } from "@/lib/supabase"
 import { api } from "@/lib/api"
 import { useAuth } from "@/contexts/AuthContext"
 import { toast } from "sonner"
@@ -50,6 +49,15 @@ export interface OnboardingData {
 
 const STEPS = ["Company Info", "Tax & Banking", "Services", "Documents", "Review"]
 const STORAGE_KEY = "vms_onboarding_draft"
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.readAsDataURL(file)
+    reader.onload = () => resolve((reader.result as string).split(",")[1])
+    reader.onerror = reject
+  })
+}
 
 export function OnboardingWizard() {
   const { user, accessToken } = useAuth()
@@ -113,30 +121,19 @@ export function OnboardingWizard() {
         accessToken
       )
 
-      // 2. Upload documents to Supabase Storage (Storage uses bearer-token auth, stays on frontend)
+      // 2. Upload documents via backend using service role key — avoids JWT mismatch with Supabase storage
       try {
         for (const doc of localDocs) {
-          const ext = doc.fileName.split(".").pop() ?? "bin"
-          const storagePath = `vendor-documents/${vendor.id}/${doc.type}_${Date.now()}.${ext}`
-
-          const { error: uploadError } = await supabase.storage
-            .from("vendor-documents")
-            .upload(storagePath, doc.file)
-          if (uploadError) throw uploadError
-
-          const { error: docInsertError } = await supabase
-            .from("vendor_documents")
-            .insert({
-              vendor_id: vendor.id,
-              document_type: doc.type,
-              file_name: doc.fileName,
-              storage_path: storagePath,
-            })
-          if (docInsertError) throw docInsertError
+          const base64 = await fileToBase64(doc.file)
+          await api.post(
+            "/api/vendors/upload-document",
+            { vendor_id: vendor.id, document_type: doc.type, file_name: doc.fileName, file_data: base64 },
+            accessToken
+          )
         }
       } catch (docError: unknown) {
-        // Roll back: delete vendor record (cascades to vendor_categories)
-        await supabase.from("vendors").delete().eq("id", vendor.id)
+        // Roll back: delete vendor record via backend (cascades to vendor_categories)
+        await api.post("/api/vendors/cancel-onboarding", { vendor_id: vendor.id }, accessToken).catch(() => {})
         throw docError
       }
 

@@ -239,7 +239,66 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
     return res.status(201).json({ data: { id: vendorId } })
   } catch (err: any) {
     console.error("[vendors/create] full error:", err)
-    res.status(500).json({ error: err?.message ?? "Failed to submit onboarding" })
+    res.status(500).json({ error: "Failed to submit onboarding" })
+  }
+})
+
+// POST /api/vendors/upload-document
+// Uploads a vendor document to Supabase Storage using the service role key,
+// bypassing the JWT mismatch between the custom JWT_ACCESS_SECRET and Supabase's JWT secret.
+router.post("/upload-document", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const { vendor_id, document_type, file_name, file_data } = req.body
+
+    if (!vendor_id || !document_type || !file_name || !file_data) {
+      return res.status(400).json({ error: "vendor_id, document_type, file_name, and file_data are required" })
+    }
+
+    const buffer = Buffer.from(file_data, "base64")
+    const ext = (file_name.split(".").pop() ?? "bin").toLowerCase()
+    const storagePath = `vendor-documents/${vendor_id}/${document_type}_${Date.now()}.${ext}`
+
+    const { error: uploadError } = await db()
+      .storage
+      .from("vendor-documents")
+      .upload(storagePath, buffer)
+
+    if (uploadError) throw uploadError
+
+    const { error: insertError } = await db()
+      .from("vendor_documents")
+      .insert({ vendor_id, document_type, file_name, storage_path: storagePath })
+
+    if (insertError) throw insertError
+
+    res.json({ ok: true, storage_path: storagePath })
+  } catch (err: any) {
+    console.error("[vendors/upload-document]", err.message)
+    res.status(500).json({ error: "Failed to upload document" })
+  }
+})
+
+// POST /api/vendors/cancel-onboarding
+// Deletes a pending_review vendor record owned by the authenticated user (used for rollback).
+router.post("/cancel-onboarding", requireAuth, async (req: Request, res: Response) => {
+  const profileId = (req as AuthenticatedRequest).user.id
+  try {
+    const { vendor_id } = req.body
+    if (!vendor_id) return res.status(400).json({ error: "vendor_id is required" })
+
+    const { error } = await db()
+      .from("vendors")
+      .delete()
+      .eq("id", vendor_id)
+      .eq("profile_id", profileId)
+      .eq("status", "pending_review")
+
+    if (error) throw error
+
+    res.json({ ok: true })
+  } catch (err: any) {
+    console.error("[vendors/cancel-onboarding]", err.message)
+    res.status(500).json({ error: "Failed to cancel onboarding" })
   }
 })
 
