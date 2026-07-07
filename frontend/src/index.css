@@ -89,9 +89,9 @@
   --surface-top: oklch(0.995 0.008 242);
   --surface-bottom: oklch(0.94 0.018 238);
   --surface-warm: oklch(0.96 0.025 72 / 0.54);
-  --shadow-raised: 0 1px 0 oklch(1 0 0 / 0.86) inset, 0 -1px 0 oklch(0.76 0.026 238 / 0.18) inset, 0 10px 24px -14px oklch(0.38 0.04 235 / 0.28), 0 2px 6px -3px oklch(0.38 0.04 235 / 0.14);
-  --shadow-soft: 0 1px 0 oklch(1 0 0 / 0.72) inset, 0 5px 12px -8px oklch(0.38 0.04 235 / 0.24);
-  --shadow-inset: inset 0 1px 2px oklch(0.43 0.035 235 / 0.12), inset 0 -1px 0 oklch(1 0 0 / 0.66);
+  --shadow-raised: 0 1px 0 oklch(1 0 0 / 0.68) inset, 0 18px 36px -30px oklch(0.36 0.04 235 / 0.22), 0 1px 2px -1px oklch(0.36 0.04 235 / 0.1);
+  --shadow-soft: 0 1px 1px -1px oklch(0.36 0.04 235 / 0.1);
+  --shadow-inset: inset 0 1px 0 oklch(0.42 0.035 235 / 0.035);
 }
 
 /* ─── Explicit light class override ──────────────────────────────────────── */
@@ -130,9 +130,9 @@
   --surface-top: oklch(0.995 0.008 242);
   --surface-bottom: oklch(0.94 0.018 238);
   --surface-warm: oklch(0.96 0.025 72 / 0.54);
-  --shadow-raised: 0 1px 0 oklch(1 0 0 / 0.86) inset, 0 -1px 0 oklch(0.76 0.026 238 / 0.18) inset, 0 10px 24px -14px oklch(0.38 0.04 235 / 0.28), 0 2px 6px -3px oklch(0.38 0.04 235 / 0.14);
-  --shadow-soft: 0 1px 0 oklch(1 0 0 / 0.72) inset, 0 5px 12px -8px oklch(0.38 0.04 235 / 0.24);
-  --shadow-inset: inset 0 1px 2px oklch(0.43 0.035 235 / 0.12), inset 0 -1px 0 oklch(1 0 0 / 0.66);
+  --shadow-raised: 0 1px 0 oklch(1 0 0 / 0.68) inset, 0 18px 36px -30px oklch(0.36 0.04 235 / 0.22), 0 1px 2px -1px oklch(0.36 0.04 235 / 0.1);
+  --shadow-soft: 0 1px 1px -1px oklch(0.36 0.04 235 / 0.1);
+  --shadow-inset: inset 0 1px 0 oklch(0.42 0.035 235 / 0.035);
 }
 
 /* ─── OS-level dark (no explicit class — system mode) ────────────────────── */
@@ -207,9 +207,9 @@
   --surface-top: oklch(0.34 0.026 236);
   --surface-bottom: oklch(0.24 0.026 236);
   --surface-warm: oklch(0.40 0.035 68 / 0.26);
-  --shadow-raised: 0 1px 0 oklch(1 0 0 / 0.10) inset, 0 -1px 0 oklch(0 0 0 / 0.18) inset, 0 12px 26px -16px oklch(0 0 0 / 0.42), 0 2px 6px -3px oklch(0 0 0 / 0.28);
-  --shadow-soft: 0 1px 0 oklch(1 0 0 / 0.08) inset, 0 6px 14px -10px oklch(0 0 0 / 0.34);
-  --shadow-inset: inset 0 1px 3px oklch(0 0 0 / 0.20), inset 0 -1px 0 oklch(1 0 0 / 0.06);
+  --shadow-raised: 0 1px 0 oklch(1 0 0 / 0.07) inset, 0 18px 34px -28px oklch(0 0 0 / 0.42), 0 1px 2px -1px oklch(0 0 0 / 0.22);
+  --shadow-soft: 0 1px 1px -1px oklch(0 0 0 / 0.22);
+  --shadow-inset: inset 0 1px 0 oklch(0 0 0 / 0.08);
 }
 
 @layer base {
@@ -235,12 +235,12 @@
 
 @layer components {
   .skeuo-surface {
-    background-image: linear-gradient(180deg, var(--surface-top), var(--surface-bottom));
+    background-image: linear-gradient(180deg, color-mix(in srgb, var(--surface-top) 72%, white), var(--surface-bottom));
     box-shadow: var(--shadow-raised);
   }
 
   .skeuo-inset {
-    background-image: linear-gradient(180deg, color-mix(in srgb, var(--input) 94%, white), color-mix(in srgb, var(--input) 78%, transparent));
+    background-image: linear-gradient(180deg, color-mix(in srgb, var(--input) 70%, white), var(--input));
     box-shadow: var(--shadow-inset);
   }
 }
