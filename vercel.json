@@ -1,8 +1,11 @@
 {
-  "buildCommand": "cd frontend && npm install && npm run build",
+  "buildCommand": "cd frontend && npm run build",
   "outputDirectory": "frontend/dist",
-  "installCommand": "echo 'dependencies installed in buildCommand'",
-  "rewrites": [{ "source": "/(.*)", "destination": "/" }],
+  "installCommand": "cd frontend && npm install && cd ../backend && npm install",
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/$1" },
+    { "source": "/(.*)", "destination": "/" }
+  ],
   "headers": [
     {
       "source": "/(.*)",

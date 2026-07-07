@@ -3,12 +3,11 @@ import { useLocation } from "react-router-dom"
 import { setSupabaseAccessToken } from "@/lib/supabase"
 import { encryptPassword, clearPublicKeyCache } from "@/lib/crypto"
 import { api } from "@/lib/api"
+import { API_BASE } from "@/lib/apiBase"
 import type { Profile, UserRole } from "@/lib/types"
 import { INTERNAL_ROLES } from "@/hooks/usePermissions"
 
 const PUBLIC_PATHS = new Set(["/login", "/signup", "/forgot-password", "/reset-password", "/verify-email"])
-
-const API = import.meta.env.VITE_API_URL as string
 
 export interface AuthUser {
   id: string
@@ -30,10 +29,21 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
+async function readAuthJson<T>(res: Response): Promise<T> {
+  const text = await res.text()
+  if (!text) return {} as T
+
+  try {
+    return JSON.parse(text) as T
+  } catch {
+    throw new Error(`Auth API returned ${res.headers.get("content-type") ?? "non-JSON"} from ${res.url}`)
+  }
+}
+
 export function authFetch(path: string, body?: unknown, token?: string) {
   const headers: Record<string, string> = { "Content-Type": "application/json" }
   if (token) headers["Authorization"] = `Bearer ${token}`
-  return fetch(`${API}${path}`, {
+  return fetch(`${API_BASE}${path}`, {
     method: "POST",
     credentials: "include",
     headers,
@@ -66,12 +76,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function silentRefresh() {
     try {
-      const res = await fetch(`${API}/api/auth/refresh`, {
+      const res = await fetch(`${API_BASE}/api/auth/refresh`, {
         method: "POST",
         credentials: "include",
       })
       if (!res.ok) { clearSession(); return }
-      const data = await res.json()
+      const data = await readAuthJson<{ accessToken: string; user: AuthUser }>(res)
       await applySession(data)
     } catch {
       clearSession()
@@ -100,7 +110,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async function attempt(isRetry = false): Promise<AuthUser> {
       const encryptedPassword = await encryptPassword(password)
       const res = await authFetch("/api/auth/login", { email, password: encryptedPassword })
-      const data = await res.json()
+      const data = await readAuthJson<{ error?: string; accessToken: string; user: AuthUser }>(res)
       if (!res.ok) {
         if (!isRetry && data.error === "Invalid password encoding") {
           clearPublicKeyCache()
@@ -115,7 +125,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function signOut() {
-    await fetch(`${API}/api/auth/logout`, { method: "POST", credentials: "include" }).catch(() => {})
+    await fetch(`${API_BASE}/api/auth/logout`, { method: "POST", credentials: "include" }).catch(() => {})
     clearSession()
   }
 

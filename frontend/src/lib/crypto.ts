@@ -1,4 +1,4 @@
-const API = import.meta.env.VITE_API_URL as string
+import { API_BASE } from "@/lib/apiBase"
 
 let _cachedKey: CryptoKey | null = null
 let _cacheTime = 0
@@ -7,9 +7,17 @@ const KEY_TTL_MS = 5 * 60 * 1000
 async function getPublicKey(): Promise<CryptoKey> {
   if (_cachedKey && Date.now() - _cacheTime < KEY_TTL_MS) return _cachedKey
 
-  const res = await fetch(`${API}/api/auth/public-key`)
+  const res = await fetch(`${API_BASE}/api/auth/public-key`)
   if (!res.ok) throw new Error("Failed to fetch public key")
-  const { publicKey: pem } = await res.json()
+  const text = await res.text()
+  let payload: { publicKey?: string }
+  try {
+    payload = JSON.parse(text) as { publicKey?: string }
+  } catch {
+    throw new Error(`Auth API returned ${res.headers.get("content-type") ?? "non-JSON"} instead of JSON`)
+  }
+  const pem = payload.publicKey
+  if (!pem) throw new Error("Auth API did not return a public key")
 
   const b64 = pem
     .replace(/-----BEGIN PUBLIC KEY-----/, "")

@@ -1,4 +1,15 @@
-const API_BASE = import.meta.env.VITE_API_URL as string
+import { API_BASE } from "@/lib/apiBase"
+
+async function readJson<T>(res: Response): Promise<T> {
+  const text = await res.text()
+  if (!text) return {} as T
+
+  try {
+    return JSON.parse(text) as T
+  } catch {
+    throw new Error(`API returned ${res.headers.get("content-type") ?? "non-JSON"} from ${res.url}`)
+  }
+}
 
 async function request<T>(
   path: string,
@@ -14,7 +25,7 @@ async function request<T>(
     headers,
     credentials: "include",
   })
-  const json = await res.json()
+  const json = await readJson<{ error?: string } & T>(res)
   if (!res.ok) throw new Error(json.error ?? `API error ${res.status}`)
   return json as T
 }
