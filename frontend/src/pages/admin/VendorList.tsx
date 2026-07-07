@@ -72,7 +72,7 @@ export function VendorList() {
         </Tabs>
 
         {/* Filter bar */}
-        <div className="flex flex-wrap items-center gap-3 p-4 rounded-xl border bg-card shadow-none">
+        <div className="skeuo-surface flex flex-wrap items-center gap-3 rounded-2xl border border-white/55 p-4 dark:border-white/10">
           <div className="relative flex-1 min-w-[200px] max-w-xs">
             <SolarDuotoneIcon
               icon={Search01Icon}
@@ -123,10 +123,10 @@ export function VendorList() {
         </div>
 
         {/* Table */}
-        <div className="rounded-xl border overflow-hidden shadow-none">
+        <div className="skeuo-surface overflow-hidden rounded-2xl border border-white/55 dark:border-white/10">
           <Table>
             <TableHeader>
-              <TableRow className="bg-muted/40 hover:bg-muted/40">
+              <TableRow className="bg-muted/35 hover:bg-muted/35">
                 <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground w-28">Vendor ID</TableHead>
                 <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Company</TableHead>
                 <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Status</TableHead>
@@ -162,11 +162,11 @@ export function VendorList() {
                 paginated.map((v, idx) => (
                   <TableRow
                     key={v.id}
-                    className={`transition-colors hover:bg-accent/50 ${idx % 2 === 0 ? "" : "bg-muted/20"}`}
+                    className={`transition-colors hover:bg-accent/45 ${idx % 2 === 0 ? "" : "bg-muted/18"}`}
                   >
                     <TableCell>
                       {v.vendor_id_code ? (
-                        <span className="inline-flex items-center font-mono text-xs bg-muted border border-border/70 rounded px-1.5 py-0.5 text-muted-foreground font-medium">
+                        <span className="skeuo-inset inline-flex items-center rounded px-1.5 py-0.5 font-mono text-xs font-medium text-muted-foreground">
                           {v.vendor_id_code}
                         </span>
                       ) : (

@@ -71,8 +71,8 @@ function SidebarContent({ pathname, onNavClick }: { pathname: string; onNavClick
               className={cn(
                 "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150",
                 active
-                  ? "bg-[image:var(--brand-gradient)] text-white shadow-sm"
-                  : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                  ? "bg-[image:var(--brand-gradient)] text-white shadow-[var(--shadow-soft)]"
+                  : "text-muted-foreground hover:bg-accent hover:text-foreground hover:shadow-[var(--shadow-soft)]"
               )}
             >
               <SolarDuotoneIcon
@@ -100,7 +100,7 @@ export function AdminLayout() {
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Desktop Sidebar — inset floating card */}
-      <aside className="hidden md:flex flex-col w-[220px] shrink-0 m-3 rounded-2xl bg-card border border-border/60 shadow-sm overflow-hidden">
+      <aside className="hidden md:flex skeuo-surface flex-col w-[220px] shrink-0 m-3 rounded-2xl border border-white/55 overflow-hidden dark:border-white/10">
         <SidebarContent pathname={pathname} />
       </aside>
 
