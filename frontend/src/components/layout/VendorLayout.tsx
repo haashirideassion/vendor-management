@@ -207,7 +207,7 @@ export function VendorLayout() {
       {/* Main column */}
       <div className="flex flex-1 flex-col overflow-hidden min-w-0">
         {/* Top bar */}
-        <header className="flex h-14 items-center justify-between px-5 shrink-0">
+        <header className="flex h-16 items-center justify-between px-6 shrink-0 lg:px-8">
           <div className="flex items-center gap-3">
             <Button
               variant="ghost"
@@ -245,7 +245,7 @@ export function VendorLayout() {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-hidden flex flex-col px-5 pb-5">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden flex flex-col px-6 pb-8 lg:px-8 lg:pb-10">
           <StageBanner stage={stage} vendorStatus={vendor?.status} />
           <Outlet />
         </main>

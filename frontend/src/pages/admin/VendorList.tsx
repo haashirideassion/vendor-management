@@ -56,15 +56,15 @@ export function VendorList() {
 
   return (
     <AnimatedPage>
-      <div className="pt-4 space-y-4">
+      <div className="pt-6 space-y-7">
         {/* Active / Dormant tabs */}
         <Tabs value={tab} onValueChange={(v) => { setTab(v as TabValue); setStatus("") }}>
-          <TabsList className="h-9">
-            <TabsTrigger value="active" className="text-sm gap-1.5">
+          <TabsList className="h-10">
+            <TabsTrigger value="active" className="text-sm gap-2 px-4">
               Active
               {activeCount > 0 && <span className="tab-count">{activeCount}</span>}
             </TabsTrigger>
-            <TabsTrigger value="dormant" className="text-sm gap-1.5">
+            <TabsTrigger value="dormant" className="text-sm gap-2 px-4">
               Dormant
               {dormantCount > 0 && <span className="tab-count">{dormantCount}</span>}
             </TabsTrigger>
@@ -72,8 +72,8 @@ export function VendorList() {
         </Tabs>
 
         {/* Filter bar */}
-        <div className="skeuo-surface flex flex-wrap items-center gap-3 rounded-2xl border border-white/55 p-4 dark:border-white/10">
-          <div className="relative flex-1 min-w-[200px] max-w-xs">
+        <div className="skeuo-surface flex flex-wrap items-center gap-5 rounded-2xl border border-white/55 p-6 dark:border-white/10">
+          <div className="relative flex-1 min-w-[240px] max-w-md">
             <SolarDuotoneIcon
               icon={Search01Icon}
               size={15}
@@ -84,11 +84,11 @@ export function VendorList() {
               placeholder="Search by name, email, or vendor ID…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 h-9 text-sm"
+              className="pl-10 h-10 text-sm"
             />
           </div>
           <Select value={status || "all"} onValueChange={(v) => setStatus(v === "all" ? "" : v as VendorStatus)}>
-            <SelectTrigger className="w-44 h-9 text-sm">
+            <SelectTrigger className="w-52 h-10 text-sm">
               <SelectValue placeholder="All statuses" />
             </SelectTrigger>
             <SelectContent>
@@ -99,7 +99,7 @@ export function VendorList() {
             </SelectContent>
           </Select>
           <Select value={category || "all"} onValueChange={(v) => setCategory(v === "all" ? "" : v)}>
-            <SelectTrigger className="w-48 h-9 text-sm">
+            <SelectTrigger className="w-56 h-10 text-sm">
               <SelectValue placeholder="All categories" />
             </SelectTrigger>
             <SelectContent>
@@ -113,7 +113,7 @@ export function VendorList() {
             <Button
               variant="ghost"
               size="sm"
-              className="h-9 gap-1.5 text-muted-foreground hover:text-foreground"
+              className="h-10 gap-1.5 text-muted-foreground hover:text-foreground"
               onClick={() => { setSearch(""); setStatus(""); setCategory("") }}
             >
               <SolarDuotoneIcon icon={Cancel01Icon} size={13} strokeWidth={1.5} />
@@ -123,23 +123,23 @@ export function VendorList() {
         </div>
 
         {/* Table */}
-        <div className="skeuo-surface overflow-hidden rounded-2xl border border-white/55 dark:border-white/10">
+        <div className="skeuo-surface rounded-2xl border border-white/55 dark:border-white/10">
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/35 hover:bg-muted/35">
-                <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground w-28">Vendor ID</TableHead>
-                <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Company</TableHead>
-                <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Status</TableHead>
-                <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Categories</TableHead>
-                <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Rating</TableHead>
-                <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Renewal</TableHead>
+                <TableHead className="h-14 text-xs font-semibold uppercase tracking-wide text-muted-foreground w-28">Vendor ID</TableHead>
+                <TableHead className="h-14 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Company</TableHead>
+                <TableHead className="h-14 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Status</TableHead>
+                <TableHead className="h-14 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Categories</TableHead>
+                <TableHead className="h-14 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Rating</TableHead>
+                <TableHead className="h-14 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Renewal</TableHead>
                 <TableHead className="w-16"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground py-12">
+                  <TableCell colSpan={7} className="text-center text-muted-foreground py-20">
                     <div className="flex flex-col items-center gap-2">
                       <div className="h-5 w-5 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
                       <span className="text-sm">Loading vendors…</span>
@@ -148,8 +148,8 @@ export function VendorList() {
                 </TableRow>
               ) : paginated.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground py-12">
-                    <div className="flex flex-col items-center gap-1">
+                  <TableCell colSpan={7} className="text-center text-muted-foreground py-20">
+                    <div className="flex flex-col items-center gap-2">
                       <SolarDuotoneIcon icon={Search01Icon} size={24} strokeWidth={1.5} className="text-muted-foreground/40 mb-1" />
                       <p className="text-sm font-medium">No vendors found</p>
                       {hasFilters && (
