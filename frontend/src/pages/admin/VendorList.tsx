@@ -72,8 +72,14 @@ export function VendorList() {
         </Tabs>
 
         {/* Filter bar */}
-        <div className="skeuo-surface flex flex-nowrap items-center gap-3 overflow-x-auto rounded-2xl border border-white/55 p-4 dark:border-white/10">
-          <div className="relative min-w-[18rem] flex-[1_0_18rem]">
+        <div
+          className={`skeuo-surface grid min-w-0 items-center gap-3 overflow-hidden rounded-2xl border border-white/55 p-3.5 dark:border-white/10 max-[760px]:gap-2.5 max-[760px]:p-3 ${
+            hasFilters
+              ? "grid-cols-[minmax(0,1.25fr)_minmax(0,0.72fr)_minmax(0,0.78fr)_auto] max-[520px]:grid-cols-[minmax(0,0.75fr)_minmax(5.7rem,0.72fr)_minmax(6.8rem,0.86fr)_auto]"
+              : "grid-cols-[minmax(0,1.35fr)_minmax(0,0.82fr)_minmax(0,0.88fr)] max-[520px]:grid-cols-[minmax(6rem,1fr)_minmax(5.6rem,0.72fr)_minmax(6.35rem,0.86fr)]"
+          }`}
+        >
+          <div className="relative min-w-0">
             <SolarDuotoneIcon
               icon={Search01Icon}
               size={15}
@@ -81,29 +87,29 @@ export function VendorList() {
               className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
             />
             <Input
-              placeholder="Search by name, email, or vendor ID…"
+              placeholder="Search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="h-11 truncate pl-11 text-sm"
+              className="h-11 truncate pl-11 text-sm max-[520px]:pl-10"
             />
           </div>
           <Select value={status || "all"} onValueChange={(v) => setStatus(v === "all" ? "" : v as VendorStatus)}>
-            <SelectTrigger className="h-11 min-w-[11rem] text-sm">
-              <SelectValue placeholder="All statuses" />
+            <SelectTrigger className="h-11 w-full min-w-0 text-sm max-[520px]:gap-1.5 max-[520px]:px-3">
+              <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All statuses</SelectItem>
+              <SelectItem value="all">Status</SelectItem>
               {VENDOR_STATUSES.map((s) => (
                 <SelectItem key={s} value={s}>{VENDOR_STATUS_LABELS[s]}</SelectItem>
               ))}
             </SelectContent>
           </Select>
           <Select value={category || "all"} onValueChange={(v) => setCategory(v === "all" ? "" : v)}>
-            <SelectTrigger className="h-11 min-w-[12rem] text-sm">
-              <SelectValue placeholder="All categories" />
+            <SelectTrigger className="h-11 w-full min-w-0 text-sm max-[520px]:gap-1.5 max-[520px]:px-3">
+              <SelectValue placeholder="Category" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All categories</SelectItem>
+              <SelectItem value="all">Category</SelectItem>
               {categories.map((c) => (
                 <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
               ))}
@@ -113,53 +119,49 @@ export function VendorList() {
             <Button
               variant="ghost"
               size="sm"
-              className="h-11 flex-none gap-1.5 px-3 text-muted-foreground hover:text-foreground"
+              className="h-11 min-w-0 gap-1.5 px-3 text-muted-foreground hover:text-foreground max-[520px]:px-3"
               onClick={() => { setSearch(""); setStatus(""); setCategory("") }}
             >
               <SolarDuotoneIcon icon={Cancel01Icon} size={13} strokeWidth={1.5} />
-              Clear
+              <span className="max-[520px]:sr-only">Clear</span>
             </Button>
           )}
         </div>
 
         {/* Table */}
-        <div className="skeuo-surface rounded-2xl border border-white/55 dark:border-white/10">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/35 hover:bg-muted/35">
-                <TableHead className="h-14 text-xs font-semibold uppercase tracking-wide text-muted-foreground w-28">Vendor ID</TableHead>
-                <TableHead className="h-14 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Company</TableHead>
-                <TableHead className="h-14 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Status</TableHead>
-                <TableHead className="h-14 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Categories</TableHead>
-                <TableHead className="h-14 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Rating</TableHead>
-                <TableHead className="h-14 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Renewal</TableHead>
-                <TableHead className="w-16"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground py-20">
-                    <div className="flex flex-col items-center gap-2">
-                      <div className="h-5 w-5 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
-                      <span className="text-sm">Loading vendors…</span>
-                    </div>
-                  </TableCell>
+        {isLoading ? (
+          <div className="skeuo-surface flex min-h-56 items-center justify-center rounded-2xl border border-white/55 p-8 text-muted-foreground dark:border-white/10">
+            <div className="flex flex-col items-center gap-2">
+              <div className="h-5 w-5 rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground animate-spin" />
+              <span className="text-sm">Loading vendors…</span>
+            </div>
+          </div>
+        ) : paginated.length === 0 ? (
+          <div className="skeuo-surface flex min-h-56 items-center justify-center rounded-2xl border border-white/55 p-8 text-center text-muted-foreground dark:border-white/10">
+            <div className="flex flex-col items-center gap-2">
+              <SolarDuotoneIcon icon={Search01Icon} size={24} strokeWidth={1.5} className="text-muted-foreground/40 mb-1" />
+              <p className="text-sm font-medium">No vendors found</p>
+              {hasFilters && (
+                <p className="text-xs text-muted-foreground">Try adjusting your filters</p>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="skeuo-surface overflow-hidden rounded-2xl border border-white/55 dark:border-white/10">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/35 hover:bg-muted/35">
+                  <TableHead className="h-12 text-xs font-semibold uppercase tracking-wide text-muted-foreground w-28">Vendor ID</TableHead>
+                  <TableHead className="h-12 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Company</TableHead>
+                  <TableHead className="h-12 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Status</TableHead>
+                  <TableHead className="h-12 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Categories</TableHead>
+                  <TableHead className="h-12 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Rating</TableHead>
+                  <TableHead className="h-12 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Renewal</TableHead>
+                  <TableHead className="w-16"></TableHead>
                 </TableRow>
-              ) : paginated.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground py-20">
-                    <div className="flex flex-col items-center gap-2">
-                      <SolarDuotoneIcon icon={Search01Icon} size={24} strokeWidth={1.5} className="text-muted-foreground/40 mb-1" />
-                      <p className="text-sm font-medium">No vendors found</p>
-                      {hasFilters && (
-                        <p className="text-xs text-muted-foreground">Try adjusting your filters</p>
-                      )}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ) : (
-                paginated.map((v, idx) => (
+              </TableHeader>
+              <TableBody>
+                {paginated.map((v, idx) => (
                   <TableRow
                     key={v.id}
                     className={`transition-colors hover:bg-accent/45 ${idx % 2 === 0 ? "" : "bg-muted/18"}`}
@@ -216,11 +218,11 @@ export function VendorList() {
                       </Button>
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
 
         {/* Pagination */}
         <PaginationBar
