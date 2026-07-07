@@ -8,8 +8,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { RFQ_STATUS_LABELS, RFQ_STATUS_COLORS } from "@/lib/constants"
 import type { RFQStatus } from "@/lib/types"
 import { format } from "date-fns"
-import { EyeIcon } from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
+import { EyeIcon } from "@/components/shared/SolarIcon"
+import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
 
 export function VendorRFQ() {
   const { data: rfqs = [], isLoading } = useVendorRFQs()
@@ -69,7 +69,7 @@ export function VendorRFQ() {
                     <TableCell>
                       <Button asChild size="sm" variant="ghost" className="h-7 px-2 gap-1 text-xs">
                         <Link to={`/vendor/rfqs/${rfq.id}`}>
-                          <HugeiconsIcon icon={EyeIcon} size={13} strokeWidth={1.5} />
+                          <SolarDuotoneIcon icon={EyeIcon} size={13} strokeWidth={1.5} />
                           View
                         </Link>
                       </Button>

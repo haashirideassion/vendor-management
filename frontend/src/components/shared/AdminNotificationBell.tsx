@@ -7,13 +7,13 @@ import {
 } from "@/hooks/useNotifications"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Button } from "@/components/ui/button"
-import { HugeiconsIcon } from "@hugeicons/react"
+import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
 import {
   Notification01Icon,
   UserGroup02Icon,
   Invoice02Icon,
   Briefcase01Icon,
-} from "@hugeicons/core-free-icons"
+} from "@/components/shared/SolarIcon"
 import { formatDistanceToNow } from "date-fns"
 import type { Notification } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -55,7 +55,7 @@ export function AdminNotificationBell() {
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button variant="ghost" size="icon" className="relative h-8 w-8 rounded-lg">
-          <HugeiconsIcon
+          <SolarDuotoneIcon
             icon={Notification01Icon}
             size={18}
             strokeWidth={1.5}
@@ -87,7 +87,7 @@ export function AdminNotificationBell() {
         <div className="max-h-72 overflow-y-auto divide-y divide-border/40">
           {notifications.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-center px-4">
-              <HugeiconsIcon
+              <SolarDuotoneIcon
                 icon={Notification01Icon}
                 size={28}
                 strokeWidth={1.5}
@@ -108,7 +108,7 @@ export function AdminNotificationBell() {
                   )}
                 >
                   <div className="mt-0.5 h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                    <HugeiconsIcon icon={icon} size={14} strokeWidth={1.5} className="text-primary" />
+                    <SolarDuotoneIcon icon={icon} size={14} strokeWidth={1.5} className="text-primary" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-1">

@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { DOCUMENT_TYPE_LABELS, REQUIRED_DOCUMENTS } from "@/lib/constants"
-import { HugeiconsIcon } from "@hugeicons/react"
+import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
 import {
   AlertCircleIcon,
   CheckmarkCircle01Icon,
@@ -18,7 +18,7 @@ import {
   ContractsIcon,
   Activity01Icon,
   Invoice02Icon,
-} from "@hugeicons/core-free-icons"
+} from "@/components/shared/SolarIcon"
 import { differenceInDays, format } from "date-fns"
 
 export function VendorDashboard() {
@@ -55,7 +55,7 @@ export function VendorDashboard() {
       <AnimatedPage>
         <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 p-6 text-center">
           <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
-            <HugeiconsIcon icon={UserCircleIcon} size={32} strokeWidth={1.5} className="text-muted-foreground" />
+            <SolarDuotoneIcon icon={UserCircleIcon} size={32} strokeWidth={1.5} className="text-muted-foreground" />
           </div>
           <div className="space-y-1">
             <p className="text-sm font-medium">No vendor account found</p>
@@ -115,7 +115,7 @@ export function VendorDashboard() {
             <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-xl" style={{ background: "var(--gradient-warning)" }} />
             <div className="flex items-start gap-3 pl-3">
               <div className="mt-0.5 h-8 w-8 rounded-full bg-orange-100 flex items-center justify-center shrink-0">
-                <HugeiconsIcon icon={AlertCircleIcon} size={18} strokeWidth={1.5} className="text-orange-600" />
+                <SolarDuotoneIcon icon={AlertCircleIcon} size={18} strokeWidth={1.5} className="text-orange-600" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-orange-900">
@@ -141,7 +141,7 @@ export function VendorDashboard() {
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <HugeiconsIcon icon={Invoice02Icon} size={16} strokeWidth={1.5} className="text-primary" />
+                  <SolarDuotoneIcon icon={Invoice02Icon} size={16} strokeWidth={1.5} className="text-primary" />
                   <CardTitle className="text-base">Invoices</CardTitle>
                 </div>
                 <Button asChild variant="ghost" size="sm" className="h-7 text-xs text-primary">
@@ -185,7 +185,7 @@ export function VendorDashboard() {
               <div className="flex items-center justify-between mb-3">
                 <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Renewal Date</span>
                 <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <HugeiconsIcon icon={Refresh01Icon} size={16} strokeWidth={1.5} className="text-primary" />
+                  <SolarDuotoneIcon icon={Refresh01Icon} size={16} strokeWidth={1.5} className="text-primary" />
                 </div>
               </div>
               {vendor.contract_anniversary ? (
@@ -211,7 +211,7 @@ export function VendorDashboard() {
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <HugeiconsIcon icon={ContractsIcon} size={16} strokeWidth={1.5} className="text-primary" />
+                  <SolarDuotoneIcon icon={ContractsIcon} size={16} strokeWidth={1.5} className="text-primary" />
                   <CardTitle className="text-base">Contracts</CardTitle>
                 </div>
                 <Button asChild variant="ghost" size="sm" className="h-7 text-xs text-primary">
@@ -257,7 +257,7 @@ export function VendorDashboard() {
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
-                <HugeiconsIcon icon={Activity01Icon} size={16} strokeWidth={1.5} className="text-primary" />
+                <SolarDuotoneIcon icon={Activity01Icon} size={16} strokeWidth={1.5} className="text-primary" />
                 <CardTitle className="text-base">Engagements</CardTitle>
               </div>
             </CardHeader>
@@ -313,7 +313,7 @@ export function VendorDashboard() {
                   className="flex items-center justify-between rounded-lg border p-3 gap-3"
                 >
                   <div className="flex items-center gap-3">
-                    <HugeiconsIcon
+                    <SolarDuotoneIcon
                       icon={uploaded ? CheckmarkCircle01Icon : Clock01Icon}
                       size={18}
                       strokeWidth={1.5}

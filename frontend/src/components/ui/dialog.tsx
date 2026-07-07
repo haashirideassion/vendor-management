@@ -5,8 +5,8 @@ import { Dialog as DialogPrimitive } from "radix-ui"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { HugeiconsIcon } from "@hugeicons/react"
-import { Cancel01Icon } from "@hugeicons/core-free-icons"
+import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
+import { Cancel01Icon } from "@/components/shared/SolarIcon"
 
 function Dialog({
   ...props
@@ -89,7 +89,7 @@ function DialogContent({
               className="absolute top-4 right-4 bg-secondary"
               size="icon-sm"
             >
-              <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} />
+              <SolarDuotoneIcon icon={Cancel01Icon} strokeWidth={2} />
               <span className="sr-only">Close</span>
             </Button>
           </DialogPrimitive.Close>

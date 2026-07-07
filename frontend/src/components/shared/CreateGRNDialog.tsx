@@ -15,8 +15,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Separator } from "@/components/ui/separator"
-import { Add01Icon, Delete01Icon } from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
+import { Add01Icon, Delete01Icon } from "@/components/shared/SolarIcon"
+import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
 import { supabase } from "@/lib/supabase"
 
 const lineItemSchema = z.object({
@@ -183,7 +183,7 @@ export function CreateGRNDialog({ open, onOpenChange, defaultPOId, defaultVendor
                   className="h-7 text-xs gap-1"
                   onClick={() => append({ description: "", quantity_received: 1, unit_price: 0, unit: "" })}
                 >
-                  <HugeiconsIcon icon={Add01Icon} size={12} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" />
+                  <SolarDuotoneIcon icon={Add01Icon} size={12} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" />
                   Add Row
                 </Button>
               </div>
@@ -205,7 +205,7 @@ export function CreateGRNDialog({ open, onOpenChange, defaultPOId, defaultVendor
                     <div className="col-span-1 flex justify-center pt-1">
                       {fields.length > 1 && (
                         <button type="button" onClick={() => remove(i)} className="text-muted-foreground hover:text-destructive">
-                          <HugeiconsIcon icon={Delete01Icon} size={14} strokeWidth={1.5} />
+                          <SolarDuotoneIcon icon={Delete01Icon} size={14} strokeWidth={1.5} />
                         </button>
                       )}
                     </div>

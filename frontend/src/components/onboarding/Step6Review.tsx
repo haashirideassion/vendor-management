@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { DOCUMENT_TYPE_LABELS, REQUIRED_DOCUMENTS } from "@/lib/constants"
 import type { OnboardingData, LocalDocument } from "./OnboardingWizard"
-import { HugeiconsIcon } from "@hugeicons/react"
+import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
 import {
   Edit01Icon,
   Building06Icon,
@@ -10,7 +10,7 @@ import {
   Tag01Icon,
   File01Icon,
   AlertCircleIcon,
-} from "@hugeicons/core-free-icons"
+} from "@/components/shared/SolarIcon"
 
 interface Props {
   data: Partial<OnboardingData>
@@ -38,7 +38,7 @@ function SectionCard({
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <HugeiconsIcon icon={icon} size={16} strokeWidth={1.5} className="text-primary" />
+            <SolarDuotoneIcon icon={icon} size={16} strokeWidth={1.5} className="text-primary" />
             <CardTitle className="text-sm font-semibold">{title}</CardTitle>
           </div>
           <Button
@@ -48,7 +48,7 @@ function SectionCard({
             className="h-7 text-xs gap-1.5 text-muted-foreground hover:text-foreground"
             onClick={() => onEdit(step)}
           >
-            <HugeiconsIcon icon={Edit01Icon} size={13} strokeWidth={1.5} primaryColor="currentColor" secondaryColor="currentColor" />
+            <SolarDuotoneIcon icon={Edit01Icon} size={13} strokeWidth={1.5} primaryColor="currentColor" secondaryColor="currentColor" />
             Edit
           </Button>
         </div>
@@ -154,7 +154,7 @@ export function Step6Review({ data, localDocs, onEdit, onSubmit, submitting }: P
       {/* Validation warning */}
       {missingRequired && (
         <div className="flex items-start gap-2.5 rounded-xl border border-destructive/30 bg-destructive/5 p-3">
-          <HugeiconsIcon icon={AlertCircleIcon} size={16} strokeWidth={1.5} className="text-destructive shrink-0 mt-0.5" />
+          <SolarDuotoneIcon icon={AlertCircleIcon} size={16} strokeWidth={1.5} className="text-destructive shrink-0 mt-0.5" />
           <p className="text-xs text-destructive">
             Some required fields are missing. Please edit the highlighted sections before submitting.
           </p>

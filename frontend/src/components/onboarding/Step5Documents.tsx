@@ -5,8 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { DOCUMENT_TYPE_LABELS, REQUIRED_DOCUMENTS } from "@/lib/constants"
 import type { DocumentType } from "@/lib/types"
 import type { LocalDocument } from "./OnboardingWizard"
-import { HugeiconsIcon } from "@hugeicons/react"
-import { CheckmarkCircle01Icon, Upload01Icon, Delete02Icon } from "@hugeicons/core-free-icons"
+import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
+import { CheckmarkCircle01Icon, Upload01Icon, Delete02Icon } from "@/components/shared/SolarIcon"
 import { cn } from "@/lib/utils"
 
 const OPTIONAL_DOCUMENTS: DocumentType[] = ["bank_letter", "tax_certificate", "other"]
@@ -54,7 +54,7 @@ function DocRow({
       existingDoc ? "border-green-500/40 bg-green-500/10" : "bg-background"
     )}>
       <div className="flex items-center gap-3 min-w-0">
-        <HugeiconsIcon
+        <SolarDuotoneIcon
           icon={existingDoc ? CheckmarkCircle01Icon : Upload01Icon}
           size={18}
           strokeWidth={1.5}
@@ -80,7 +80,7 @@ function DocRow({
             onClick={() => onRemove(docType)}
             title="Remove file"
           >
-            <HugeiconsIcon icon={Delete02Icon} size={15} strokeWidth={1.5} primaryColor="currentColor" secondaryColor="currentColor" />
+            <SolarDuotoneIcon icon={Delete02Icon} size={15} strokeWidth={1.5} primaryColor="currentColor" secondaryColor="currentColor" />
           </Button>
         ) : (
           <Button

@@ -11,8 +11,8 @@ import { useAuth } from "@/contexts/AuthContext"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { AppLogo } from "@/components/shared/AppLogo"
-import { Cancel01Icon } from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
+import { Cancel01Icon } from "@/components/shared/SolarIcon"
+import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
 import type { DocumentType } from "@/lib/types"
 
 export interface LocalDocument {
@@ -166,7 +166,7 @@ export function OnboardingWizard() {
             <p className="text-sm text-muted-foreground mt-1">Step {step + 1} of {STEPS.length}</p>
           </div>
           <Button variant="ghost" size="icon" className="text-muted-foreground" onClick={handleClose} title="Cancel Onboarding">
-            <HugeiconsIcon icon={Cancel01Icon} size={20} />
+            <SolarDuotoneIcon icon={Cancel01Icon} size={20} />
           </Button>
         </div>
 

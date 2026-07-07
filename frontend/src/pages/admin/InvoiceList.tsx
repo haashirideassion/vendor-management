@@ -16,8 +16,8 @@ import {
 import { formatCurrency } from "@/lib/utils"
 import type { InvoiceStatus, MatchStatus, Invoice } from "@/lib/types"
 import { format } from "date-fns"
-import { CheckmarkCircle01Icon, Cancel01Icon } from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
+import { CheckmarkCircle01Icon, Cancel01Icon } from "@/components/shared/SolarIcon"
+import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
 import { toast } from "sonner"
 
 const STATUSES: InvoiceStatus[] = ["submitted", "under_review", "matched", "approved", "rejected", "paid"]
@@ -169,14 +169,14 @@ export function InvoiceList() {
                               className="h-7 px-2 text-green-600 hover:bg-green-50"
                               onClick={() => setReviewDialog({ invoice: inv, action: "approve" })}
                             >
-                              <HugeiconsIcon icon={CheckmarkCircle01Icon} size={13} strokeWidth={1.5} />
+                              <SolarDuotoneIcon icon={CheckmarkCircle01Icon} size={13} strokeWidth={1.5} />
                             </Button>
                             <Button
                               size="sm" variant="ghost"
                               className="h-7 px-2 text-destructive hover:bg-destructive/8"
                               onClick={() => setReviewDialog({ invoice: inv, action: "reject" })}
                             >
-                              <HugeiconsIcon icon={Cancel01Icon} size={13} strokeWidth={1.5} />
+                              <SolarDuotoneIcon icon={Cancel01Icon} size={13} strokeWidth={1.5} />
                             </Button>
                           </>
                         )}

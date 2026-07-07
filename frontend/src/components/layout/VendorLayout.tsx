@@ -11,7 +11,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge"
 import { useVendor } from "@/hooks/useVendor"
 import { getVendorStage, type VendorStage } from "@/components/auth/VendorStatusGuard"
 import { cn } from "@/lib/utils"
-import { HugeiconsIcon } from "@hugeicons/react"
+import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
 import {
   DashboardSquare01Icon,
   UserCircleIcon,
@@ -23,7 +23,7 @@ import {
   Invoice02Icon,
   Briefcase01Icon,
   InformationCircleIcon,
-} from "@hugeicons/core-free-icons"
+} from "@/components/shared/SolarIcon"
 
 const allNavItems = [
   { id: "dashboard", label: "Dashboard", to: "/vendor/dashboard", icon: DashboardSquare01Icon, stages: ["APPROVED"] as VendorStage[] },
@@ -40,7 +40,7 @@ function StageBanner({ stage, vendorStatus }: { stage: VendorStage; vendorStatus
   if (stage === "REGISTERED") {
     return (
       <div className="flex items-start gap-3 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 px-4 py-3 mb-4 text-sm">
-        <HugeiconsIcon icon={InformationCircleIcon} size={18} strokeWidth={1.5} primaryColor="rgb(59 130 246)" secondaryColor="rgb(59 130 246)" className="mt-0.5 shrink-0" />
+        <SolarDuotoneIcon icon={InformationCircleIcon} size={18} strokeWidth={1.5} primaryColor="rgb(59 130 246)" secondaryColor="rgb(59 130 246)" className="mt-0.5 shrink-0" />
         <div className="flex-1 min-w-0">
           <p className="font-medium text-blue-800 dark:text-blue-200">Complete your onboarding</p>
           <p className="text-blue-700 dark:text-blue-300 mt-0.5">Submit your company details to access the full vendor portal.</p>
@@ -55,7 +55,7 @@ function StageBanner({ stage, vendorStatus }: { stage: VendorStage; vendorStatus
   if (stage === "ONBOARDING_COMPLETED") {
     return (
       <div className="flex items-start gap-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 px-4 py-3 mb-4 text-sm">
-        <HugeiconsIcon icon={InformationCircleIcon} size={18} strokeWidth={1.5} primaryColor="rgb(217 119 6)" secondaryColor="rgb(217 119 6)" className="mt-0.5 shrink-0" />
+        <SolarDuotoneIcon icon={InformationCircleIcon} size={18} strokeWidth={1.5} primaryColor="rgb(217 119 6)" secondaryColor="rgb(217 119 6)" className="mt-0.5 shrink-0" />
         <div className="min-w-0">
           <p className="font-medium text-amber-800 dark:text-amber-200">Onboarding under review</p>
           <p className="text-amber-700 dark:text-amber-300 mt-0.5">Your submission has been received and is awaiting administrator approval.</p>
@@ -68,7 +68,7 @@ function StageBanner({ stage, vendorStatus }: { stage: VendorStage; vendorStatus
     const msg = vendorStatus === "rejected" ? "Your application has been rejected." : "Your account has been suspended."
     return (
       <div className="flex items-start gap-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 px-4 py-3 mb-4 text-sm">
-        <HugeiconsIcon icon={Alert01Icon} size={18} strokeWidth={1.5} primaryColor="rgb(220 38 38)" secondaryColor="rgb(220 38 38)" className="mt-0.5 shrink-0" />
+        <SolarDuotoneIcon icon={Alert01Icon} size={18} strokeWidth={1.5} primaryColor="rgb(220 38 38)" secondaryColor="rgb(220 38 38)" className="mt-0.5 shrink-0" />
         <div className="min-w-0">
           <p className="font-medium text-red-800 dark:text-red-200">{msg}</p>
           <p className="text-red-700 dark:text-red-300 mt-0.5">Please contact support for assistance.</p>
@@ -128,7 +128,7 @@ function SidebarContent({
                   : "text-muted-foreground hover:bg-accent hover:text-foreground"
               )}
             >
-              <HugeiconsIcon
+              <SolarDuotoneIcon
                 icon={icon}
                 size={18}
                 strokeWidth={active ? 2 : 1.5}
@@ -151,7 +151,7 @@ function SidebarContent({
                 : "bg-orange-100 text-orange-800 hover:bg-orange-200 dark:bg-orange-900/30 dark:text-orange-300"
             )}
           >
-            <HugeiconsIcon
+            <SolarDuotoneIcon
               icon={Alert01Icon}
               size={18}
               strokeWidth={2}
@@ -215,7 +215,7 @@ export function VendorLayout() {
               className="md:hidden h-8 w-8 rounded-lg"
               onClick={() => setMobileOpen(true)}
             >
-              <HugeiconsIcon
+              <SolarDuotoneIcon
                 icon={Menu01Icon}
                 size={18}
                 strokeWidth={1.5}
@@ -229,7 +229,7 @@ export function VendorLayout() {
             {showRenewal && (
               <Link to="/vendor/renewal">
                 <Button size="sm" variant="danger" className="h-7 text-xs gap-1.5 rounded-lg">
-                  <HugeiconsIcon icon={Refresh01Icon} size={13} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" />
+                  <SolarDuotoneIcon icon={Refresh01Icon} size={13} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" />
                   Renew Now
                 </Button>
               </Link>

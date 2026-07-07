@@ -8,7 +8,7 @@ import { AdminNotificationBell } from "@/components/shared/AdminNotificationBell
 import { UserDropdown } from "@/components/shared/UserDropdown"
 import { AppLogo } from "@/components/shared/AppLogo"
 import { cn } from "@/lib/utils"
-import { HugeiconsIcon } from "@hugeicons/react"
+import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
 import {
   UserGroup02Icon,
   Tag01Icon,
@@ -19,7 +19,7 @@ import {
   DeliveryBox01Icon,
   Invoice02Icon,
   File01Icon,
-} from "@hugeicons/core-free-icons"
+} from "@/components/shared/SolarIcon"
 
 type NavLink = { type: "link"; label: string; to: string; icon: typeof File01Icon }
 type NavGroup = { type: "group"; label: string }
@@ -75,7 +75,7 @@ function SidebarContent({ pathname, onNavClick }: { pathname: string; onNavClick
                   : "text-muted-foreground hover:bg-accent hover:text-foreground"
               )}
             >
-              <HugeiconsIcon
+              <SolarDuotoneIcon
                 icon={icon}
                 size={18}
                 strokeWidth={active ? 2 : 1.5}
@@ -128,7 +128,7 @@ export function AdminLayout() {
               className="md:hidden h-8 w-8 rounded-lg"
               onClick={() => setMobileOpen(true)}
             >
-              <HugeiconsIcon
+              <SolarDuotoneIcon
                 icon={Menu01Icon}
                 size={18}
                 strokeWidth={1.5}

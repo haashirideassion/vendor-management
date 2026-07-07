@@ -7,8 +7,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
-import { HugeiconsIcon } from "@hugeicons/react"
-import { Logout01Icon } from "@hugeicons/core-free-icons"
+import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
+import { Logout01Icon } from "@/components/shared/SolarIcon"
 
 const ROLE_LABELS: Record<string, string> = {
   super_admin: "Super Admin",
@@ -58,7 +58,7 @@ export function UserDropdown({ email, role, onSignOut }: UserDropdownProps) {
           onClick={onSignOut}
           className="gap-2 text-destructive focus:text-destructive focus:bg-destructive/8"
         >
-          <HugeiconsIcon
+          <SolarDuotoneIcon
             icon={Logout01Icon}
             size={14}
             strokeWidth={1.5}

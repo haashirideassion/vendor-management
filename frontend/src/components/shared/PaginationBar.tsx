@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button"
-import { HugeiconsIcon } from "@hugeicons/react"
-import { ArrowLeft01Icon, ArrowRight01Icon } from "@hugeicons/core-free-icons"
+import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
+import { ArrowLeft01Icon, ArrowRight01Icon } from "@/components/shared/SolarIcon"
 
 interface PaginationBarProps {
   page: number
@@ -34,7 +34,7 @@ export function PaginationBar({
             disabled={page === 1}
             onClick={() => onPageChange(page - 1)}
           >
-            <HugeiconsIcon icon={ArrowLeft01Icon} size={14} strokeWidth={1.5} />
+            <SolarDuotoneIcon icon={ArrowLeft01Icon} size={14} strokeWidth={1.5} />
           </Button>
           <Button
             variant="outline"
@@ -43,7 +43,7 @@ export function PaginationBar({
             disabled={page === totalPages}
             onClick={() => onPageChange(page + 1)}
           >
-            <HugeiconsIcon icon={ArrowRight01Icon} size={14} strokeWidth={1.5} />
+            <SolarDuotoneIcon icon={ArrowRight01Icon} size={14} strokeWidth={1.5} />
           </Button>
         </div>
       )}

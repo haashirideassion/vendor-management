@@ -14,9 +14,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import {
   Edit01Icon, Delete01Icon, Add01Icon, Tag01Icon, Search01Icon,
   CheckmarkCircle01Icon, Cancel01Icon,
-} from "@hugeicons/core-free-icons"
+} from "@/components/shared/SolarIcon"
 import { PaginationBar } from "@/components/shared/PaginationBar"
-import { HugeiconsIcon } from "@hugeicons/react"
+import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
 import type { ServiceCategory } from "@/lib/types"
 import { format } from "date-fns"
 import { toast } from "sonner"
@@ -66,7 +66,7 @@ function CategoryTable({
     <div className="space-y-4">
       {/* Search */}
       <div className="relative max-w-xs">
-        <HugeiconsIcon icon={Search01Icon} size={14} strokeWidth={1.5} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+        <SolarDuotoneIcon icon={Search01Icon} size={14} strokeWidth={1.5} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
         <Input
           placeholder="Search categories…"
           value={search}
@@ -91,7 +91,7 @@ function CategoryTable({
             {paginated.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={5} className="text-center py-10">
-                  <HugeiconsIcon icon={Tag01Icon} size={28} strokeWidth={1.5} className="text-muted-foreground/30 mx-auto mb-2" />
+                  <SolarDuotoneIcon icon={Tag01Icon} size={28} strokeWidth={1.5} className="text-muted-foreground/30 mx-auto mb-2" />
                   <p className="text-sm text-muted-foreground">
                     {search ? "No categories match your search." : "No categories here yet."}
                   </p>
@@ -103,7 +103,7 @@ function CategoryTable({
                   <TableCell>
                     <div className="flex items-center gap-2.5">
                       <div className={`p-1.5 rounded-lg shrink-0 ${cat.is_active ? "bg-primary/10" : "bg-muted"}`}>
-                        <HugeiconsIcon
+                        <SolarDuotoneIcon
                           icon={Tag01Icon}
                           size={13}
                           strokeWidth={1.5}
@@ -135,7 +135,7 @@ function CategoryTable({
                         onClick={() => onEdit(cat)}
                         title="Edit"
                       >
-                        <HugeiconsIcon icon={Edit01Icon} size={14} strokeWidth={1.5} />
+                        <SolarDuotoneIcon icon={Edit01Icon} size={14} strokeWidth={1.5} />
                       </Button>
                       <Button
                         variant="ghost"
@@ -145,7 +145,7 @@ function CategoryTable({
                         disabled={toggling === cat.id}
                         title={cat.is_active ? "Deactivate" : "Activate"}
                       >
-                        <HugeiconsIcon
+                        <SolarDuotoneIcon
                           icon={cat.is_active ? Cancel01Icon : CheckmarkCircle01Icon}
                           size={14}
                           strokeWidth={1.5}
@@ -158,7 +158,7 @@ function CategoryTable({
                         onClick={() => onDelete(cat.id)}
                         title="Delete"
                       >
-                        <HugeiconsIcon icon={Delete01Icon} size={14} strokeWidth={1.5} />
+                        <SolarDuotoneIcon icon={Delete01Icon} size={14} strokeWidth={1.5} />
                       </Button>
                     </div>
                   </TableCell>
@@ -273,7 +273,7 @@ export function CategoryManagement() {
             </TabsTrigger>
           </TabsList>
           <Button size="sm" onClick={openCreate} className="gap-1.5 shrink-0">
-            <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={1.5} />
+            <SolarDuotoneIcon icon={Add01Icon} size={14} strokeWidth={1.5} />
             Add category
           </Button>
           </div>
@@ -281,11 +281,11 @@ export function CategoryManagement() {
           <TabsContent value="active" className="mt-4">
             {activeCategories.length === 0 ? (
               <div className="rounded-xl border border-dashed p-12 text-center">
-                <HugeiconsIcon icon={Tag01Icon} size={32} strokeWidth={1.5} className="text-muted-foreground/30 mx-auto mb-3" />
+                <SolarDuotoneIcon icon={Tag01Icon} size={32} strokeWidth={1.5} className="text-muted-foreground/30 mx-auto mb-3" />
                 <p className="text-sm font-medium text-muted-foreground">No active categories</p>
                 <p className="text-xs text-muted-foreground/70 mt-1">Create your first category to get started.</p>
                 <Button size="sm" className="mt-4 gap-1.5" onClick={openCreate}>
-                  <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={1.5} />
+                  <SolarDuotoneIcon icon={Add01Icon} size={14} strokeWidth={1.5} />
                   Add category
                 </Button>
               </div>
@@ -304,7 +304,7 @@ export function CategoryManagement() {
           <TabsContent value="dormant" className="mt-4">
             {dormantCategories.length === 0 ? (
               <div className="rounded-xl border border-dashed p-12 text-center">
-                <HugeiconsIcon icon={Tag01Icon} size={32} strokeWidth={1.5} className="text-muted-foreground/30 mx-auto mb-3" />
+                <SolarDuotoneIcon icon={Tag01Icon} size={32} strokeWidth={1.5} className="text-muted-foreground/30 mx-auto mb-3" />
                 <p className="text-sm font-medium text-muted-foreground">No dormant categories</p>
                 <p className="text-xs text-muted-foreground/70 mt-1">Deactivated categories will appear here.</p>
               </div>

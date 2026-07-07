@@ -8,8 +8,8 @@ import type { AttachmentEntityType, Attachment } from "@/lib/types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { HugeiconsIcon } from "@hugeicons/react"
-import { File01Icon, Delete01Icon, EyeIcon, Add01Icon } from "@hugeicons/core-free-icons"
+import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
+import { File01Icon, Delete01Icon, EyeIcon, Add01Icon } from "@/components/shared/SolarIcon"
 import { format } from "date-fns"
 
 interface AttachmentListProps {
@@ -69,7 +69,7 @@ function AttachmentRow({
 
   return (
     <div className="flex items-center gap-2.5 rounded-lg border bg-muted/20 px-3 py-2">
-      <HugeiconsIcon icon={File01Icon} size={15} strokeWidth={1.5} className="shrink-0 text-muted-foreground" />
+      <SolarDuotoneIcon icon={File01Icon} size={15} strokeWidth={1.5} className="shrink-0 text-muted-foreground" />
 
       <ExtBadge ext={attachment.file_extension} />
 
@@ -91,7 +91,7 @@ function AttachmentRow({
           disabled={loadingView}
           title="View"
         >
-          <HugeiconsIcon icon={EyeIcon} size={13} strokeWidth={1.5} />
+          <SolarDuotoneIcon icon={EyeIcon} size={13} strokeWidth={1.5} />
           {loadingView ? "…" : "View"}
         </Button>
 
@@ -114,7 +114,7 @@ function AttachmentRow({
             onClick={() => onDelete(attachment)}
             title="Remove"
           >
-            <HugeiconsIcon icon={Delete01Icon} size={13} strokeWidth={1.5} />
+            <SolarDuotoneIcon icon={Delete01Icon} size={13} strokeWidth={1.5} />
           </Button>
         )}
       </div>
@@ -189,7 +189,7 @@ export function AttachmentList({
                   inp.click()
                 }}
               >
-                <HugeiconsIcon icon={Add01Icon} size={12} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" />
+                <SolarDuotoneIcon icon={Add01Icon} size={12} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" />
                 Add Files
               </Button>
             )}

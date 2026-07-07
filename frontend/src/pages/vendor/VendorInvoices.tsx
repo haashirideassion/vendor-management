@@ -26,8 +26,8 @@ import {
 import { formatCurrency } from "@/lib/utils"
 import type { InvoiceStatus } from "@/lib/types"
 import { format } from "date-fns"
-import { Add01Icon, File01Icon } from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
+import { Add01Icon, File01Icon } from "@/components/shared/SolarIcon"
+import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
 import { toast } from "sonner"
 
 // Either contract_id OR engagement_id is required; both are optional individually.
@@ -168,7 +168,7 @@ export function VendorInvoices() {
             </p>
           </div>
           <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setSubmitting(true)}>
-            <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" />
+            <SolarDuotoneIcon icon={Add01Icon} size={14} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" />
             Submit Invoice
           </Button>
         </div>
@@ -248,7 +248,7 @@ export function VendorInvoices() {
                         className="h-7 px-2 gap-1.5 text-muted-foreground"
                         onClick={() => setDocsInvoiceId(inv.id)}
                       >
-                        <HugeiconsIcon icon={File01Icon} size={13} strokeWidth={1.5} />
+                        <SolarDuotoneIcon icon={File01Icon} size={13} strokeWidth={1.5} />
                         <span className="text-xs">Document</span>
                       </Button>
                     </TableCell>

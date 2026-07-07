@@ -18,8 +18,8 @@ import { RFQ_STATUS_LABELS, RFQ_STATUS_COLORS, QUOTATION_STATUS_LABELS, QUOTATIO
 import { formatCurrency } from "@/lib/utils"
 import type { RFQStatus, QuotationStatus } from "@/lib/types"
 import { format } from "date-fns"
-import { ArrowLeft01Icon, Add01Icon, Delete01Icon } from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
+import { ArrowLeft01Icon, Add01Icon, Delete01Icon } from "@/components/shared/SolarIcon"
+import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
 import { toast } from "sonner"
 
 const lineItemSchema = z.object({
@@ -145,7 +145,7 @@ export function VendorRFQDetail() {
       <div className="p-6 space-y-6">
         <div>
           <Link to="/vendor/rfqs" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-3">
-            <HugeiconsIcon icon={ArrowLeft01Icon} size={13} strokeWidth={1.5} />
+            <SolarDuotoneIcon icon={ArrowLeft01Icon} size={13} strokeWidth={1.5} />
             RFQs
           </Link>
           <div className="flex items-start justify-between gap-4">
@@ -286,7 +286,7 @@ export function VendorRFQDetail() {
                     className="h-7 text-xs gap-1"
                     onClick={() => append({ description: "", quantity: 1, unit_price: 0, tax_rate: 0, remarks: "" })}
                   >
-                    <HugeiconsIcon icon={Add01Icon} size={12} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" />
+                    <SolarDuotoneIcon icon={Add01Icon} size={12} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" />
                     Add Row
                   </Button>
                 </div>
@@ -328,7 +328,7 @@ export function VendorRFQDetail() {
                       <div className="col-span-1 flex justify-center pt-1">
                         {fields.length > 1 && (
                           <button type="button" onClick={() => remove(i)} className="text-muted-foreground hover:text-destructive">
-                            <HugeiconsIcon icon={Delete01Icon} size={14} strokeWidth={1.5} />
+                            <SolarDuotoneIcon icon={Delete01Icon} size={14} strokeWidth={1.5} />
                           </button>
                         )}
                       </div>

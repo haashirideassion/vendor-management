@@ -27,8 +27,8 @@ import {
 } from "@/lib/constants"
 import { formatCurrency } from "@/lib/utils"
 import { format } from "date-fns"
-import { ArrowLeft01Icon, Add01Icon, EyeIcon, InformationCircleIcon } from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
+import { ArrowLeft01Icon, Add01Icon, EyeIcon, InformationCircleIcon } from "@/components/shared/SolarIcon"
+import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
 import type { EngagementStatus, POStatus, QuotationStatus, QuotationLineItem } from "@/lib/types"
 
 interface SelectedItem {
@@ -164,7 +164,7 @@ export function EngagementDetail() {
         {/* Breadcrumb + title */}
         <div>
           <Link to="/admin/engagements" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-3">
-            <HugeiconsIcon icon={ArrowLeft01Icon} size={13} strokeWidth={1.5} />
+            <SolarDuotoneIcon icon={ArrowLeft01Icon} size={13} strokeWidth={1.5} />
             Engagements
           </Link>
           <div className="flex items-start justify-between gap-4">
@@ -184,7 +184,7 @@ export function EngagementDetail() {
         <div className="flex flex-wrap gap-2">
           {status === "approved" && (
             <Button size="sm" variant="outline" onClick={() => setPoDialogOpen(true)}>
-              <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" className="mr-1.5" />
+              <SolarDuotoneIcon icon={Add01Icon} size={14} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" className="mr-1.5" />
               Issue PO
             </Button>
           )}
@@ -330,7 +330,7 @@ export function EngagementDetail() {
                     </div>
                     <Button asChild size="sm" variant="ghost" className="h-7 px-2 text-xs">
                       <Link to={`/admin/purchase-orders/${po.id}`}>
-                        <HugeiconsIcon icon={EyeIcon} size={13} strokeWidth={1.5} />
+                        <SolarDuotoneIcon icon={EyeIcon} size={13} strokeWidth={1.5} />
                       </Link>
                     </Button>
                   </div>
@@ -347,7 +347,7 @@ export function EngagementDetail() {
               <h2 className="text-base font-semibold tracking-tight">Vendor Quotations</h2>
               {!posSent && selectedItems.size > 0 && canCreatePO && (
                 <Button size="sm" onClick={() => setShowPOConfirm(true)}>
-                  <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" className="mr-1.5" />
+                  <SolarDuotoneIcon icon={Add01Icon} size={14} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" className="mr-1.5" />
                   Send PO to Vendors ({selectedItems.size} item{selectedItems.size !== 1 ? "s" : ""})
                 </Button>
               )}
@@ -356,7 +356,7 @@ export function EngagementDetail() {
             {/* Banner shown after POs are dispatched */}
             {posSent && (
               <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 text-sm text-blue-800">
-                <HugeiconsIcon icon={InformationCircleIcon} size={15} strokeWidth={1.5} className="shrink-0" />
+                <SolarDuotoneIcon icon={InformationCircleIcon} size={15} strokeWidth={1.5} className="shrink-0" />
                 <span>Purchase orders have already been sent for this engagement. Selection is locked.</span>
               </div>
             )}

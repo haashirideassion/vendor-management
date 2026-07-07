@@ -26,8 +26,8 @@ import {
   Invoice01Icon,
   File01Icon,
   AlertCircleIcon,
-} from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
+} from "@/components/shared/SolarIcon"
+import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
 import type { VendorStatus, InvoiceStatus, EngagementStatus } from "@/lib/types"
 
 const VENDOR_CHART_COLORS: Record<VendorStatus, string> = {
@@ -125,7 +125,7 @@ export function Reports() {
             <Card className="shadow-none border-blue-200 dark:border-blue-800 overflow-hidden bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900/60 dark:to-blue-800/40">
               <CardContent className="pt-5 pb-4 px-5">
                 <div className="mb-3 p-1.5 w-fit rounded-lg bg-blue-200/60 dark:bg-blue-700/40 shadow-sm">
-                  <HugeiconsIcon icon={UserGroup02Icon} size={18} strokeWidth={1.5} className="text-blue-700 dark:text-blue-300" />
+                  <SolarDuotoneIcon icon={UserGroup02Icon} size={18} strokeWidth={1.5} className="text-blue-700 dark:text-blue-300" />
                 </div>
                 <p className="text-3xl font-bold tracking-tight text-blue-800 dark:text-blue-100">{vendors.length}</p>
                 <p className="text-xs text-blue-600 dark:text-blue-400 mt-1 font-medium">Total Vendors</p>
@@ -134,7 +134,7 @@ export function Reports() {
             <Card className="shadow-none border-green-200 dark:border-green-800 overflow-hidden bg-gradient-to-br from-green-100 to-green-200 dark:from-green-900/60 dark:to-green-800/40">
               <CardContent className="pt-5 pb-4 px-5">
                 <div className="mb-3 p-1.5 w-fit rounded-lg bg-green-200/60 dark:bg-green-700/40 shadow-sm">
-                  <HugeiconsIcon icon={ChartBarIncreasingIcon} size={18} strokeWidth={1.5} className="text-green-700 dark:text-green-300" />
+                  <SolarDuotoneIcon icon={ChartBarIncreasingIcon} size={18} strokeWidth={1.5} className="text-green-700 dark:text-green-300" />
                 </div>
                 <p className="text-3xl font-bold tracking-tight text-green-800 dark:text-green-100">{totalActive}</p>
                 <p className="text-xs text-green-600 dark:text-green-400 mt-1 font-medium">Active Vendors</p>
@@ -143,7 +143,7 @@ export function Reports() {
             <Card className="shadow-none border-orange-200 dark:border-orange-800 overflow-hidden bg-gradient-to-br from-orange-100 to-orange-200 dark:from-orange-900/60 dark:to-orange-800/40">
               <CardContent className="pt-5 pb-4 px-5">
                 <div className="mb-3 p-1.5 w-fit rounded-lg bg-orange-200/60 dark:bg-orange-700/40 shadow-sm">
-                  <HugeiconsIcon icon={Clock01Icon} size={18} strokeWidth={1.5} className="text-orange-700 dark:text-orange-300" />
+                  <SolarDuotoneIcon icon={Clock01Icon} size={18} strokeWidth={1.5} className="text-orange-700 dark:text-orange-300" />
                 </div>
                 <p className="text-3xl font-bold tracking-tight text-orange-800 dark:text-orange-100">{pendingCount}</p>
                 <p className="text-xs text-orange-600 dark:text-orange-400 mt-1 font-medium">Pending Review</p>
@@ -155,7 +155,7 @@ export function Reports() {
           <Card className="shadow-none">
             <CardHeader className="pb-3 border-b">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <HugeiconsIcon icon={BarChartIcon} size={16} strokeWidth={1.5} className="text-muted-foreground" />
+                <SolarDuotoneIcon icon={BarChartIcon} size={16} strokeWidth={1.5} className="text-muted-foreground" />
                 Vendors by Status
               </CardTitle>
             </CardHeader>
@@ -184,7 +184,7 @@ export function Reports() {
             <CardHeader className="pb-3 border-b">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  <HugeiconsIcon icon={Clock01Icon} size={16} strokeWidth={1.5} className="text-muted-foreground" />
+                  <SolarDuotoneIcon icon={Clock01Icon} size={16} strokeWidth={1.5} className="text-muted-foreground" />
                   Upcoming Renewals (next 60 days)
                 </CardTitle>
                 {renewingIn30 > 0 && (
@@ -197,7 +197,7 @@ export function Reports() {
             <CardContent className="pt-3">
               {upcomingRenewals.length === 0 ? (
                 <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
-                  <HugeiconsIcon icon={ChartBarIncreasingIcon} size={15} strokeWidth={1.5} className="text-green-500" />
+                  <SolarDuotoneIcon icon={ChartBarIncreasingIcon} size={15} strokeWidth={1.5} className="text-green-500" />
                   No renewals due in the next 60 days.
                 </div>
               ) : (
@@ -244,7 +244,7 @@ export function Reports() {
             <Card className="shadow-none border-violet-200 dark:border-violet-800 overflow-hidden bg-gradient-to-br from-violet-100 to-violet-200 dark:from-violet-900/60 dark:to-violet-800/40">
               <CardContent className="pt-5 pb-4 px-5">
                 <div className="mb-3 p-1.5 w-fit rounded-lg bg-violet-200/60 dark:bg-violet-700/40 shadow-sm">
-                  <HugeiconsIcon icon={Invoice01Icon} size={18} strokeWidth={1.5} className="text-violet-700 dark:text-violet-300" />
+                  <SolarDuotoneIcon icon={Invoice01Icon} size={18} strokeWidth={1.5} className="text-violet-700 dark:text-violet-300" />
                 </div>
                 <p className="text-2xl font-bold tracking-tight text-violet-800 dark:text-violet-100 tabular-nums">
                   {kpis ? compactNum(kpis.totalPoSpend) : "—"}
@@ -255,7 +255,7 @@ export function Reports() {
             <Card className="shadow-none border-blue-200 dark:border-blue-800 overflow-hidden bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900/60 dark:to-blue-800/40">
               <CardContent className="pt-5 pb-4 px-5">
                 <div className="mb-3 p-1.5 w-fit rounded-lg bg-blue-200/60 dark:bg-blue-700/40 shadow-sm">
-                  <HugeiconsIcon icon={Briefcase01Icon} size={18} strokeWidth={1.5} className="text-blue-700 dark:text-blue-300" />
+                  <SolarDuotoneIcon icon={Briefcase01Icon} size={18} strokeWidth={1.5} className="text-blue-700 dark:text-blue-300" />
                 </div>
                 <p className="text-2xl font-bold tracking-tight text-blue-800 dark:text-blue-100 tabular-nums">
                   {kpis?.activePOCount ?? "—"}
@@ -266,7 +266,7 @@ export function Reports() {
             <Card className="shadow-none border-green-200 dark:border-green-800 overflow-hidden bg-gradient-to-br from-green-100 to-green-200 dark:from-green-900/60 dark:to-green-800/40">
               <CardContent className="pt-5 pb-4 px-5">
                 <div className="mb-3 p-1.5 w-fit rounded-lg bg-green-200/60 dark:bg-green-700/40 shadow-sm">
-                  <HugeiconsIcon icon={File01Icon} size={18} strokeWidth={1.5} className="text-green-700 dark:text-green-300" />
+                  <SolarDuotoneIcon icon={File01Icon} size={18} strokeWidth={1.5} className="text-green-700 dark:text-green-300" />
                 </div>
                 <p className="text-2xl font-bold tracking-tight text-green-800 dark:text-green-100 tabular-nums">
                   {kpis?.activeContractCount ?? "—"}
@@ -277,7 +277,7 @@ export function Reports() {
             <Card className="shadow-none border-orange-200 dark:border-orange-800 overflow-hidden bg-gradient-to-br from-orange-100 to-orange-200 dark:from-orange-900/60 dark:to-orange-800/40">
               <CardContent className="pt-5 pb-4 px-5">
                 <div className="mb-3 p-1.5 w-fit rounded-lg bg-orange-200/60 dark:bg-orange-700/40 shadow-sm">
-                  <HugeiconsIcon icon={AlertCircleIcon} size={18} strokeWidth={1.5} className="text-orange-700 dark:text-orange-300" />
+                  <SolarDuotoneIcon icon={AlertCircleIcon} size={18} strokeWidth={1.5} className="text-orange-700 dark:text-orange-300" />
                 </div>
                 <p className="text-2xl font-bold tracking-tight text-orange-800 dark:text-orange-100 tabular-nums">
                   {kpis?.pendingInvoiceCount ?? "—"}
@@ -293,7 +293,7 @@ export function Reports() {
               <CardHeader className="pb-3 border-b border-orange-100 dark:border-orange-900/30">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-sm font-semibold flex items-center gap-2 text-orange-700 dark:text-orange-400">
-                    <HugeiconsIcon icon={AlertCircleIcon} size={16} strokeWidth={1.5} />
+                    <SolarDuotoneIcon icon={AlertCircleIcon} size={16} strokeWidth={1.5} />
                     Contracts Expiring in 60 Days ({expiring.length})
                   </CardTitle>
                 </div>
@@ -326,7 +326,7 @@ export function Reports() {
           <Card className="shadow-none">
             <CardHeader className="pb-3 border-b">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <HugeiconsIcon icon={BarChartIcon} size={16} strokeWidth={1.5} className="text-muted-foreground" />
+                <SolarDuotoneIcon icon={BarChartIcon} size={16} strokeWidth={1.5} className="text-muted-foreground" />
                 Monthly PO Spend (last 6 months)
               </CardTitle>
             </CardHeader>
@@ -357,7 +357,7 @@ export function Reports() {
             <Card className="shadow-none">
               <CardHeader className="pb-3 border-b">
                 <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  <HugeiconsIcon icon={UserGroup02Icon} size={16} strokeWidth={1.5} className="text-muted-foreground" />
+                  <SolarDuotoneIcon icon={UserGroup02Icon} size={16} strokeWidth={1.5} className="text-muted-foreground" />
                   Top Vendors by PO Spend
                 </CardTitle>
               </CardHeader>
@@ -387,7 +387,7 @@ export function Reports() {
             <Card className="shadow-none">
               <CardHeader className="pb-3 border-b">
                 <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  <HugeiconsIcon icon={Invoice01Icon} size={16} strokeWidth={1.5} className="text-muted-foreground" />
+                  <SolarDuotoneIcon icon={Invoice01Icon} size={16} strokeWidth={1.5} className="text-muted-foreground" />
                   Invoice Status Breakdown
                 </CardTitle>
               </CardHeader>
@@ -427,7 +427,7 @@ export function Reports() {
             <Card className="shadow-none">
               <CardHeader className="pb-3 border-b">
                 <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  <HugeiconsIcon icon={ChartBarIncreasingIcon} size={16} strokeWidth={1.5} className="text-muted-foreground" />
+                  <SolarDuotoneIcon icon={ChartBarIncreasingIcon} size={16} strokeWidth={1.5} className="text-muted-foreground" />
                   Engagement Pipeline
                 </CardTitle>
               </CardHeader>

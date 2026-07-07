@@ -10,8 +10,8 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Separator } from "@/components/ui/separator"
-import { Add01Icon, Delete01Icon } from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
+import { Add01Icon, Delete01Icon } from "@/components/shared/SolarIcon"
+import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
 
 const lineItemSchema = z.object({
   description: z.string().min(1, "Required"),
@@ -136,7 +136,7 @@ export function CreatePODialog({
                   type="button" size="sm" variant="outline" className="h-7 text-xs gap-1"
                   onClick={() => append({ description: "", quantity: 1, unit_price: 0, unit: "" })}
                 >
-                  <HugeiconsIcon icon={Add01Icon} size={12} strokeWidth={2} />
+                  <SolarDuotoneIcon icon={Add01Icon} size={12} strokeWidth={2} />
                   Add row
                 </Button>
               </div>
@@ -164,7 +164,7 @@ export function CreatePODialog({
                   <div className="col-span-1 flex justify-center pt-1">
                     {fields.length > 1 && (
                       <button type="button" onClick={() => remove(i)} className="text-muted-foreground hover:text-destructive transition-colors">
-                        <HugeiconsIcon icon={Delete01Icon} size={14} strokeWidth={1.5} />
+                        <SolarDuotoneIcon icon={Delete01Icon} size={14} strokeWidth={1.5} />
                       </button>
                     )}
                   </div>

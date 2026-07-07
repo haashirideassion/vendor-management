@@ -8,14 +8,14 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { HugeiconsIcon } from "@hugeicons/react"
+import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
 import {
   ContractsIcon,
   Search01Icon,
   ArrowLeft01Icon,
   ArrowRight01Icon,
   EyeIcon,
-} from "@hugeicons/core-free-icons"
+} from "@/components/shared/SolarIcon"
 import { formatCurrency } from "@/lib/utils"
 import { differenceInDays, format } from "date-fns"
 import type { Contract, ContractStatus } from "@/lib/types"
@@ -66,7 +66,7 @@ function ContractTable({
   return (
     <div className="space-y-3">
       <div className="relative">
-        <HugeiconsIcon
+        <SolarDuotoneIcon
           icon={Search01Icon}
           size={15}
           strokeWidth={1.5}
@@ -102,7 +102,7 @@ function ContractTable({
                 <TableCell colSpan={showRenewal ? 8 : 7} className="py-12 text-center">
                   <div className="flex flex-col items-center gap-2">
                     <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
-                      <HugeiconsIcon icon={ContractsIcon} size={20} strokeWidth={1.5} className="text-muted-foreground" />
+                      <SolarDuotoneIcon icon={ContractsIcon} size={20} strokeWidth={1.5} className="text-muted-foreground" />
                     </div>
                     <p className="text-sm text-muted-foreground">
                       {search ? "No contracts match your search." : "No contracts found."}
@@ -165,7 +165,7 @@ function ContractTable({
                   <TableCell>
                     <Button asChild variant="ghost" size="sm" className="h-8 px-2 gap-1.5 text-xs">
                       <Link to={`/vendor/contracts/${contract.id}`}>
-                        <HugeiconsIcon icon={EyeIcon} size={13} strokeWidth={1.5} primaryColor="currentColor" secondaryColor="currentColor" />
+                        <SolarDuotoneIcon icon={EyeIcon} size={13} strokeWidth={1.5} primaryColor="currentColor" secondaryColor="currentColor" />
                         View
                       </Link>
                     </Button>
@@ -191,7 +191,7 @@ function ContractTable({
               disabled={page === 0}
               onClick={() => setPage((p) => p - 1)}
             >
-              <HugeiconsIcon icon={ArrowLeft01Icon} size={13} strokeWidth={1.5} primaryColor="currentColor" secondaryColor="currentColor" />
+              <SolarDuotoneIcon icon={ArrowLeft01Icon} size={13} strokeWidth={1.5} primaryColor="currentColor" secondaryColor="currentColor" />
             </Button>
             <Button
               variant="outline"
@@ -200,7 +200,7 @@ function ContractTable({
               disabled={page >= totalPages - 1}
               onClick={() => setPage((p) => p + 1)}
             >
-              <HugeiconsIcon icon={ArrowRight01Icon} size={13} strokeWidth={1.5} primaryColor="currentColor" secondaryColor="currentColor" />
+              <SolarDuotoneIcon icon={ArrowRight01Icon} size={13} strokeWidth={1.5} primaryColor="currentColor" secondaryColor="currentColor" />
             </Button>
           </div>
         </div>

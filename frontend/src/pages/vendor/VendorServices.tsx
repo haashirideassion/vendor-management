@@ -10,12 +10,12 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
-import { HugeiconsIcon } from "@hugeicons/react"
+import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
 import {
   Add01Icon,
   Delete01Icon,
   ChartBarIncreasingIcon,
-} from "@hugeicons/core-free-icons"
+} from "@/components/shared/SolarIcon"
 import type { VendorService } from "@/lib/types"
 import { toast } from "sonner"
 
@@ -97,7 +97,7 @@ export function VendorServices() {
             </p>
           </div>
           <Button size="sm" onClick={() => setSheetOpen(true)}>
-            <HugeiconsIcon icon={Add01Icon} size={15} strokeWidth={1.5} className="mr-1.5" />
+            <SolarDuotoneIcon icon={Add01Icon} size={15} strokeWidth={1.5} className="mr-1.5" />
             Add service
           </Button>
         </div>
@@ -106,7 +106,7 @@ export function VendorServices() {
         {services.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-xl border border-dashed p-12 text-center gap-4">
             <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
-              <HugeiconsIcon
+              <SolarDuotoneIcon
                 icon={ChartBarIncreasingIcon}
                 size={24}
                 strokeWidth={1.5}
@@ -120,7 +120,7 @@ export function VendorServices() {
               </p>
             </div>
             <Button size="sm" onClick={() => setSheetOpen(true)}>
-              <HugeiconsIcon icon={Add01Icon} size={15} strokeWidth={1.5} className="mr-1.5" />
+              <SolarDuotoneIcon icon={Add01Icon} size={15} strokeWidth={1.5} className="mr-1.5" />
               Add your first service
             </Button>
           </div>
@@ -131,7 +131,7 @@ export function VendorServices() {
                 <CardContent className="flex items-start justify-between gap-3 py-4">
                   <div className="flex items-start gap-3 min-w-0">
                     <div className="mt-0.5 h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                      <HugeiconsIcon
+                      <SolarDuotoneIcon
                         icon={ChartBarIncreasingIcon}
                         size={16}
                         strokeWidth={1.5}
@@ -154,7 +154,7 @@ export function VendorServices() {
                     onClick={() => setDeleteTarget(svc.id)}
                     title="Remove service"
                   >
-                    <HugeiconsIcon icon={Delete01Icon} size={16} strokeWidth={1.5} />
+                    <SolarDuotoneIcon icon={Delete01Icon} size={16} strokeWidth={1.5} />
                   </Button>
                 </CardContent>
               </Card>

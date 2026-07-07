@@ -30,8 +30,8 @@ import {
 import { formatCurrency } from "@/lib/utils"
 import type { EngagementStatus } from "@/lib/types"
 import { format } from "date-fns"
-import { Search01Icon, Cancel01Icon, Add01Icon, EyeIcon, Delete01Icon } from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
+import { Search01Icon, Cancel01Icon, Add01Icon, EyeIcon, Delete01Icon } from "@/components/shared/SolarIcon"
+import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
 import { FileUploadZone } from "@/components/shared/FileUploadZone"
 import { useUploadAttachments } from "@/hooks/useAttachments"
 
@@ -225,7 +225,7 @@ export function EngagementList() {
         {/* Filters + action */}
         <div className="shrink-0 flex flex-wrap items-center gap-3 p-4 rounded-xl border bg-card">
           <div className="relative flex-1 min-w-[200px] max-w-xs">
-            <HugeiconsIcon icon={Search01Icon} size={15} strokeWidth={1.5} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+            <SolarDuotoneIcon icon={Search01Icon} size={15} strokeWidth={1.5} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
             <Input placeholder="Search by title…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 h-9 text-sm" />
           </div>
           <Select value={status || "all"} onValueChange={(v) => setStatus(v === "all" ? "" : v as EngagementStatus)}>
@@ -237,13 +237,13 @@ export function EngagementList() {
           </Select>
           {hasFilters && (
             <Button variant="ghost" size="sm" className="h-9 gap-1.5 text-muted-foreground" onClick={() => { setSearch(""); setStatus("") }}>
-              <HugeiconsIcon icon={Cancel01Icon} size={13} strokeWidth={1.5} />
+              <SolarDuotoneIcon icon={Cancel01Icon} size={13} strokeWidth={1.5} />
               Clear
             </Button>
           )}
           {canCreateEngagement && (
             <Button size="sm" className="h-8 gap-1.5 text-xs ml-auto" onClick={() => setCreating(true)}>
-              <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" />
+              <SolarDuotoneIcon icon={Add01Icon} size={14} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" />
               New Engagement
             </Button>
           )}
@@ -306,7 +306,7 @@ export function EngagementList() {
                     <TableCell>
                       <Button asChild size="sm" variant="ghost" className="h-8 px-2 gap-1.5 text-xs">
                         <Link to={`/admin/engagements/${e.id}`}>
-                          <HugeiconsIcon icon={EyeIcon} size={14} strokeWidth={1.5} />
+                          <SolarDuotoneIcon icon={EyeIcon} size={14} strokeWidth={1.5} />
                           View
                         </Link>
                       </Button>
@@ -443,7 +443,7 @@ export function EngagementList() {
                     className="h-7 text-xs gap-1"
                     onClick={() => appendLineItem({ description: "", quantity: 1, unit: "" })}
                   >
-                    <HugeiconsIcon icon={Add01Icon} size={12} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" />
+                    <SolarDuotoneIcon icon={Add01Icon} size={12} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" />
                     Add Item
                   </Button>
                 </div>
@@ -491,7 +491,7 @@ export function EngagementList() {
                             onClick={() => removeLineItem(i)}
                             className="text-muted-foreground hover:text-destructive"
                           >
-                            <HugeiconsIcon icon={Delete01Icon} size={14} strokeWidth={1.5} />
+                            <SolarDuotoneIcon icon={Delete01Icon} size={14} strokeWidth={1.5} />
                           </button>
                         </div>
                       </div>

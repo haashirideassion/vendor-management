@@ -39,8 +39,8 @@ import {
   ArrowLeft01Icon,
   UserCircleIcon,
   Alert01Icon,
-} from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
+} from "@/components/shared/SolarIcon"
+import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
 import { toast } from "sonner"
 
 type ActionConfig = { label: string; status: VendorStatus; variant: "default" | "success" | "danger" | "outline" | "secondary" }
@@ -168,7 +168,7 @@ export function VendorDetail() {
             <div className="min-w-0">
               <div className="flex items-center gap-2 mb-1">
                 <Button variant="ghost" size="sm" className="h-7 px-2 -ml-2 text-muted-foreground" onClick={() => navigate(-1)}>
-                  <HugeiconsIcon icon={ArrowLeft01Icon} size={14} strokeWidth={1.5} className="mr-1" />
+                  <SolarDuotoneIcon icon={ArrowLeft01Icon} size={14} strokeWidth={1.5} className="mr-1" />
                   Vendors
                 </Button>
                 <span className="text-muted-foreground/40 text-sm">/</span>
@@ -226,22 +226,22 @@ export function VendorDetail() {
           <Tabs defaultValue="overview">
             <TabsList className="mb-6 h-10 gap-1 bg-muted/50 p-1 rounded-xl">
               <TabsTrigger value="overview" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm gap-1.5 text-sm h-8 px-3">
-                <HugeiconsIcon icon={Building06Icon} size={14} strokeWidth={1.5} />
+                <SolarDuotoneIcon icon={Building06Icon} size={14} strokeWidth={1.5} />
                 Overview
               </TabsTrigger>
               <TabsTrigger value="documents" className="gap-1.5 text-sm h-8 px-3">
-                <HugeiconsIcon icon={File01Icon} size={14} strokeWidth={1.5} />
+                <SolarDuotoneIcon icon={File01Icon} size={14} strokeWidth={1.5} />
                 Documents
                 {docs.length > 0 && (
                   <span className="tab-count">{verifiedCount}/{docs.length}</span>
                 )}
               </TabsTrigger>
               <TabsTrigger value="categories" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm gap-1.5 text-sm h-8 px-3">
-                <HugeiconsIcon icon={Tag01Icon} size={14} strokeWidth={1.5} />
+                <SolarDuotoneIcon icon={Tag01Icon} size={14} strokeWidth={1.5} />
                 Categories
               </TabsTrigger>
               <TabsTrigger value="rating" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm gap-1.5 text-sm h-8 px-3">
-                <HugeiconsIcon icon={BarChartIcon} size={14} strokeWidth={1.5} />
+                <SolarDuotoneIcon icon={BarChartIcon} size={14} strokeWidth={1.5} />
                 Rating & History
               </TabsTrigger>
             </TabsList>
@@ -252,7 +252,7 @@ export function VendorDetail() {
                 <Card className="shadow-none">
                   <CardHeader className="pb-3 border-b">
                     <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                      <HugeiconsIcon icon={Building06Icon} size={15} strokeWidth={1.5} className="text-muted-foreground" />
+                      <SolarDuotoneIcon icon={Building06Icon} size={15} strokeWidth={1.5} className="text-muted-foreground" />
                       Company Details
                     </CardTitle>
                   </CardHeader>
@@ -264,7 +264,7 @@ export function VendorDetail() {
                       { icon: UserCircleIcon, label: "Phone",   value: vendor.contact_phone ?? "—" },
                     ].map(({ icon, label, value }) => (
                       <div key={label} className="flex items-center gap-3">
-                        <HugeiconsIcon icon={icon} size={14} strokeWidth={1.5} className="text-muted-foreground shrink-0" />
+                        <SolarDuotoneIcon icon={icon} size={14} strokeWidth={1.5} className="text-muted-foreground shrink-0" />
                         <div className="flex justify-between w-full gap-2">
                           <span className="text-muted-foreground">{label}</span>
                           <span className="font-medium text-right">{value}</span>
@@ -277,7 +277,7 @@ export function VendorDetail() {
                 <Card className="shadow-none">
                   <CardHeader className="pb-3 border-b">
                     <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                      <HugeiconsIcon icon={File01Icon} size={15} strokeWidth={1.5} className="text-muted-foreground" />
+                      <SolarDuotoneIcon icon={File01Icon} size={15} strokeWidth={1.5} className="text-muted-foreground" />
                       Tax & Banking
                     </CardTitle>
                   </CardHeader>
@@ -299,7 +299,7 @@ export function VendorDetail() {
                 <Card className="shadow-none">
                   <CardHeader className="pb-3 border-b">
                     <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                      <HugeiconsIcon icon={Clock01Icon} size={15} strokeWidth={1.5} className="text-muted-foreground" />
+                      <SolarDuotoneIcon icon={Clock01Icon} size={15} strokeWidth={1.5} className="text-muted-foreground" />
                       Contract Info
                     </CardTitle>
                   </CardHeader>
@@ -323,7 +323,7 @@ export function VendorDetail() {
                   <Card className="shadow-none md:col-span-2 border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20">
                     <CardHeader className="pb-2">
                       <CardTitle className="text-sm font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-2">
-                        <HugeiconsIcon icon={Alert01Icon} size={15} strokeWidth={1.5} />
+                        <SolarDuotoneIcon icon={Alert01Icon} size={15} strokeWidth={1.5} />
                         Admin Notes
                       </CardTitle>
                     </CardHeader>
@@ -346,8 +346,8 @@ export function VendorDetail() {
                       <div className="flex items-center gap-3 min-w-0">
                         <div className={`p-1.5 rounded-lg shrink-0 ${doc.verified ? "bg-green-100 dark:bg-green-900/30" : "bg-yellow-100 dark:bg-yellow-900/30"}`}>
                           {doc.verified
-                            ? <HugeiconsIcon icon={CheckmarkCircle02Icon} size={16} strokeWidth={1.5} className="text-green-600 dark:text-green-400" />
-                            : <HugeiconsIcon icon={Clock01Icon} size={16} strokeWidth={1.5} className="text-yellow-600 dark:text-yellow-400" />
+                            ? <SolarDuotoneIcon icon={CheckmarkCircle02Icon} size={16} strokeWidth={1.5} className="text-green-600 dark:text-green-400" />
+                            : <SolarDuotoneIcon icon={Clock01Icon} size={16} strokeWidth={1.5} className="text-yellow-600 dark:text-yellow-400" />
                           }
                         </div>
                         <div className="min-w-0">
@@ -383,7 +383,7 @@ export function VendorDetail() {
                           className="h-8 w-8 text-muted-foreground hover:text-foreground"
                           onClick={() => openDoc(doc.storage_path)}
                         >
-                          <HugeiconsIcon icon={EyeIcon} size={15} strokeWidth={1.5} />
+                          <SolarDuotoneIcon icon={EyeIcon} size={15} strokeWidth={1.5} />
                         </Button>
                       </div>
                     </CardContent>
@@ -411,7 +411,7 @@ export function VendorDetail() {
                   onClick={() => addCategory.mutate()}
                   className="gap-1.5"
                 >
-                  <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={1.5} />
+                  <SolarDuotoneIcon icon={Add01Icon} size={14} strokeWidth={1.5} />
                   Assign
                 </Button>
               </div>
@@ -427,7 +427,7 @@ export function VendorDetail() {
                       className="ml-0.5 text-muted-foreground hover:text-destructive transition-colors leading-none"
                       aria-label={`Remove ${vc.service_categories?.name}`}
                     >
-                      <HugeiconsIcon icon={Cancel01Icon} size={12} strokeWidth={2} />
+                      <SolarDuotoneIcon icon={Cancel01Icon} size={12} strokeWidth={2} />
                     </button>
                   </div>
                 ))}
@@ -441,7 +441,7 @@ export function VendorDetail() {
                 <Card className="shadow-none">
                   <CardHeader className="pb-3 border-b">
                     <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                      <HugeiconsIcon icon={BarChartIcon} size={15} strokeWidth={1.5} className="text-muted-foreground" />
+                      <SolarDuotoneIcon icon={BarChartIcon} size={15} strokeWidth={1.5} className="text-muted-foreground" />
                       Submit Rating
                     </CardTitle>
                   </CardHeader>
@@ -475,7 +475,7 @@ export function VendorDetail() {
                   <Card className="shadow-none">
                     <CardHeader className="pb-3 border-b">
                       <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                        <HugeiconsIcon icon={CheckmarkCircle01Icon} size={15} strokeWidth={1.5} className="text-muted-foreground" />
+                        <SolarDuotoneIcon icon={CheckmarkCircle01Icon} size={15} strokeWidth={1.5} className="text-muted-foreground" />
                         Rating Summary
                       </CardTitle>
                     </CardHeader>

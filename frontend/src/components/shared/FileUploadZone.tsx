@@ -3,8 +3,8 @@ import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { formatBytes } from "@/lib/utils"
 import { validateFile, ALLOWED_EXT_LABEL } from "@/hooks/useAttachments"
-import { HugeiconsIcon } from "@hugeicons/react"
-import { Upload01Icon, File01Icon, Cancel01Icon } from "@hugeicons/core-free-icons"
+import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
+import { Upload01Icon, File01Icon, Cancel01Icon } from "@/components/shared/SolarIcon"
 
 export interface FileUploadZoneProps {
   /** Currently staged files (controlled). */
@@ -133,7 +133,7 @@ export function FileUploadZone({
           disabled={disabled}
           onChange={handleInputChange}
         />
-        <HugeiconsIcon
+        <SolarDuotoneIcon
           icon={Upload01Icon}
           size={22}
           strokeWidth={1.5}
@@ -158,7 +158,7 @@ export function FileUploadZone({
               key={`${file.name}-${file.size}-${i}`}
               className="flex items-center gap-2.5 rounded-lg border bg-muted/30 px-3 py-2"
             >
-              <HugeiconsIcon
+              <SolarDuotoneIcon
                 icon={File01Icon}
                 size={15}
                 strokeWidth={1.5}
@@ -175,7 +175,7 @@ export function FileUploadZone({
                 className="shrink-0 text-muted-foreground transition-colors hover:text-destructive disabled:pointer-events-none"
                 aria-label={`Remove ${file.name}`}
               >
-                <HugeiconsIcon icon={Cancel01Icon} size={14} strokeWidth={2} />
+                <SolarDuotoneIcon icon={Cancel01Icon} size={14} strokeWidth={2} />
               </button>
             </li>
           ))}

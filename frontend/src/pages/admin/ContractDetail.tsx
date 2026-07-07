@@ -35,8 +35,8 @@ import {
   Cancel01Icon,
   EyeIcon,
   File01Icon,
-} from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
+} from "@/components/shared/SolarIcon"
+import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
 
 type ActionDialog = "activate" | "terminate" | "sign" | "amend" | null
 
@@ -158,7 +158,7 @@ export function ContractDetail() {
         {/* Breadcrumb + header */}
         <div>
           <Link to="/admin/contracts" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-3">
-            <HugeiconsIcon icon={ArrowLeft01Icon} size={13} strokeWidth={1.5} />
+            <SolarDuotoneIcon icon={ArrowLeft01Icon} size={13} strokeWidth={1.5} />
             Contracts
           </Link>
           <div className="flex items-start justify-between gap-4">
@@ -185,24 +185,24 @@ export function ContractDetail() {
           <div className="flex flex-wrap gap-2">
             {status === "draft" && (
               <Button size="sm" variant="success" onClick={() => setDialog("activate")}>
-                <HugeiconsIcon icon={CheckmarkCircle01Icon} size={14} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" className="mr-1.5" />
+                <SolarDuotoneIcon icon={CheckmarkCircle01Icon} size={14} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" className="mr-1.5" />
                 Activate
               </Button>
             )}
             {status === "active" && (
               <Button size="sm" variant="danger" onClick={() => setDialog("terminate")}>
-                <HugeiconsIcon icon={Cancel01Icon} size={14} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" className="mr-1.5" />
+                <SolarDuotoneIcon icon={Cancel01Icon} size={14} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" className="mr-1.5" />
                 Terminate
               </Button>
             )}
             {!bothSigned && (
               <Button size="sm" variant="outline" onClick={() => setDialog("sign")}>
-                <HugeiconsIcon icon={File01Icon} size={14} strokeWidth={1.5} primaryColor="currentColor" secondaryColor="currentColor" className="mr-1.5" />
+                <SolarDuotoneIcon icon={File01Icon} size={14} strokeWidth={1.5} primaryColor="currentColor" secondaryColor="currentColor" className="mr-1.5" />
                 Record Signature
               </Button>
             )}
             <Button size="sm" variant="outline" onClick={() => setDialog("amend")}>
-              <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" className="mr-1.5" />
+              <SolarDuotoneIcon icon={Add01Icon} size={14} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" className="mr-1.5" />
               Add Amendment
             </Button>
           </div>
@@ -278,14 +278,14 @@ export function ContractDetail() {
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Vendor signed</span>
                 {contract.signed_by_vendor
-                  ? <HugeiconsIcon icon={CheckmarkCircle01Icon} size={16} strokeWidth={2} className="text-green-600" />
+                  ? <SolarDuotoneIcon icon={CheckmarkCircle01Icon} size={16} strokeWidth={2} className="text-green-600" />
                   : <span className="text-xs text-muted-foreground/60">Pending</span>
                 }
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Internal signed</span>
                 {contract.signed_by_internal
-                  ? <HugeiconsIcon icon={CheckmarkCircle01Icon} size={16} strokeWidth={2} className="text-green-600" />
+                  ? <SolarDuotoneIcon icon={CheckmarkCircle01Icon} size={16} strokeWidth={2} className="text-green-600" />
                   : <span className="text-xs text-muted-foreground/60">Pending</span>
                 }
               </div>
@@ -358,7 +358,7 @@ export function ContractDetail() {
                     </div>
                     <Button asChild size="sm" variant="ghost" className="h-7 px-2 text-xs">
                       <Link to={`/admin/purchase-orders/${po.id}`}>
-                        <HugeiconsIcon icon={EyeIcon} size={13} strokeWidth={1.5} />
+                        <SolarDuotoneIcon icon={EyeIcon} size={13} strokeWidth={1.5} />
                       </Link>
                     </Button>
                   </div>

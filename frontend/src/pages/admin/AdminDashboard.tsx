@@ -12,8 +12,8 @@ import {
   CheckmarkCircle01Icon,
   Clock01Icon,
   File01Icon,
-} from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
+} from "@/components/shared/SolarIcon"
+import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
 import type { VendorStatus } from "@/lib/types"
 
 export function AdminDashboard() {
@@ -29,7 +29,7 @@ export function AdminDashboard() {
     {
       label: "Total Vendors",
       value: vendors.length,
-      icon: <HugeiconsIcon icon={UserGroup02Icon} size={22} strokeWidth={1.5} className="text-white" />,
+      icon: <SolarDuotoneIcon icon={UserGroup02Icon} size={22} strokeWidth={1.5} className="text-white" />,
       bg: "bg-blue-50 dark:bg-blue-950/30 border-blue-100 dark:border-blue-900/50",
       valueColor: "text-blue-700 dark:text-blue-300",
       to: "/admin/vendors",
@@ -37,7 +37,7 @@ export function AdminDashboard() {
     {
       label: "All Contracts",
       value: analyticsError ? "—" : (analytics?.kpis.activeContractCount ?? "—"),
-      icon: <HugeiconsIcon icon={File01Icon} size={22} strokeWidth={1.5} className="text-white" />,
+      icon: <SolarDuotoneIcon icon={File01Icon} size={22} strokeWidth={1.5} className="text-white" />,
       bg: "bg-teal-50 dark:bg-teal-950/30 border-teal-100 dark:border-teal-900/50",
       valueColor: "text-teal-700 dark:text-teal-300",
       to: "/admin/contracts",
@@ -45,7 +45,7 @@ export function AdminDashboard() {
     {
       label: "Pending Review",
       value: counts.pending_review ?? 0,
-      icon: <HugeiconsIcon icon={Clock01Icon} size={22} strokeWidth={1.5} className="text-white" />,
+      icon: <SolarDuotoneIcon icon={Clock01Icon} size={22} strokeWidth={1.5} className="text-white" />,
       bg: "bg-yellow-50 dark:bg-yellow-950/30 border-yellow-100 dark:border-yellow-900/50",
       valueColor: "text-yellow-700 dark:text-yellow-300",
       to: "/admin/vendors?status=pending_review",
@@ -92,7 +92,7 @@ export function AdminDashboard() {
         <Card className="shadow-none">
           <CardHeader className="pb-3 flex-row items-center justify-between border-b">
             <div className="flex items-center gap-2">
-              <HugeiconsIcon icon={Clock01Icon} size={16} strokeWidth={1.5} className="text-yellow-600" />
+              <SolarDuotoneIcon icon={Clock01Icon} size={16} strokeWidth={1.5} className="text-yellow-600" />
               <CardTitle className="text-sm font-semibold">Pending Review</CardTitle>
             </div>
             <Button asChild variant="ghost" size="sm" className="h-7 text-xs px-2">
@@ -102,7 +102,7 @@ export function AdminDashboard() {
           <CardContent className="pt-3 space-y-1">
             {vendors.filter((v) => v.status === "pending_review").slice(0, 5).length === 0 ? (
               <div className="flex items-center gap-2 py-4">
-                <HugeiconsIcon icon={CheckmarkCircle01Icon} size={16} strokeWidth={1.5} className="text-green-500" />
+                <SolarDuotoneIcon icon={CheckmarkCircle01Icon} size={16} strokeWidth={1.5} className="text-green-500" />
                 <p className="text-sm text-muted-foreground">No pending applications.</p>
               </div>
             ) : (

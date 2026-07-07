@@ -21,8 +21,8 @@ import {
 } from "@/lib/constants"
 import { formatCurrency } from "@/lib/utils"
 import { format } from "date-fns"
-import { ArrowLeft01Icon, EyeIcon } from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
+import { ArrowLeft01Icon, EyeIcon } from "@/components/shared/SolarIcon"
+import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
 import type { POStatus, GRNStatus, InvoiceStatus, MatchStatus } from "@/lib/types"
 
 export function PurchaseOrderDetail() {
@@ -64,7 +64,7 @@ export function PurchaseOrderDetail() {
         {/* Header */}
         <div>
           <Link to="/admin/purchase-orders" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-3">
-            <HugeiconsIcon icon={ArrowLeft01Icon} size={13} strokeWidth={1.5} />
+            <SolarDuotoneIcon icon={ArrowLeft01Icon} size={13} strokeWidth={1.5} />
             Purchase Orders
           </Link>
           <div className="flex items-start justify-between gap-4">
@@ -209,7 +209,7 @@ export function PurchaseOrderDetail() {
                         </div>
                         <Button asChild size="sm" variant="ghost" className="h-7 px-2">
                           <Link to={`/admin/grns/${grn.id}`}>
-                            <HugeiconsIcon icon={EyeIcon} size={13} strokeWidth={1.5} />
+                            <SolarDuotoneIcon icon={EyeIcon} size={13} strokeWidth={1.5} />
                           </Link>
                         </Button>
                       </div>

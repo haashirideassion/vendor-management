@@ -1,6 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from "react"
 import { Button } from "@/components/ui/button"
-import { AlertCircle } from "lucide-react"
+import { SolarIcon } from "@/components/shared/SolarIcon"
 
 interface Props { children: ReactNode }
 interface State { error: Error | null }
@@ -20,7 +20,7 @@ export class ErrorBoundary extends Component<Props, State> {
     if (this.state.error) {
       return (
         <div className="flex flex-col items-center justify-center min-h-[50vh] gap-4 p-8 text-center">
-          <AlertCircle className="h-10 w-10 text-destructive" />
+          <SolarIcon name="warning" className="h-10 w-10 text-destructive" />
           <div>
             <h2 className="text-lg font-semibold">Something went wrong</h2>
             <p className="text-sm text-muted-foreground mt-1 max-w-sm">{this.state.error.message}</p>

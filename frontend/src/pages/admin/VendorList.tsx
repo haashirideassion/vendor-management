@@ -13,8 +13,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { VENDOR_STATUS_LABELS, VENDOR_STATUSES } from "@/lib/constants"
-import { Search01Icon, Cancel01Icon, EyeIcon } from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
+import { Search01Icon, Cancel01Icon, EyeIcon } from "@/components/shared/SolarIcon"
+import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
 import type { VendorStatus } from "@/lib/types"
 import { format } from "date-fns"
 
@@ -74,7 +74,7 @@ export function VendorList() {
         {/* Filter bar */}
         <div className="flex flex-wrap items-center gap-3 p-4 rounded-xl border bg-card shadow-none">
           <div className="relative flex-1 min-w-[200px] max-w-xs">
-            <HugeiconsIcon
+            <SolarDuotoneIcon
               icon={Search01Icon}
               size={15}
               strokeWidth={1.5}
@@ -116,7 +116,7 @@ export function VendorList() {
               className="h-9 gap-1.5 text-muted-foreground hover:text-foreground"
               onClick={() => { setSearch(""); setStatus(""); setCategory("") }}
             >
-              <HugeiconsIcon icon={Cancel01Icon} size={13} strokeWidth={1.5} />
+              <SolarDuotoneIcon icon={Cancel01Icon} size={13} strokeWidth={1.5} />
               Clear
             </Button>
           )}
@@ -150,7 +150,7 @@ export function VendorList() {
                 <TableRow>
                   <TableCell colSpan={7} className="text-center text-muted-foreground py-12">
                     <div className="flex flex-col items-center gap-1">
-                      <HugeiconsIcon icon={Search01Icon} size={24} strokeWidth={1.5} className="text-muted-foreground/40 mb-1" />
+                      <SolarDuotoneIcon icon={Search01Icon} size={24} strokeWidth={1.5} className="text-muted-foreground/40 mb-1" />
                       <p className="text-sm font-medium">No vendors found</p>
                       {hasFilters && (
                         <p className="text-xs text-muted-foreground">Try adjusting your filters</p>
@@ -210,7 +210,7 @@ export function VendorList() {
                     <TableCell>
                       <Button asChild size="sm" variant="ghost" className="h-8 px-2 gap-1.5 text-xs">
                         <Link to={`/admin/vendors/${v.id}`}>
-                          <HugeiconsIcon icon={EyeIcon} size={14} strokeWidth={1.5} />
+                          <SolarDuotoneIcon icon={EyeIcon} size={14} strokeWidth={1.5} />
                           View
                         </Link>
                       </Button>

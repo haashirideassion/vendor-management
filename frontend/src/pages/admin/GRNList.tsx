@@ -15,8 +15,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { GRN_STATUS_LABELS, GRN_STATUS_COLORS } from "@/lib/constants"
 import type { GRNStatus } from "@/lib/types"
 import { format } from "date-fns"
-import { Add01Icon, Cancel01Icon, CheckmarkCircle01Icon, File01Icon } from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
+import { Add01Icon, Cancel01Icon, CheckmarkCircle01Icon, File01Icon } from "@/components/shared/SolarIcon"
+import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
 import { toast } from "sonner"
 
 const STATUSES: GRNStatus[] = ["draft", "submitted", "verified", "rejected"]
@@ -58,13 +58,13 @@ export function GRNList() {
           </Select>
           {status && (
             <Button variant="ghost" size="sm" className="h-9 gap-1.5 text-muted-foreground" onClick={() => setStatus("")}>
-              <HugeiconsIcon icon={Cancel01Icon} size={13} strokeWidth={1.5} />
+              <SolarDuotoneIcon icon={Cancel01Icon} size={13} strokeWidth={1.5} />
               Clear
             </Button>
           )}
           {canRecordGRN && (
             <Button size="sm" className="h-8 gap-1.5 text-xs ml-auto" onClick={() => setCreating(true)}>
-              <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" />
+              <SolarDuotoneIcon icon={Add01Icon} size={14} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" />
               Record GRN
             </Button>
           )}
@@ -127,7 +127,7 @@ export function GRNList() {
                               className="h-7 px-2 text-xs text-green-600 hover:text-green-800 hover:bg-green-50"
                               onClick={() => setConfirmAction({ id: grn.id, status: "verified" })}
                             >
-                              <HugeiconsIcon icon={CheckmarkCircle01Icon} size={13} strokeWidth={1.5} />
+                              <SolarDuotoneIcon icon={CheckmarkCircle01Icon} size={13} strokeWidth={1.5} />
                             </Button>
                             <Button
                               size="sm"
@@ -135,7 +135,7 @@ export function GRNList() {
                               className="h-7 px-2 text-xs text-destructive hover:bg-destructive/8"
                               onClick={() => setConfirmAction({ id: grn.id, status: "rejected" })}
                             >
-                              <HugeiconsIcon icon={Cancel01Icon} size={13} strokeWidth={1.5} />
+                              <SolarDuotoneIcon icon={Cancel01Icon} size={13} strokeWidth={1.5} />
                             </Button>
                           </>
                         )}
@@ -161,7 +161,7 @@ export function GRNList() {
                           className="h-7 px-2 gap-1.5 text-xs text-muted-foreground"
                           onClick={() => setDocsGRNId(grn.id)}
                         >
-                          <HugeiconsIcon icon={File01Icon} size={13} strokeWidth={1.5} />
+                          <SolarDuotoneIcon icon={File01Icon} size={13} strokeWidth={1.5} />
                           <span>Document</span>
                         </Button>
                       </div>

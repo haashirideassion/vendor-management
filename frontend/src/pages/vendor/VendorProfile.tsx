@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Command, CommandInput, CommandList, CommandItem, CommandEmpty } from "@/components/ui/command"
 import { Checkbox } from "@/components/ui/checkbox"
-import { HugeiconsIcon } from "@hugeicons/react"
+import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
 import {
   UserCircleIcon,
   Edit01Icon,
@@ -21,7 +21,7 @@ import {
   Building06Icon,
   Tag01Icon,
   Delete01Icon,
-} from "@hugeicons/core-free-icons"
+} from "@/components/shared/SolarIcon"
 import { toast } from "sonner"
 
 const schema = z.object({
@@ -140,7 +140,7 @@ export function VendorProfile() {
       <AnimatedPage>
         <div className="flex flex-col items-center justify-center min-h-[60vh] gap-2 p-6 text-center">
           <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
-            <HugeiconsIcon icon={UserCircleIcon} size={32} strokeWidth={1.5} className="text-muted-foreground" />
+            <SolarDuotoneIcon icon={UserCircleIcon} size={32} strokeWidth={1.5} className="text-muted-foreground" />
           </div>
           <p className="text-sm font-medium">No profile found</p>
           <p className="text-sm text-muted-foreground">
@@ -165,17 +165,17 @@ export function VendorProfile() {
             </div>
             {!editing ? (
               <Button size="sm" variant="outline" onClick={() => setEditing(true)} type="button">
-                <HugeiconsIcon icon={Edit01Icon} size={15} strokeWidth={1.5} className="mr-1.5" />
+                <SolarDuotoneIcon icon={Edit01Icon} size={15} strokeWidth={1.5} className="mr-1.5" />
                 Edit
               </Button>
             ) : (
               <div className="flex gap-2">
                 <Button type="button" size="sm" variant="outline" onClick={handleCancel}>
-                  <HugeiconsIcon icon={Cancel01Icon} size={15} strokeWidth={1.5} className="mr-1.5" />
+                  <SolarDuotoneIcon icon={Cancel01Icon} size={15} strokeWidth={1.5} className="mr-1.5" />
                   Cancel
                 </Button>
                 <Button type="submit" size="sm" disabled={isPending}>
-                  <HugeiconsIcon icon={CheckmarkCircle01Icon} size={15} strokeWidth={1.5} className="mr-1.5" />
+                  <SolarDuotoneIcon icon={CheckmarkCircle01Icon} size={15} strokeWidth={1.5} className="mr-1.5" />
                   {isPending ? "Saving…" : "Save changes"}
                 </Button>
               </div>
@@ -186,7 +186,7 @@ export function VendorProfile() {
           <Card>
             <CardHeader className="pb-4">
               <div className="flex items-center gap-2">
-                <HugeiconsIcon icon={UserCircleIcon} size={16} strokeWidth={1.5} className="text-primary" />
+                <SolarDuotoneIcon icon={UserCircleIcon} size={16} strokeWidth={1.5} className="text-primary" />
                 <CardTitle className="text-base">Company Details</CardTitle>
               </div>
             </CardHeader>
@@ -215,7 +215,7 @@ export function VendorProfile() {
           <Card>
             <CardHeader className="pb-4">
               <div className="flex items-center gap-2">
-                <HugeiconsIcon icon={Building06Icon} size={16} strokeWidth={1.5} className="text-primary" />
+                <SolarDuotoneIcon icon={Building06Icon} size={16} strokeWidth={1.5} className="text-primary" />
                 <CardTitle className="text-base">Tax & Banking</CardTitle>
               </div>
             </CardHeader>
@@ -239,7 +239,7 @@ export function VendorProfile() {
           <Card>
             <CardHeader className="pb-4">
               <div className="flex items-center gap-2">
-                <HugeiconsIcon icon={Tag01Icon} size={16} strokeWidth={1.5} className="text-primary" />
+                <SolarDuotoneIcon icon={Tag01Icon} size={16} strokeWidth={1.5} className="text-primary" />
                 <CardTitle className="text-base">Service Categories</CardTitle>
               </div>
             </CardHeader>
@@ -309,7 +309,7 @@ export function VendorProfile() {
                               onClick={() => toggleCategory(cat.id)}
                               className="ml-0.5 hover:text-destructive transition-colors"
                             >
-                              <HugeiconsIcon icon={Delete01Icon} size={11} strokeWidth={2} />
+                              <SolarDuotoneIcon icon={Delete01Icon} size={11} strokeWidth={2} />
                             </button>
                           </span>
                         ))}

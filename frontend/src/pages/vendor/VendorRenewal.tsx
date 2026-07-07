@@ -7,14 +7,14 @@ import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { useNavigate } from "react-router-dom"
 import { DOCUMENT_TYPE_LABELS } from "@/lib/constants"
-import { HugeiconsIcon } from "@hugeicons/react"
+import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
 import {
   CheckmarkCircle01Icon,
   Clock01Icon,
   Refresh01Icon,
   AlertCircleIcon,
   Upload01Icon,
-} from "@hugeicons/core-free-icons"
+} from "@/components/shared/SolarIcon"
 import { format } from "date-fns"
 import type { DocumentType } from "@/lib/types"
 
@@ -65,7 +65,7 @@ export function VendorRenewal() {
           <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-xl" style={{ background: "var(--gradient-warning)" }} />
           <div className="flex items-start gap-3 pl-3">
             <div className="mt-0.5 h-9 w-9 rounded-full bg-orange-100 flex items-center justify-center shrink-0">
-              <HugeiconsIcon icon={AlertCircleIcon} size={20} strokeWidth={1.5} className="text-orange-600" />
+              <SolarDuotoneIcon icon={AlertCircleIcon} size={20} strokeWidth={1.5} className="text-orange-600" />
             </div>
             <div>
               <p className="text-sm font-semibold text-orange-900">Renewal Required</p>
@@ -84,7 +84,7 @@ export function VendorRenewal() {
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <HugeiconsIcon icon={Refresh01Icon} size={16} strokeWidth={1.5} className="text-primary" />
+                <SolarDuotoneIcon icon={Refresh01Icon} size={16} strokeWidth={1.5} className="text-primary" />
                 <CardTitle className="text-base">Renewal Checklist</CardTitle>
               </div>
               <span className="text-xs text-muted-foreground font-medium">
@@ -102,7 +102,7 @@ export function VendorRenewal() {
                   className={`flex items-center gap-3 rounded-lg border p-3 transition-colors ${done ? "border-green-200 bg-green-50/50" : "border-border"
                     }`}
                 >
-                  <HugeiconsIcon
+                  <SolarDuotoneIcon
                     icon={done ? CheckmarkCircle01Icon : Clock01Icon}
                     size={18}
                     strokeWidth={1.5}
@@ -127,7 +127,7 @@ export function VendorRenewal() {
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
-                <HugeiconsIcon icon={Upload01Icon} size={16} strokeWidth={1.5} className="text-primary" />
+                <SolarDuotoneIcon icon={Upload01Icon} size={16} strokeWidth={1.5} className="text-primary" />
                 <CardTitle className="text-base">Upload Documents</CardTitle>
               </div>
               <CardDescription>
@@ -152,7 +152,7 @@ export function VendorRenewal() {
         >
           {allDone ? (
             <>
-              <HugeiconsIcon icon={CheckmarkCircle01Icon} size={18} strokeWidth={1.5} className="mr-2" />
+              <SolarDuotoneIcon icon={CheckmarkCircle01Icon} size={18} strokeWidth={1.5} className="mr-2" />
               Renewal submitted — go to dashboard
             </>
           ) : (

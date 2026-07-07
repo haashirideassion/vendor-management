@@ -1,8 +1,8 @@
 import { useVendor } from "@/hooks/useVendor"
 import { AnimatedPage } from "@/components/shared/AnimatedPage"
 import { Card, CardContent } from "@/components/ui/card"
-import { HugeiconsIcon } from "@hugeicons/react"
-import { Tag01Icon } from "@hugeicons/core-free-icons"
+import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
+import { Tag01Icon } from "@/components/shared/SolarIcon"
 
 export function VendorCategories() {
   const { data: vendor, isLoading } = useVendor()
@@ -34,7 +34,7 @@ export function VendorCategories() {
         {categories.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-xl border border-dashed p-12 text-center gap-4">
             <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
-              <HugeiconsIcon
+              <SolarDuotoneIcon
                 icon={Tag01Icon}
                 size={24}
                 strokeWidth={1.5}
@@ -54,7 +54,7 @@ export function VendorCategories() {
               <Card key={vc.id} className="hover:shadow-sm transition-shadow">
                 <CardContent className="flex items-center gap-3 py-4">
                   <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                    <HugeiconsIcon
+                    <SolarDuotoneIcon
                       icon={Tag01Icon}
                       size={18}
                       strokeWidth={1.5}

@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { DOCUMENT_TYPE_LABELS } from "@/lib/constants"
-import { HugeiconsIcon } from "@hugeicons/react"
+import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
 import {
   File01Icon,
   CheckmarkCircle01Icon,
@@ -16,7 +16,7 @@ import {
   Upload01Icon,
   EyeIcon,
   UserCircleIcon,
-} from "@hugeicons/core-free-icons"
+} from "@/components/shared/SolarIcon"
 import { format } from "date-fns"
 import { toast } from "sonner"
 
@@ -52,7 +52,7 @@ export function VendorDocuments() {
       <AnimatedPage>
         <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 p-6 text-center">
           <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
-            <HugeiconsIcon icon={UserCircleIcon} size={32} strokeWidth={1.5} className="text-muted-foreground" />
+            <SolarDuotoneIcon icon={UserCircleIcon} size={32} strokeWidth={1.5} className="text-muted-foreground" />
           </div>
           <div className="space-y-1">
             <p className="text-sm font-medium">No vendor account found</p>
@@ -76,7 +76,7 @@ export function VendorDocuments() {
             <p className="text-sm text-muted-foreground">Manage your uploaded documents.</p>
           </div>
           <Button size="sm" onClick={() => setUploadOpen(true)}>
-            <HugeiconsIcon icon={Upload01Icon} size={15} strokeWidth={1.5} className="mr-1.5" />
+            <SolarDuotoneIcon icon={Upload01Icon} size={15} strokeWidth={1.5} className="mr-1.5" />
             Upload document
           </Button>
         </div>
@@ -85,14 +85,14 @@ export function VendorDocuments() {
         {docs.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-xl border border-dashed p-12 text-center gap-4">
             <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
-              <HugeiconsIcon icon={File01Icon} size={24} strokeWidth={1.5} className="text-muted-foreground" />
+              <SolarDuotoneIcon icon={File01Icon} size={24} strokeWidth={1.5} className="text-muted-foreground" />
             </div>
             <div className="space-y-1">
               <p className="text-sm font-medium">No documents uploaded yet</p>
               <p className="text-sm text-muted-foreground">Upload your required documents to complete verification.</p>
             </div>
             <Button size="sm" onClick={() => setUploadOpen(true)}>
-              <HugeiconsIcon icon={Upload01Icon} size={15} strokeWidth={1.5} className="mr-1.5" />
+              <SolarDuotoneIcon icon={Upload01Icon} size={15} strokeWidth={1.5} className="mr-1.5" />
               Upload your first document
             </Button>
           </div>
@@ -106,7 +106,7 @@ export function VendorDocuments() {
                       className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 ${doc.verified ? "bg-green-100" : "bg-yellow-100"
                         }`}
                     >
-                      <HugeiconsIcon
+                      <SolarDuotoneIcon
                         icon={doc.verified ? CheckmarkCircle01Icon : Clock01Icon}
                         size={20}
                         strokeWidth={1.5}
@@ -142,7 +142,7 @@ export function VendorDocuments() {
                       onClick={() => openDoc(doc.storage_path)}
                       title="View document"
                     >
-                      <HugeiconsIcon icon={EyeIcon} size={16} strokeWidth={1.5} />
+                      <SolarDuotoneIcon icon={EyeIcon} size={16} strokeWidth={1.5} />
                     </Button>
                   </div>
                 </CardContent>

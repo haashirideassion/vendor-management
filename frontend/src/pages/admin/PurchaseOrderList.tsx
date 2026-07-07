@@ -23,8 +23,8 @@ import { PO_STATUS_LABELS, PO_STATUS_COLORS, CURRENCIES } from "@/lib/constants"
 import { formatCurrency } from "@/lib/utils"
 import type { POStatus } from "@/lib/types"
 import { format } from "date-fns"
-import { Cancel01Icon, Add01Icon, EyeIcon, Delete01Icon } from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
+import { Cancel01Icon, Add01Icon, EyeIcon, Delete01Icon } from "@/components/shared/SolarIcon"
+import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
 import { FileUploadZone } from "@/components/shared/FileUploadZone"
 import { useUploadAttachments } from "@/hooks/useAttachments"
 import { supabase } from "@/lib/supabase"
@@ -159,13 +159,13 @@ export function PurchaseOrderList() {
           </Select>
           {status && (
             <Button variant="ghost" size="sm" className="h-9 gap-1.5 text-muted-foreground" onClick={() => setStatus("")}>
-              <HugeiconsIcon icon={Cancel01Icon} size={13} strokeWidth={1.5} />
+              <SolarDuotoneIcon icon={Cancel01Icon} size={13} strokeWidth={1.5} />
               Clear
             </Button>
           )}
           {canCreatePO && (
             <Button size="sm" className="h-8 gap-1.5 text-xs ml-auto" onClick={() => setCreating(true)}>
-              <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" />
+              <SolarDuotoneIcon icon={Add01Icon} size={14} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" />
               New PO
             </Button>
           )}
@@ -225,7 +225,7 @@ export function PurchaseOrderList() {
                     <TableCell>
                       <Button asChild size="sm" variant="ghost" className="h-8 px-2 gap-1.5 text-xs">
                         <Link to={`/admin/purchase-orders/${po.id}`}>
-                          <HugeiconsIcon icon={EyeIcon} size={14} strokeWidth={1.5} />
+                          <SolarDuotoneIcon icon={EyeIcon} size={14} strokeWidth={1.5} />
                           View
                         </Link>
                       </Button>
@@ -317,7 +317,7 @@ export function PurchaseOrderList() {
                 <Label className="text-sm font-semibold">Line Items <span className="text-destructive">*</span></Label>
                 <Button type="button" size="sm" variant="outline" className="h-7 text-xs gap-1"
                   onClick={() => append({ description: "", quantity: 1, unit_price: 0, unit: "" })}>
-                  <HugeiconsIcon icon={Add01Icon} size={12} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" />
+                  <SolarDuotoneIcon icon={Add01Icon} size={12} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" />
                   Add Row
                 </Button>
               </div>
@@ -342,7 +342,7 @@ export function PurchaseOrderList() {
                     <div className="col-span-1 flex justify-center pt-1">
                       {fields.length > 1 && (
                         <button type="button" onClick={() => remove(i)} className="text-muted-foreground hover:text-destructive">
-                          <HugeiconsIcon icon={Delete01Icon} size={14} strokeWidth={1.5} />
+                          <SolarDuotoneIcon icon={Delete01Icon} size={14} strokeWidth={1.5} />
                         </button>
                       )}
                     </div>

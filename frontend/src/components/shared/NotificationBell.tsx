@@ -3,8 +3,8 @@ import { Link } from "react-router-dom"
 import { useVendorRFQs } from "@/hooks/useRFQs"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Button } from "@/components/ui/button"
-import { HugeiconsIcon } from "@hugeicons/react"
-import { Notification01Icon, Briefcase01Icon } from "@hugeicons/core-free-icons"
+import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
+import { Notification01Icon, Briefcase01Icon } from "@/components/shared/SolarIcon"
 
 export function NotificationBell() {
   const { data: rfqs = [] } = useVendorRFQs()
@@ -17,7 +17,7 @@ export function NotificationBell() {
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button variant="ghost" size="icon" className="relative h-8 w-8 rounded-lg">
-          <HugeiconsIcon
+          <SolarDuotoneIcon
             icon={Notification01Icon}
             size={18}
             strokeWidth={1.5}
@@ -41,7 +41,7 @@ export function NotificationBell() {
         <div className="max-h-72 overflow-y-auto divide-y divide-border/40">
           {pending.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-center px-4">
-              <HugeiconsIcon icon={Notification01Icon} size={28} strokeWidth={1.5} className="text-muted-foreground/30 mb-2" />
+              <SolarDuotoneIcon icon={Notification01Icon} size={28} strokeWidth={1.5} className="text-muted-foreground/30 mb-2" />
               <p className="text-sm text-muted-foreground">No new notifications</p>
             </div>
           ) : (
@@ -53,7 +53,7 @@ export function NotificationBell() {
                 className="flex items-start gap-3 px-4 py-3 hover:bg-accent/50 transition-colors"
               >
                 <div className="mt-0.5 h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                  <HugeiconsIcon icon={Briefcase01Icon} size={14} strokeWidth={1.5} className="text-primary" />
+                  <SolarDuotoneIcon icon={Briefcase01Icon} size={14} strokeWidth={1.5} className="text-primary" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-medium leading-snug truncate">
