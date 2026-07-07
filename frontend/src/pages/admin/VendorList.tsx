@@ -56,15 +56,15 @@ export function VendorList() {
 
   return (
     <AnimatedPage>
-      <div className="pt-6 space-y-7">
+      <div className="pt-4 space-y-5">
         {/* Active / Dormant tabs */}
         <Tabs value={tab} onValueChange={(v) => { setTab(v as TabValue); setStatus("") }}>
-          <TabsList className="h-10">
-            <TabsTrigger value="active" className="text-sm gap-2 px-4">
+          <TabsList>
+            <TabsTrigger value="active">
               Active
               {activeCount > 0 && <span className="tab-count">{activeCount}</span>}
             </TabsTrigger>
-            <TabsTrigger value="dormant" className="text-sm gap-2 px-4">
+            <TabsTrigger value="dormant">
               Dormant
               {dormantCount > 0 && <span className="tab-count">{dormantCount}</span>}
             </TabsTrigger>
@@ -72,8 +72,8 @@ export function VendorList() {
         </Tabs>
 
         {/* Filter bar */}
-        <div className="skeuo-surface grid grid-cols-[minmax(0,1.6fr)_minmax(0,0.8fr)_minmax(0,0.9fr)_auto] items-center gap-3 rounded-2xl border border-white/55 p-4 sm:gap-5 sm:p-6 dark:border-white/10">
-          <div className="relative min-w-0">
+        <div className="skeuo-surface flex flex-nowrap items-center gap-3 overflow-x-auto rounded-2xl border border-white/55 p-4 dark:border-white/10">
+          <div className="relative min-w-[18rem] flex-[1_0_18rem]">
             <SolarDuotoneIcon
               icon={Search01Icon}
               size={15}
@@ -84,11 +84,11 @@ export function VendorList() {
               placeholder="Search by name, email, or vendor ID…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="h-10 truncate pl-10 text-sm"
+              className="h-11 truncate pl-11 text-sm"
             />
           </div>
           <Select value={status || "all"} onValueChange={(v) => setStatus(v === "all" ? "" : v as VendorStatus)}>
-            <SelectTrigger className="h-10 w-full min-w-0 text-sm">
+            <SelectTrigger className="h-11 min-w-[11rem] text-sm">
               <SelectValue placeholder="All statuses" />
             </SelectTrigger>
             <SelectContent>
@@ -99,7 +99,7 @@ export function VendorList() {
             </SelectContent>
           </Select>
           <Select value={category || "all"} onValueChange={(v) => setCategory(v === "all" ? "" : v)}>
-            <SelectTrigger className="h-10 w-full min-w-0 text-sm">
+            <SelectTrigger className="h-11 min-w-[12rem] text-sm">
               <SelectValue placeholder="All categories" />
             </SelectTrigger>
             <SelectContent>
@@ -113,7 +113,7 @@ export function VendorList() {
             <Button
               variant="ghost"
               size="sm"
-              className="h-10 justify-self-start gap-1.5 px-2 text-muted-foreground hover:text-foreground sm:px-3"
+              className="h-11 flex-none gap-1.5 px-3 text-muted-foreground hover:text-foreground"
               onClick={() => { setSearch(""); setStatus(""); setCategory("") }}
             >
               <SolarDuotoneIcon icon={Cancel01Icon} size={13} strokeWidth={1.5} />
