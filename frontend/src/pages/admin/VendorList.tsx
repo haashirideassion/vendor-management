@@ -72,8 +72,8 @@ export function VendorList() {
         </Tabs>
 
         {/* Filter bar */}
-        <div className="skeuo-surface flex flex-wrap items-center gap-5 rounded-2xl border border-white/55 p-6 dark:border-white/10">
-          <div className="relative flex-1 min-w-[240px] max-w-md">
+        <div className="skeuo-surface grid grid-cols-[minmax(0,1.6fr)_minmax(0,0.8fr)_minmax(0,0.9fr)_auto] items-center gap-3 rounded-2xl border border-white/55 p-4 sm:gap-5 sm:p-6 dark:border-white/10">
+          <div className="relative min-w-0">
             <SolarDuotoneIcon
               icon={Search01Icon}
               size={15}
@@ -84,11 +84,11 @@ export function VendorList() {
               placeholder="Search by name, email, or vendor ID…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-10 h-10 text-sm"
+              className="h-10 truncate pl-10 text-sm"
             />
           </div>
           <Select value={status || "all"} onValueChange={(v) => setStatus(v === "all" ? "" : v as VendorStatus)}>
-            <SelectTrigger className="w-52 h-10 text-sm">
+            <SelectTrigger className="h-10 w-full min-w-0 text-sm">
               <SelectValue placeholder="All statuses" />
             </SelectTrigger>
             <SelectContent>
@@ -99,7 +99,7 @@ export function VendorList() {
             </SelectContent>
           </Select>
           <Select value={category || "all"} onValueChange={(v) => setCategory(v === "all" ? "" : v)}>
-            <SelectTrigger className="w-56 h-10 text-sm">
+            <SelectTrigger className="h-10 w-full min-w-0 text-sm">
               <SelectValue placeholder="All categories" />
             </SelectTrigger>
             <SelectContent>
@@ -113,7 +113,7 @@ export function VendorList() {
             <Button
               variant="ghost"
               size="sm"
-              className="h-10 gap-1.5 text-muted-foreground hover:text-foreground"
+              className="h-10 justify-self-start gap-1.5 px-2 text-muted-foreground hover:text-foreground sm:px-3"
               onClick={() => { setSearch(""); setStatus(""); setCategory("") }}
             >
               <SolarDuotoneIcon icon={Cancel01Icon} size={13} strokeWidth={1.5} />
