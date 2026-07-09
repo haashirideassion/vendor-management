@@ -144,7 +144,9 @@ router.post("/register", authLimiter, async (req: Request, res: Response) => {
 
     const { error: profileErr } = await db()
       .from("profiles")
-      .insert({ id: created.user.id, email: email.toLowerCase(), full_name: fullName, role })
+      .upsert({ id: created.user.id, email: email.toLowerCase(), full_name: fullName, role }, {
+        onConflict: "id"
+      })
 
     if (profileErr) throw profileErr
 

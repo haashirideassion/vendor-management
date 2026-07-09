@@ -1,9 +1,51 @@
 import { Router, Request, Response } from "express"
+import multer from "multer"
 import { getSupabaseAdmin } from "../utils/supabaseAdmin"
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth"
 
 const router = Router()
 function db(): any { return getSupabaseAdmin() }
+
+// Configure multer for file uploads (max 50MB)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
+})
+
+// Middleware that allows both multipart and JSON
+const uploadOptional = (req: Request, res: Response, next: any) => {
+  const contentType = req.headers['content-type'] || ''
+  if (contentType.includes('multipart/form-data')) {
+    upload.single("file")(req, res, next)
+  } else {
+    next()
+  }
+}
+
+// MIME type mapping for common file extensions
+const getMimeType = (fileName: string): string => {
+  const ext = fileName.split(".").pop()?.toLowerCase() || ""
+  const mimeMap: { [key: string]: string } = {
+    pdf: "application/pdf",
+    doc: "application/msword",
+    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    xls: "application/vnd.ms-excel",
+    xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ppt: "application/vnd.ms-powerpoint",
+    pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    txt: "text/plain",
+    csv: "text/csv",
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    png: "image/png",
+    gif: "image/gif",
+    webp: "image/webp",
+    zip: "application/zip",
+    rar: "application/x-rar-compressed",
+    "7z": "application/x-7z-compressed",
+  }
+  return mimeMap[ext] || "application/octet-stream"
+}
 
 // POST /api/vendors/list
 router.post("/list", requireAuth, async (req: Request, res: Response) => {
@@ -244,37 +286,75 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
 })
 
 // POST /api/vendors/upload-document
-// Uploads a vendor document to Supabase Storage using the service role key,
-// bypassing the JWT mismatch between the custom JWT_ACCESS_SECRET and Supabase's JWT secret.
-router.post("/upload-document", requireAuth, async (req: Request, res: Response) => {
+// Supports both multipart/form-data and JSON with base64 file_data
+router.post("/upload-document", requireAuth, uploadOptional, async (req: Request, res: Response) => {
   try {
     const { vendor_id, document_type, file_name, file_data } = req.body
+    const file = (req as any).file
 
-    if (!vendor_id || !document_type || !file_name || !file_data) {
-      return res.status(400).json({ error: "vendor_id, document_type, file_name, and file_data are required" })
+    console.log("[vendors/upload-document] Request body:", { vendor_id, document_type, file_name: file_name ? "present" : "missing", file_data: file_data ? "present" : "missing", file: file ? "present" : "missing" })
+
+    // Validate inputs
+    if (!vendor_id || !document_type) {
+      return res.status(400).json({ error: "vendor_id and document_type are required" })
     }
 
-    const buffer = Buffer.from(file_data, "base64")
-    const ext = (file_name.split(".").pop() ?? "bin").toLowerCase()
+    let buffer: Buffer
+    let originalFileName: string
+    let mimeType: string
+
+    // Handle multipart file upload
+    if (file) {
+      console.log("[vendors/upload-document] Using multipart file upload")
+      buffer = file.buffer
+      originalFileName = file.originalname
+      mimeType = file.mimetype
+    }
+    // Handle base64 JSON format (legacy)
+    else if (file_data && file_name) {
+      console.log("[vendors/upload-document] Using base64 JSON format")
+      buffer = Buffer.from(file_data, "base64")
+      originalFileName = file_name
+      mimeType = getMimeType(file_name)
+    }
+    // Missing both formats
+    else {
+      return res.status(400).json({ error: "Either file (multipart) or file_data (base64) is required" })
+    }
+
+    const ext = (originalFileName.split(".").pop() ?? "bin").toLowerCase()
     const storagePath = `vendor-documents/${vendor_id}/${document_type}_${Date.now()}.${ext}`
+
+    console.log("[vendors/upload-document] Uploading to storage path:", storagePath, "with mime type:", mimeType)
 
     const { error: uploadError } = await db()
       .storage
       .from("vendor-documents")
-      .upload(storagePath, buffer)
+      .upload(storagePath, buffer, {
+        contentType: mimeType,
+      })
 
-    if (uploadError) throw uploadError
+    if (uploadError) {
+      console.error("[vendors/upload-document] Storage upload error:", uploadError)
+      throw uploadError
+    }
+
+    console.log("[vendors/upload-document] Storage upload successful, inserting record")
 
     const { error: insertError } = await db()
       .from("vendor_documents")
-      .insert({ vendor_id, document_type, file_name, storage_path: storagePath })
+      .insert({ vendor_id, document_type, file_name: originalFileName, storage_path: storagePath })
 
-    if (insertError) throw insertError
+    if (insertError) {
+      console.error("[vendors/upload-document] Database insert error:", insertError)
+      throw insertError
+    }
 
+    console.log("[vendors/upload-document] Success")
     res.json({ ok: true, storage_path: storagePath })
   } catch (err: any) {
-    console.error("[vendors/upload-document]", err.message)
-    res.status(500).json({ error: "Failed to upload document" })
+    console.error("[vendors/upload-document] Full error:", err)
+    res.status(500).json({ error: "Failed to upload document: " + err.message })
   }
 })
 
