@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { useNavigate, useSearchParams, Link } from "react-router-dom"
+import { useNavigate, Link } from "react-router-dom"
 import { authFetch } from "@/contexts/AuthContext"
 import { encryptPassword, clearPublicKeyCache } from "@/lib/crypto"
 import { Button } from "@/components/ui/button"
@@ -22,30 +22,41 @@ type FormData = z.infer<typeof schema>
 
 export function ResetPasswordForm() {
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
   const [loading, setLoading] = useState(false)
   const [tokenError, setTokenError] = useState(false)
+  const [token, setToken] = useState<string | null>(null)
 
-  const token = searchParams.get("token")
-  const userId = searchParams.get("id")
-
+  // Supabase's recovery link delivers access_token/type=recovery in the URL
+  // hash fragment (not the query string), so it must be parsed manually.
   useEffect(() => {
-    if (!token || !userId) setTokenError(true)
-  }, [token, userId])
+    const hash = window.location.hash.replace(/^#/, "")
+    const params = new URLSearchParams(hash)
+    const accessToken = params.get("access_token")
+    const type = params.get("type")
+    const errorCode = params.get("error") || params.get("error_code")
+
+    if (errorCode || !accessToken || type !== "recovery") {
+      setTokenError(true)
+      return
+    }
+
+    setToken(accessToken)
+    // Drop the token out of the visible URL/history once captured.
+    window.history.replaceState(null, "", window.location.pathname)
+  }, [])
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
   })
 
   async function onSubmit(data: FormData) {
-    if (!token || !userId) return
+    if (!token) return
     setLoading(true)
     try {
       async function attempt(isRetry = false) {
         const encryptedPassword = await encryptPassword(data.password)
         const res = await authFetch("/api/auth/reset-password", {
           token,
-          userId,
           password: encryptedPassword,
         })
         const json = await res.json()

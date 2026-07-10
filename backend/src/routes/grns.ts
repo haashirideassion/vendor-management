@@ -55,6 +55,47 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Missing required fields" })
     }
 
+    const poLineItemIds: string[] = line_items
+      .map((item: any) => item.po_line_item_id)
+      .filter(Boolean)
+
+    if (poLineItemIds.length > 0) {
+      const { data: poLines, error: poLinesError } = await db()
+        .from("po_line_items")
+        .select("id, quantity, description")
+        .in("id", poLineItemIds)
+      if (poLinesError) throw poLinesError
+
+      const { data: existingLines, error: existingError } = await db()
+        .from("grn_line_items")
+        .select("po_line_item_id, quantity_received, grn:grn_id(status)")
+        .in("po_line_item_id", poLineItemIds)
+      if (existingError) throw existingError
+
+      const receivedByLine = new Map<string, number>()
+      for (const row of existingLines ?? []) {
+        if (!row.po_line_item_id || row.grn?.status === "rejected") continue
+        receivedByLine.set(
+          row.po_line_item_id,
+          (receivedByLine.get(row.po_line_item_id) ?? 0) + Number(row.quantity_received)
+        )
+      }
+
+      for (const item of line_items) {
+        if (!item.po_line_item_id) continue
+        const poLine = poLines?.find((p: any) => p.id === item.po_line_item_id)
+        if (!poLine) continue
+
+        const alreadyReceived = receivedByLine.get(item.po_line_item_id) ?? 0
+        const remaining = Number(poLine.quantity) - alreadyReceived
+        if (Number(item.quantity_received) > remaining + 1e-6) {
+          return res.status(400).json({
+            error: `Quantity for "${poLine.description}" exceeds remaining PO balance (${remaining} left)`,
+          })
+        }
+      }
+    }
+
     const orgId = await getDefaultOrgId()
 
     const { data: grn, error: grnError } = await db()

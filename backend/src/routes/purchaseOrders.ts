@@ -72,6 +72,7 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
       notes,
       line_items,
       created_by,
+      status,
     } = req.body
 
     if (!vendor_id || total_value === undefined || !created_by) {
@@ -80,6 +81,10 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
 
     const orgId = await getDefaultOrgId()
 
+    // "Send Purchase Order" (the only creation flow in the UI) issues the PO
+    // immediately — there's no separate draft-approval step to go through.
+    const poStatus = status ?? "issued"
+
     const { data: po, error: poError } = await db()
       .from("purchase_orders")
       .insert({
@@ -87,14 +92,14 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
         vendor_id,
         total_value,
         currency:               currency               ?? null,
-        issue_date:             issue_date             ?? null,
+        issue_date:             issue_date ?? (poStatus === "draft" ? null : new Date().toISOString().split("T")[0]),
         expected_delivery_date: expected_delivery_date ?? null,
         delivery_address:       delivery_address       ?? null,
         payment_terms:          payment_terms          ?? null,
         notes:                  notes                  ?? null,
         created_by,
         org_id:                 orgId,
-        status: "draft",
+        status: poStatus,
       })
       .select("id")
       .single()

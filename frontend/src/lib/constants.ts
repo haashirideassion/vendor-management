@@ -24,7 +24,7 @@ export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
   other: "Other Document",
 }
 
-export const REQUIRED_DOCUMENTS: DocumentType[] = ["tc_agreement", "insurance_coi"]
+export const REQUIRED_DOCUMENTS: DocumentType[] = ["tc_agreement"]
 
 export const ALL_DOCUMENT_TYPES: DocumentType[] = [
   "tc_agreement",

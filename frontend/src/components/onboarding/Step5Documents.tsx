@@ -9,7 +9,7 @@ import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
 import { CheckmarkCircle01Icon, Upload01Icon, Delete02Icon } from "@/components/shared/SolarIcon"
 import { cn } from "@/lib/utils"
 
-const OPTIONAL_DOCUMENTS: DocumentType[] = ["bank_letter", "tax_certificate", "other"]
+const OPTIONAL_DOCUMENTS: DocumentType[] = ["insurance_coi", "bank_letter", "tax_certificate", "other"]
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
 
 interface Props {

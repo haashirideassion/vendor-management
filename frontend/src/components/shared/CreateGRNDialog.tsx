@@ -41,11 +41,41 @@ interface CreateGRNDialogProps {
   onOpenChange: (open: boolean) => void
   defaultPOId?: string
   defaultVendorId?: string
-  defaultLineItems?: POLineItem[]
   onSuccess?: () => void
 }
 
-export function CreateGRNDialog({ open, onOpenChange, defaultPOId, defaultVendorId, defaultLineItems, onSuccess }: CreateGRNDialogProps) {
+// A GRN can be recorded multiple times against the same PO — each time, only
+// the quantity not yet received (across all non-rejected prior GRNs) should
+// be offered as the default.
+async function fetchRemainingLineItems(poId: string): Promise<(POLineItem & { remaining: number })[]> {
+  const { data: lineItems } = await supabase
+    .from("po_line_items")
+    .select("*")
+    .eq("po_id", poId)
+
+  if (!lineItems || lineItems.length === 0) return []
+
+  const { data: grnRows } = await supabase
+    .from("grn_line_items")
+    .select("po_line_item_id, quantity_received, grn:grn_id(status)")
+    .in("po_line_item_id", lineItems.map((li) => li.id))
+
+  const receivedByLine = new Map<string, number>()
+  for (const row of grnRows ?? []) {
+    const grn = row.grn as unknown as { status?: string } | null
+    if (!row.po_line_item_id || grn?.status === "rejected") continue
+    receivedByLine.set(
+      row.po_line_item_id,
+      (receivedByLine.get(row.po_line_item_id) ?? 0) + Number(row.quantity_received)
+    )
+  }
+
+  return lineItems
+    .map((li) => ({ ...li, remaining: Number(li.quantity) - (receivedByLine.get(li.id) ?? 0) }))
+    .filter((li) => li.remaining > 1e-6)
+}
+
+export function CreateGRNDialog({ open, onOpenChange, defaultPOId, defaultVendorId, onSuccess }: CreateGRNDialogProps) {
   const { data: pos = [] } = usePurchaseOrders({ status: "issued" })
   const createGRN          = useCreateGRN()
   const uploadAttachments  = useUploadAttachments()
@@ -63,39 +93,39 @@ export function CreateGRNDialog({ open, onOpenChange, defaultPOId, defaultVendor
   const { fields, append, remove } = useFieldArray({ control: form.control, name: "line_items" })
 
   useEffect(() => {
-    if (!open) setStagedFiles([])
-    if (open) {
+    if (!open) { setStagedFiles([]); return }
+
+    async function init() {
+      const remaining = defaultPOId ? await fetchRemainingLineItems(defaultPOId) : []
       form.reset({
         po_id:         defaultPOId ?? "",
         vendor_id:     defaultVendorId ?? "",
         received_date: new Date().toISOString().slice(0, 10),
-        line_items: defaultLineItems?.length
-          ? defaultLineItems.map((li) => ({
+        line_items: remaining.length
+          ? remaining.map((li) => ({
               po_line_item_id:   li.id,
               description:       li.description,
-              quantity_received: li.quantity,
+              quantity_received: li.remaining,
               unit_price:        li.unit_price,
               unit:              li.unit ?? "",
             }))
           : [{ description: "", quantity_received: 1, unit_price: 0, unit: "" }],
       })
     }
-  }, [open, defaultPOId, defaultVendorId, defaultLineItems, form])
+    init()
+  }, [open, defaultPOId, defaultVendorId, form])
 
   async function handlePOChange(poId: string) {
     form.setValue("po_id", poId)
     const po = pos.find((p) => p.id === poId)
     if (po?.vendor_id) form.setValue("vendor_id", po.vendor_id)
 
-    const { data: lineItems } = await supabase
-      .from("po_line_items")
-      .select("*")
-      .eq("po_id", poId)
-    if (lineItems && lineItems.length > 0) {
-      form.setValue("line_items", lineItems.map((li) => ({
+    const remaining = await fetchRemainingLineItems(poId)
+    if (remaining.length > 0) {
+      form.setValue("line_items", remaining.map((li) => ({
         po_line_item_id:   li.id,
         description:       li.description,
-        quantity_received: li.quantity,
+        quantity_received: li.remaining,
         unit_price:        li.unit_price,
         unit:              li.unit ?? "",
       })))

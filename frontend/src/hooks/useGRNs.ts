@@ -62,7 +62,7 @@ export function useCreateGRN() {
       queryClient.invalidateQueries({ queryKey: ["grns"] })
       toast.success("GRN recorded")
     },
-    onError: () => toast.error("Failed to create GRN"),
+    onError: (err: Error) => toast.error(err.message || "Failed to create GRN"),
   })
 }
 

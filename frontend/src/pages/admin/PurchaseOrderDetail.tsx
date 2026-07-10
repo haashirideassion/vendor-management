@@ -264,7 +264,6 @@ export function PurchaseOrderDetail() {
         onOpenChange={setShowGRNDialog}
         defaultPOId={po.id}
         defaultVendorId={po.vendor_id ?? undefined}
-        defaultLineItems={po.line_items}
       />
 
       <ConfirmDialog
