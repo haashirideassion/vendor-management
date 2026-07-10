@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express"
 import { getSupabaseAdmin } from "../utils/supabaseAdmin"
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth"
+import { getDefaultOrgId } from "../utils/org"
 
 const router = Router()
 function db(): any { return getSupabaseAdmin() }
@@ -95,12 +96,15 @@ router.post("/submit", requireAuth, async (req: Request, res: Response) => {
       if (poRow) po_id = poRow.id
     }
 
+    const orgId = await getDefaultOrgId()
+
     const invoicePayload: any = {
       vendor_invoice_number,
       vendor_id,
       total_amount,
       invoice_date,
       submitted_by,
+      org_id: orgId,
       status: "submitted",
       match_status: "pending",
     }

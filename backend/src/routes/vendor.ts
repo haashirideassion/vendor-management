@@ -21,6 +21,7 @@ router.post("/status-change", requireWebhookSecret, async (req: Request, res: Re
           companyName: vendor.company_name,
           dashboardUrl: `${FRONTEND_URL}/vendor/dashboard`,
         }),
+        text: "Your vendor application has been received. Please check your dashboard at " + FRONTEND_URL + "/vendor/dashboard",
       })
 
       await sendEmail({
@@ -32,6 +33,7 @@ router.post("/status-change", requireWebhookSecret, async (req: Request, res: Re
           contactEmail: vendor.contact_email,
           reviewUrl: `${FRONTEND_URL}/admin/vendors/${vendor.id}`,
         }),
+        text: `New vendor application: ${vendor.company_name}. Review at ` + FRONTEND_URL + `/admin/vendors/${vendor.id}`,
       })
 
       res.json({ ok: true })
@@ -54,6 +56,7 @@ router.post("/status-change", requireWebhookSecret, async (req: Request, res: Re
           contractAnniversary: vendor.contract_anniversary,
           dashboardUrl: `${FRONTEND_URL}/vendor/dashboard`,
         }),
+        text: `Welcome to CogniVend. Your Vendor ID is ${vendor.vendor_id_code}. Access your dashboard at ` + FRONTEND_URL + `/vendor/dashboard`,
       })
     } else if (["suspended", "rejected", "action_required"].includes(vendor.status)) {
       const { subject, html } = vendorStatusChangedHtml({
@@ -63,7 +66,7 @@ router.post("/status-change", requireWebhookSecret, async (req: Request, res: Re
         adminNotes: vendor.admin_notes,
         renewalUrl: `${FRONTEND_URL}/vendor/renewal`,
       })
-      await sendEmail({ to: vendor.contact_email, subject, html })
+      await sendEmail({ to: vendor.contact_email, subject, html, text: subject })
     }
 
     res.json({ ok: true })

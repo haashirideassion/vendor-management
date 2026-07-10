@@ -4,8 +4,7 @@ import { getSupabaseAdmin, getSupabaseClient } from "../utils/supabaseAdmin"
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth"
 import { getKeyPair, decryptPassword } from "../services/crypto.service"
 import { REFRESH_COOKIE_NAME, REFRESH_TTL_DAYS } from "../services/jwt.service"
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { sendEmail, signupConfirmationHtml, vendorSubmittedAdminHtml } = require("../services/email.service")
+import { sendEmail, signupConfirmationHtml, vendorSubmittedAdminHtml } from "../services/email.service"
 
 const router = Router()
 
@@ -154,6 +153,7 @@ router.post("/register", authLimiter, async (req: Request, res: Response) => {
       to: email,
       subject: "Your CogniVend account is ready",
       html: signupConfirmationHtml({ fullName, confirmationLink: `${process.env.FRONTEND_URL}/login` }),
+      text: `Your CogniVend account is ready. Please login at ${process.env.FRONTEND_URL}/login`,
     })
 
     await sendEmail({
@@ -165,6 +165,7 @@ router.post("/register", authLimiter, async (req: Request, res: Response) => {
         contactEmail: email,
         reviewUrl: `${process.env.FRONTEND_URL}/admin/vendors`,
       }),
+      text: `New vendor signup: ${fullName}. Please review at ${process.env.FRONTEND_URL}/admin/vendors`,
     })
 
     res.status(201).json({ ok: true, message: "Account created. You can now sign in." })

@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express"
 import { getSupabaseAdmin } from "../utils/supabaseAdmin"
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth"
+import { getDefaultOrgId } from "../utils/org"
 
 const router = Router()
 function db(): any { return getSupabaseAdmin() }
@@ -78,7 +79,9 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
       })
     }
 
-    // Step 1: create engagement
+    const orgId = await getDefaultOrgId()
+
+    // Step 1: create engagement with org_id
     const { data: eng, error: engError } = await db()
       .from("engagements")
       .insert({
@@ -91,6 +94,7 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
         end_date:        end_date        || null,
         notes:           notes           || null,
         created_by,
+        org_id:          orgId,
         status: "approved",
       })
       .select("id")
@@ -128,7 +132,7 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
       const { error: rfqError } = await db()
         .from("rfqs")
         .upsert(
-          vendor_ids.map((vid: string) => ({ engagement_id: engId, vendor_id: vid, status: "pending" })),
+          vendor_ids.map((vid: string) => ({ engagement_id: engId, vendor_id: vid, status: "pending", org_id: orgId })),
           { onConflict: "engagement_id,vendor_id" }
         )
       if (rfqError) { await rollback(); throw rfqError }

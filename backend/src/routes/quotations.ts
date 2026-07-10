@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express"
 import { getSupabaseAdmin } from "../utils/supabaseAdmin"
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth"
+import { getDefaultOrgId } from "../utils/org"
 
 const router = Router()
 function db(): any { return getSupabaseAdmin() }
@@ -51,10 +52,12 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Missing required fields" })
     }
 
+    const orgId = await getDefaultOrgId()
+
     // Step 1: create quotation header
     const { data: quot, error: quotError } = await db()
       .from("quotations")
-      .insert({ rfq_id, engagement_id, vendor_id, notes: notes ?? null, status: "draft" })
+      .insert({ rfq_id, engagement_id, vendor_id, notes: notes ?? null, status: "draft", org_id: orgId })
       .select("id")
       .single()
     if (quotError) throw quotError

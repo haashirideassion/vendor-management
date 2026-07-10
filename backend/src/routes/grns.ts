@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express"
 import { getSupabaseAdmin } from "../utils/supabaseAdmin"
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth"
+import { getDefaultOrgId } from "../utils/org"
 
 const router = Router()
 function db(): any { return getSupabaseAdmin() }
@@ -54,6 +55,8 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Missing required fields" })
     }
 
+    const orgId = await getDefaultOrgId()
+
     const { data: grn, error: grnError } = await db()
       .from("grns")
       .insert({
@@ -61,6 +64,7 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
         notes:       notes       ?? null,
         created_by,
         verified_by: verified_by ?? null,
+        org_id:      orgId,
         status: "submitted",
       })
       .select("id")

@@ -12,7 +12,7 @@ import { validate } from "email-validator";
    SMTP Transporter — Lazy Singleton
 ============================================================ */
 
-let _transporter = null;
+let _transporter: any = null;
 
 const getTransporter = () => {
     if (!_transporter) {
@@ -33,7 +33,7 @@ const getTransporter = () => {
             tls: { rejectUnauthorized: false }
         });
 
-        _transporter.verify((err) => {
+        _transporter.verify((err: any) => {
             if (err) console.error("❌ SMTP connection failed:", err.message);
             else console.log("✅ SMTP transporter ready");
         });
@@ -91,21 +91,21 @@ const rateLimiter = {
 
 const suppressionList = new Set();
 
-export const addToSuppressionList = (email) => {
+export const addToSuppressionList = (email: string) => {
     suppressionList.add(email.toLowerCase());
     console.warn(`⚠️ Suppressed email: ${email}`);
 };
 
-export const isSupPressed = (email) =>
+export const isSupPressed = (email: string) =>
     suppressionList.has(email.toLowerCase());
 
 /* ============================================================
    Utility
 ============================================================ */
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-const stripHtml = (html) =>
+const stripHtml = (html: string) =>
     html
         .replace(/<br\s*\/?>/gi, "\n")
         .replace(/<\/p>/gi, "\n\n")
@@ -121,10 +121,10 @@ const stripHtml = (html) =>
    Retry Logic
 ============================================================ */
 
-const sendWithRetry = async (mailOptions, attempt = 1) => {
+const sendWithRetry = async (mailOptions: any, attempt: number = 1) => {
     try {
         return await getTransporter().sendMail(mailOptions);
-    } catch (err) {
+    } catch (err: any) {
         const retryable =
             ["ECONNRESET", "ETIMEDOUT", "ESOCKET"].includes(err.code) ||
             (err.responseCode && err.responseCode >= 400);
@@ -144,7 +144,7 @@ const sendWithRetry = async (mailOptions, attempt = 1) => {
    Send Single Email
 ============================================================ */
 
-export const sendEmail = async ({ to, subject, html, text }) => {
+export const sendEmail = async ({ to, subject, html, text }: { to: string; subject: string; html: string; text?: string }) => {
     if (!validate(to)) {
         console.error("Invalid email:", to);
         return { success: false };

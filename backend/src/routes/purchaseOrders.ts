@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express"
 import { getSupabaseAdmin } from "../utils/supabaseAdmin"
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth"
+import { getDefaultOrgId } from "../utils/org"
 
 const router = Router()
 function db(): any { return getSupabaseAdmin() }
@@ -77,6 +78,8 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
       return res.status(400).json({ error: "vendor_id, total_value, and created_by are required" })
     }
 
+    const orgId = await getDefaultOrgId()
+
     const { data: po, error: poError } = await db()
       .from("purchase_orders")
       .insert({
@@ -90,6 +93,7 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
         payment_terms:          payment_terms          ?? null,
         notes:                  notes                  ?? null,
         created_by,
+        org_id:                 orgId,
         status: "draft",
       })
       .select("id")

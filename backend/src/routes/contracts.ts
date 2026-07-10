@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express"
 import { getSupabaseAdmin } from "../utils/supabaseAdmin"
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth"
+import { getDefaultOrgId } from "../utils/org"
 
 const router = Router()
 function db(): any { return getSupabaseAdmin() }
@@ -79,6 +80,8 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
       })
     }
 
+    const orgId = await getDefaultOrgId()
+
     const payload: any = {
       vendor_id,
       contract_type,
@@ -87,6 +90,7 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
       expiry_date,
       total_value,
       created_by,
+      org_id: orgId,
       status: "draft",
     }
     if (parent_id !== undefined) payload.parent_id = parent_id

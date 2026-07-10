@@ -1,4 +1,4 @@
-import { Router, Request, Response } from "express"
+import { Router, Request, Response, NextFunction } from "express"
 import multer from "multer"
 import { getSupabaseAdmin } from "../utils/supabaseAdmin"
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth"
@@ -13,10 +13,10 @@ const upload = multer({
 })
 
 // Middleware that allows both multipart and JSON
-const uploadOptional = (req: Request, res: Response, next: any) => {
+const uploadOptional = (req: Request, res: Response, next: NextFunction) => {
   const contentType = req.headers['content-type'] || ''
   if (contentType.includes('multipart/form-data')) {
-    upload.single("file")(req, res, next)
+    upload.single("file")(req as any, res as any, next)
   } else {
     next()
   }
