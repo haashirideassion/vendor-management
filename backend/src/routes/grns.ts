@@ -1,19 +1,23 @@
 import { Router, Request, Response } from "express"
 import { getSupabaseAdmin } from "../utils/supabaseAdmin"
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth"
-import { getDefaultOrgId } from "../utils/org"
+import { requireOrg, OrgScopedRequest } from "../middleware/org"
+import { writeAudit, resolveActingAs } from "../services/audit"
+import { gateOnCreate, isManagerOrAdmin } from "../services/approvalGate"
 
 const router = Router()
 function db(): any { return getSupabaseAdmin() }
 
 // POST /api/grns/list
-router.post("/list", requireAuth, async (req: Request, res: Response) => {
+router.post("/list", requireAuth, requireOrg, async (req: Request, res: Response) => {
   try {
     const { status, vendor_id, po_id } = req.body
+    const { orgId } = req as OrgScopedRequest
 
     let query = db()
       .from("grns")
       .select("*, vendor:vendor_id(company_name), purchase_order:po_id(po_number), line_items:grn_line_items(*)")
+      .eq("org_id", orgId)
       .order("created_at", { ascending: false })
 
     if (status) query = query.eq("status", status)
@@ -29,15 +33,17 @@ router.post("/list", requireAuth, async (req: Request, res: Response) => {
 })
 
 // POST /api/grns/get
-router.post("/get", requireAuth, async (req: Request, res: Response) => {
+router.post("/get", requireAuth, requireOrg, async (req: Request, res: Response) => {
   try {
     const { id } = req.body
+    const { orgId } = req as OrgScopedRequest
     if (!id) return res.status(400).json({ error: "Missing id" })
 
     const { data, error } = await db()
       .from("grns")
       .select("*, vendor:vendor_id(company_name), purchase_order:po_id(po_number), line_items:grn_line_items(*)")
       .eq("id", id)
+      .eq("org_id", orgId)
       .single()
 
     if (error) throw error
@@ -48,9 +54,10 @@ router.post("/get", requireAuth, async (req: Request, res: Response) => {
 })
 
 // POST /api/grns/create
-router.post("/create", requireAuth, async (req: Request, res: Response) => {
+router.post("/create", requireAuth, requireOrg, async (req: Request, res: Response) => {
   try {
     const { po_id, vendor_id, received_date, notes, created_by, verified_by, line_items } = req.body
+    const { orgId } = req as OrgScopedRequest
     if (!po_id || !vendor_id || !received_date || !created_by || !Array.isArray(line_items)) {
       return res.status(400).json({ error: "Missing required fields" })
     }
@@ -96,8 +103,6 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
       }
     }
 
-    const orgId = await getDefaultOrgId()
-
     const { data: grn, error: grnError } = await db()
       .from("grns")
       .insert({
@@ -106,12 +111,31 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
         created_by,
         verified_by: verified_by ?? null,
         org_id:      orgId,
-        status: "submitted",
+        status: "pending_approval", // resolved to its real starting status just below
       })
       .select("id")
       .single()
     if (grnError) throw grnError
     const grnId: string = grn.id
+
+    // Associate-only creators need Manager/Admin sign-off before the GRN is
+    // even submitted; Manager/Admin/solo-mode creators skip straight to
+    // submitted, same as before this gate existed.
+    const actorId = (req as AuthenticatedRequest).user.id
+    const { data: po } = await db().from("purchase_orders").select("po_number").eq("id", po_id).maybeSingle()
+    const { gated } = await gateOnCreate({
+      entityType: "grn",
+      entityId: grnId,
+      requestedBy: actorId,
+      orgId,
+      entityLabel: "GRN",
+      entityTitle: `GRN for PO ${po?.po_number ?? po_id}`,
+      notifType: "grn_pending_approval",
+    })
+    if (!gated) {
+      const { error: unlockError } = await db().from("grns").update({ status: "submitted" }).eq("id", grnId)
+      if (unlockError) throw unlockError
+    }
 
     if (line_items.length > 0) {
       const { error: liError } = await db()
@@ -151,6 +175,23 @@ router.post("/update-status", requireAuth, async (req: Request, res: Response) =
     const { id, status, notes, verified_by } = req.body
     if (!id || !status) return res.status(400).json({ error: "Missing id or status" })
 
+    const { data: existing, error: getError } = await db()
+      .from("grns")
+      .select("status, org_id")
+      .eq("id", id)
+      .single()
+    if (getError) throw getError
+
+    // The pending_approval -> submitted transition is the Manager/Admin
+    // approval gate itself (gateOnCreate, approvalGate.ts) -- only they may
+    // resolve it.
+    if (existing.status === "pending_approval" && status === "submitted") {
+      const actorId = (req as AuthenticatedRequest).user.id
+      if (!(await isManagerOrAdmin(actorId, existing.org_id))) {
+        return res.status(403).json({ error: "You are not authorized to approve this GRN" })
+      }
+    }
+
     const update: Record<string, any> = { status, notes: notes ?? null }
     if (status === "verified") {
       update.verified_by = verified_by ?? null
@@ -165,6 +206,21 @@ router.post("/update-status", requireAuth, async (req: Request, res: Response) =
       .single()
 
     if (error) throw error
+
+    if (existing.status !== status) {
+      const userId = (req as AuthenticatedRequest).user.id
+      await writeAudit({
+        entityType: "grn",
+        entityId: id,
+        action: "status_changed",
+        oldValue: { status: existing.status },
+        newValue: { status },
+        performedBy: userId,
+        orgId: existing.org_id,
+        actingAs: await resolveActingAs(userId, existing.org_id),
+      })
+    }
+
     return res.json(data)
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Unexpected error" })

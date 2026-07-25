@@ -18,6 +18,10 @@ import { formatDistanceToNow } from "date-fns"
 import type { Notification } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
+// Falls through to a generic icon/href for any type value the frontend
+// doesn't specifically recognize (e.g. a backend-only notification type)
+// instead of throwing -- notification `type` comes from the API at runtime
+// and isn't guaranteed to match this file's known cases.
 function notificationMeta(type: Notification["type"]): {
   icon: typeof Notification01Icon
   href: (refId: string | null) => string
@@ -32,6 +36,8 @@ function notificationMeta(type: Notification["type"]): {
       return { icon: Invoice02Icon, href: () => "/admin/invoices" }
     case "new_quotation":
       return { icon: Briefcase01Icon, href: () => "/admin/engagements" }
+    default:
+      return { icon: Notification01Icon, href: () => "/admin/dashboard" }
   }
 }
 

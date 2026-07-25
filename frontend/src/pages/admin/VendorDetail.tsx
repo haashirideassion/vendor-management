@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { useParams, useNavigate } from "react-router-dom"
-import { useVendorById, useUpdateVendorStatus } from "@/hooks/useVendors"
+import { useVendorById, useUpdateVendorStatus, useInvitePortalUser } from "@/hooks/useVendors"
 import { useVerifyDocument, useDocumentSignedUrl } from "@/hooks/useDocuments"
 import { useUpsertRating, useVendorRatings } from "@/hooks/useRatings"
 import { useAuditLog } from "@/hooks/useAuditLog"
@@ -8,6 +8,7 @@ import { useCategories } from "@/hooks/useCategories"
 import { supabase } from "@/lib/supabase"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { StatusBadge } from "@/components/shared/StatusBadge"
+import { VerificationStatusBadge } from "@/components/shared/VerificationStatusBadge"
 import { RatingStars } from "@/components/shared/RatingStars"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { AnimatedPage } from "@/components/shared/AnimatedPage"
@@ -69,6 +70,7 @@ export function VendorDetail() {
 
   const { data: vendor, isLoading } = useVendorById(id)
   const updateStatus = useUpdateVendorStatus()
+  const invitePortalUser = useInvitePortalUser()
   const verifyDoc = useVerifyDocument()
   const upsertRating = useUpsertRating()
   const { data: ratings = [] } = useVendorRatings(id)
@@ -115,6 +117,14 @@ export function VendorDetail() {
       await updateStatus.mutateAsync({ id, status: actionDialog.status, admin_notes: adminNotes || undefined })
       toast.success(`Vendor ${actionDialog.label.toLowerCase()}d`)
       closeDialog()
+    } catch (e: unknown) { toast.error((e as Error).message) }
+  }
+
+  async function handleInvitePortalUser() {
+    if (!id) return
+    try {
+      const result = await invitePortalUser.mutateAsync(id)
+      toast.success(result.inviteSent ? `Invite sent to ${result.email}` : `${result.email} already had an account — linked to this vendor's portal`)
     } catch (e: unknown) { toast.error((e as Error).message) }
   }
 
@@ -179,6 +189,7 @@ export function VendorDetail() {
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <StatusBadge status={vendor.status} />
+              <VerificationStatusBadge status={vendor.verification_status} />
               {vendor.status === "active" && avgRating > 0 && (
                 <div className="flex items-center gap-1.5 ml-1">
                   <RatingStars value={Math.round(avgRating)} size="sm" />
@@ -188,6 +199,33 @@ export function VendorDetail() {
             </div>
           </div>
         </div>
+
+        {vendor.verification_status !== "verified" && (
+          <div className="px-6 py-2.5 border-b bg-amber-50/60 dark:bg-amber-950/20 flex items-center gap-2 text-sm text-amber-700 dark:text-amber-400">
+            <SolarDuotoneIcon icon={Alert01Icon} size={15} strokeWidth={1.5} className="shrink-0" />
+            {vendor.verification_status === "rejected"
+              ? "This vendor's compliance verification was rejected — it can't be used for new engagements until superadmin re-verifies it."
+              : "This vendor is awaiting superadmin compliance verification — it can't be used for new engagements until verified."}
+          </div>
+        )}
+
+        {vendor.hasPortalUsers === false && (
+          <div className="px-6 py-2.5 border-b bg-blue-50/60 dark:bg-blue-950/20 flex items-center justify-between gap-3 text-sm text-blue-700 dark:text-blue-400">
+            <span className="flex items-center gap-2">
+              <SolarDuotoneIcon icon={UserCircleIcon} size={15} strokeWidth={1.5} className="shrink-0" />
+              This vendor has no portal login yet — invite {vendor.contact_email} to give them access.
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs shrink-0"
+              onClick={handleInvitePortalUser}
+              disabled={invitePortalUser.isPending}
+            >
+              {invitePortalUser.isPending ? "Inviting…" : "Invite to Portal"}
+            </Button>
+          </div>
+        )}
 
         {/* Action bar */}
         <div className="border-b px-6 py-2.5 flex flex-wrap gap-2 bg-muted/30">
@@ -259,6 +297,7 @@ export function VendorDetail() {
                   <CardContent className="pt-4 space-y-3 text-sm">
                     {[
                       { icon: Building06Icon, label: "Company", value: vendor.company_name },
+                      ...(vendor.legal_name ? [{ icon: Building06Icon, label: "Legal name", value: vendor.legal_name }] : []),
                       { icon: UserCircleIcon, label: "Contact", value: vendor.contact_name },
                       { icon: UserCircleIcon, label: "Email",   value: vendor.contact_email },
                       { icon: UserCircleIcon, label: "Phone",   value: vendor.contact_phone ?? "—" },
@@ -284,6 +323,8 @@ export function VendorDetail() {
                   <CardContent className="pt-4 space-y-3 text-sm">
                     {[
                       { label: "Tax / GST", value: vendor.tax_gst_number ?? "—" },
+                      { label: "PAN",       value: vendor.pan_number ?? "—" },
+                      { label: "Registration No.", value: vendor.registration_number ?? "—" },
                       { label: "Bank",      value: vendor.bank_name ?? "—" },
                       { label: "Account",   value: vendor.bank_account_number ? `••••${vendor.bank_account_number.slice(-4)}` : "—" },
                       { label: "Routing",   value: vendor.bank_routing_number ?? "—" },

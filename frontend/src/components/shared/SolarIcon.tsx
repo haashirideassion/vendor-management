@@ -17,15 +17,19 @@ import {
   ClipboardListBoldDuotone,
   ClockCircleBoldDuotone,
   CloseCircleBoldDuotone,
+  CopyBoldDuotone,
   DangerCircleBoldDuotone,
   DeliveryBoldDuotone,
   DocumentTextBoldDuotone,
   DocumentsBoldDuotone,
+  DoubleAltArrowLeftBoldDuotone,
+  DoubleAltArrowRightBoldDuotone,
   EyeBoldDuotone,
   FolderWithFilesBoldDuotone,
   GraphUpBoldDuotone,
   HamburgerMenuBoldDuotone,
   InfoCircleBoldDuotone,
+  LinkCircleBoldDuotone,
   Logout3BoldDuotone,
   MagniferBoldDuotone,
   MonitorBoldDuotone,
@@ -62,13 +66,17 @@ export const solarIcons = {
   contracts: FolderWithFilesBoldDuotone,
   close: CloseCircleBoldDuotone,
   company: Buildings2BoldDuotone,
+  copy: CopyBoldDuotone,
   dashboard: Widget5BoldDuotone,
   delivery: DeliveryBoldDuotone,
   documents: DocumentsBoldDuotone,
+  sidebarCollapse: DoubleAltArrowLeftBoldDuotone,
+  sidebarExpand: DoubleAltArrowRightBoldDuotone,
   edit: PenBoldDuotone,
   engagements: CaseRoundBoldDuotone,
   info: InfoCircleBoldDuotone,
   invoices: BillListBoldDuotone,
+  link: LinkCircleBoldDuotone,
   menu: HamburgerMenuBoldDuotone,
   moon: MoonBoldDuotone,
   notifications: BellBoldDuotone,
@@ -129,6 +137,7 @@ const iconName = (name: SolarIconName): SolarIconName => name
 export const Activity01Icon = iconName("analytics")
 export const Add01Icon = iconName("add")
 export const Alert01Icon = iconName("warning")
+export const AuditLogIcon = iconName("audit")
 export const AlertCircleIcon = iconName("warning")
 export const ArrowDown01Icon = iconName("arrowDown")
 export const ArrowLeft01Icon = iconName("arrowLeft")
@@ -145,6 +154,10 @@ export const CheckmarkCircle02Icon = iconName("approvals")
 export const Clock01Icon = iconName("statusPending")
 export const ComputerActivityIcon = iconName("system")
 export const ContractsIcon = iconName("contracts")
+export const CopyIcon = iconName("copy")
+export const LinkIcon = iconName("link")
+export const SidebarCollapseIcon = iconName("sidebarCollapse")
+export const SidebarExpandIcon = iconName("sidebarExpand")
 export const DashboardSquare01Icon = iconName("dashboard")
 export const Delete01Icon = iconName("delete")
 export const Delete02Icon = iconName("delete")
@@ -162,6 +175,8 @@ export const Notification01Icon = iconName("notifications")
 export const Refresh01Icon = iconName("refresh")
 export const Search01Icon = iconName("search")
 export const SearchIcon = iconName("search")
+export const Settings01Icon = iconName("settings")
+export const ShieldUserIcon = iconName("admin")
 export const Sun01Icon = iconName("sun")
 export const Tag01Icon = iconName("tag")
 export const Tick02Icon = iconName("check")

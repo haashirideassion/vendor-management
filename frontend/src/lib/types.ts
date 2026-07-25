@@ -9,7 +9,7 @@ export type UserRole =
 
 export type InternalRole = Exclude<UserRole, "vendor">
 
-export type ApprovalEntityType = "engagement" | "purchase_order" | "invoice" | "grn"
+export type ApprovalEntityType = "engagement" | "purchase_order" | "invoice" | "grn" | "contract" | "category"
 export type ApprovalStatus = "pending" | "approved" | "rejected" | "cancelled"
 
 export type VendorStatus =
@@ -33,6 +33,7 @@ export interface Profile {
   role: UserRole
   full_name: string | null
   email: string
+  mobile: string | null
   created_at: string
 }
 
@@ -41,23 +42,33 @@ export interface ServiceCategory {
   name: string
   description: string | null
   is_active: boolean
+  status: "pending_approval" | "active"
   created_at: string
   created_by: string | null
 }
+
+export type VendorVerificationStatus = "pending" | "verified" | "rejected"
 
 export interface Vendor {
   id: string
   profile_id: string
   vendor_id_code: string | null
   company_name: string
+  legal_name: string | null
   contact_name: string
   contact_email: string
   contact_phone: string | null
   tax_gst_number: string | null
+  pan_number: string | null
+  registration_number: string | null
   bank_name: string | null
   bank_account_number: string | null
   bank_routing_number: string | null
   status: VendorStatus
+  verification_status: VendorVerificationStatus
+  onboarded_via_group_id: string | null
+  is_solo_user: boolean
+  org_group_code: string | null
   contract_start_date: string | null
   contract_anniversary: string | null
   renewal_notified_at: string | null
@@ -140,7 +151,7 @@ export interface ApprovalRequest {
 // ─── Contracts ────────────────────────────────────────────────────────────────
 
 export type ContractType   = "msa" | "sow" | "nda" | "other"
-export type ContractStatus = "draft" | "active" | "expired" | "terminated"
+export type ContractStatus = "pending_approval" | "draft" | "active" | "expired" | "terminated"
 
 export interface Contract {
   id: string
@@ -186,7 +197,7 @@ export interface ContractAmendment {
 // ─── Procurement ──────────────────────────────────────────────────────────────
 
 export type RFQStatus = "pending" | "viewed" | "responded" | "closed"
-export type QuotationStatus = "draft" | "submitted" | "accepted" | "rejected"
+export type QuotationStatus = "draft" | "pending_manager_review" | "submitted" | "accepted" | "rejected"
 
 export type EngagementStatus =
   | "draft" | "pending_approval" | "approved" | "in_review" | "quotations_received" | "rejected" | "cancelled" | "completed"
@@ -194,7 +205,7 @@ export type EngagementStatus =
 export type POStatus =
   | "draft" | "issued" | "partially_received" | "fully_received" | "cancelled" | "closed"
 
-export type GRNStatus = "draft" | "submitted" | "verified" | "rejected"
+export type GRNStatus = "pending_approval" | "draft" | "submitted" | "verified" | "rejected"
 
 export type InvoiceStatus =
   | "submitted" | "under_review" | "matched" | "approved" | "rejected" | "paid"
@@ -255,6 +266,9 @@ export interface Quotation {
   notes: string | null
   total_amount: number | null
   submitted_at: string | null
+  manager_review_notes: string | null
+  reviewed_by: string | null
+  reviewed_at: string | null
   created_at: string
   updated_at: string
   vendor?: Pick<Vendor, "company_name">
@@ -411,6 +425,101 @@ export interface VendorWithDetails extends Vendor {
   vendor_documents?: VendorDocument[]
   vendor_ratings?: VendorRating[]
   avg_rating?: number
+  /** Only present on /api/vendors/get (admin-facing) — whether any vendor_users row exists yet. */
+  hasPortalUsers?: boolean
+}
+
+// ─── Organisation Onboarding ──────────────────────────────────────────────────
+
+export type OrgOnboardingStatus = "draft" | "submitted" | "approved" | "rejected"
+export type LegalEntityType = "pvt_ltd" | "llp" | "proprietorship" | "partnership"
+export type EmployeeCountRange = "1-10" | "11-50" | "51-200" | "201-500" | "500+"
+export type LocationSetup = "single" | "multiple"
+export type NatureOfOperations = "office" | "factory" | "warehouse" | "retail"
+
+export type OrgOnboardingDocumentType =
+  | "certificate_of_incorporation"
+  | "pan_copy"
+  | "memorandum_of_association"
+  | "articles_of_association"
+  | "board_resolution"
+  | "bank_proof"
+  | "gst_certificate"
+  | "authorized_signatory_signature"
+
+export interface OrgOnboardingLocation {
+  id: string
+  draft_id: string
+  org_id: string
+  location_name: string
+  address: string | null
+  state: string | null
+  city: string | null
+  pincode: string | null
+  employee_count: number | null
+  nature_of_operations: NatureOfOperations | null
+  is_registered_office: boolean
+  has_women_employees: boolean | null
+  has_contract_labour: boolean | null
+  has_shift_operations: boolean | null
+  created_at: string
+  updated_at: string
+}
+
+export interface OrgOnboardingDocument {
+  id: string
+  draft_id: string
+  org_id: string
+  document_type: OrgOnboardingDocumentType
+  file_name: string
+  storage_path: string
+  uploaded_by: string | null
+  uploaded_at: string
+}
+
+export interface OrgOnboardingDraft {
+  id: string
+  org_id: string
+  created_by: string
+  status: OrgOnboardingStatus
+  current_step: number
+  // Step 1
+  full_name: string | null
+  designation: string | null
+  work_email: string | null
+  mobile: string | null
+  accepted_terms: boolean
+  is_solo_user: boolean
+  // Step 2
+  legal_entity_type: LegalEntityType | null
+  date_of_incorporation: string | null
+  employee_count_range: EmployeeCountRange | null
+  is_group_company: boolean
+  group_code: string | null
+  // Step 3
+  location_setup: LocationSetup | null
+  // Step 5 (non-file fields)
+  pan_number: string | null
+  bank_name: string | null
+  bank_account_number: string | null
+  bank_ifsc: string | null
+  // Step 6
+  signatory_name: string | null
+  signatory_designation: string | null
+  signatory_email: string | null
+  signatory_mobile: string | null
+  signatory_same_for_all_locations: boolean
+  // Review lifecycle
+  submitted_at: string | null
+  reviewed_by: string | null
+  reviewed_at: string | null
+  rejection_reason: string | null
+  created_at: string
+  updated_at: string
+  // present on /get and the superadmin detail endpoint, not on every write response
+  company_name?: string | null
+  locations?: OrgOnboardingLocation[]
+  documents?: OrgOnboardingDocument[]
 }
 
 // ─── Notifications ────────────────────────────────────────────────────────────

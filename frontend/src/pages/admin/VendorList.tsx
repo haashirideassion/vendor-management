@@ -3,17 +3,21 @@ import { Link } from "react-router-dom"
 import { useVendors } from "@/hooks/useVendors"
 import { useCategories } from "@/hooks/useCategories"
 import { usePagination } from "@/hooks/usePagination"
+import { useOrg } from "@/contexts/OrgContext"
 import { StatusBadge } from "@/components/shared/StatusBadge"
+import { VerificationStatusBadge } from "@/components/shared/VerificationStatusBadge"
 import { RatingStars } from "@/components/shared/RatingStars"
 import { AnimatedPage } from "@/components/shared/AnimatedPage"
 import { PaginationBar } from "@/components/shared/PaginationBar"
+import { VendorOnboardDialog } from "@/components/shared/VendorOnboardDialog"
+import { InviteVendorLinkDialog } from "@/components/shared/InviteVendorLinkDialog"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { VENDOR_STATUS_LABELS, VENDOR_STATUSES } from "@/lib/constants"
-import { Search01Icon, Cancel01Icon, EyeIcon } from "@/components/shared/SolarIcon"
+import { Search01Icon, Cancel01Icon, EyeIcon, LinkIcon } from "@/components/shared/SolarIcon"
 import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
 import type { VendorStatus } from "@/lib/types"
 import { format } from "date-fns"
@@ -26,10 +30,13 @@ const ACTIVE_STATUSES: VendorStatus[] = ["active", "pending_review", "action_req
 const DORMANT_STATUSES: VendorStatus[] = ["suspended", "rejected"]
 
 export function VendorList() {
+  const { activeOrg } = useOrg()
   const [tab, setTab] = useState<TabValue>("active")
   const [search, setSearch] = useState("")
   const [status, setStatus] = useState<VendorStatus | "">("")
   const [category, setCategory] = useState("")
+  const [onboarding, setOnboarding] = useState(false)
+  const [invitingLink, setInvitingLink] = useState(false)
 
   // Fetch all vendors (no implicit status filter — we filter by tab below)
   const { data: allVendors = [], isLoading } = useVendors({ search, category })
@@ -58,18 +65,29 @@ export function VendorList() {
     <AnimatedPage>
       <div className="pt-4 space-y-5">
         {/* Active / Dormant tabs */}
-        <Tabs value={tab} onValueChange={(v) => { setTab(v as TabValue); setStatus("") }}>
-          <TabsList>
-            <TabsTrigger value="active">
-              Active
-              {activeCount > 0 && <span className="tab-count">{activeCount}</span>}
-            </TabsTrigger>
-            <TabsTrigger value="dormant">
-              Dormant
-              {dormantCount > 0 && <span className="tab-count">{dormantCount}</span>}
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <div className="flex items-center justify-between gap-3">
+          <Tabs value={tab} onValueChange={(v) => { setTab(v as TabValue); setStatus("") }}>
+            <TabsList>
+              <TabsTrigger value="active">
+                Active
+                {activeCount > 0 && <span className="tab-count">{activeCount}</span>}
+              </TabsTrigger>
+              <TabsTrigger value="dormant">
+                Dormant
+                {dormantCount > 0 && <span className="tab-count">{dormantCount}</span>}
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+          {activeOrg && (
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => setInvitingLink(true)}>
+                <SolarDuotoneIcon icon={LinkIcon} size={15} strokeWidth={1.5} />
+                Invite via Link
+              </Button>
+              <Button onClick={() => setOnboarding(true)}>Onboard Vendor</Button>
+            </div>
+          )}
+        </div>
 
         {/* Filter bar */}
         <div
@@ -179,7 +197,12 @@ export function VendorList() {
                       <p className="text-sm font-medium leading-tight">{v.company_name}</p>
                       <p className="text-xs text-muted-foreground mt-0.5">{v.contact_email}</p>
                     </TableCell>
-                    <TableCell><StatusBadge status={v.status} /></TableCell>
+                    <TableCell>
+                      <div className="flex flex-col gap-1 items-start">
+                        <StatusBadge status={v.status} />
+                        <VerificationStatusBadge status={v.verification_status} />
+                      </div>
+                    </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
                         {v.vendor_categories?.map((vc) => (
@@ -233,6 +256,22 @@ export function VendorList() {
           itemLabel="vendor"
         />
       </div>
+
+      {activeOrg && (
+        <VendorOnboardDialog
+          open={onboarding}
+          onOpenChange={setOnboarding}
+          actingOrgId={activeOrg.id}
+        />
+      )}
+      {activeOrg && (
+        <InviteVendorLinkDialog
+          open={invitingLink}
+          onOpenChange={setInvitingLink}
+          target={{ scope: "org" }}
+          targetName={activeOrg.name}
+        />
+      )}
     </AnimatedPage>
   )
 }

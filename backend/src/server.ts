@@ -20,6 +20,14 @@ import ratingsRoutes from "./routes/ratings"
 import documentsRoutes from "./routes/documents"
 import analyticsRoutes from "./routes/analytics"
 import auditLogRoutes from "./routes/auditLog"
+import organizationsRoutes from "./routes/organizations"
+import superadminRoutes from "./routes/superadmin"
+import accessRoutes from "./routes/access"
+import orgMembersRoutes from "./routes/orgMembers"
+import vendorUsersRoutes from "./routes/vendorUsers"
+import groupsRoutes from "./routes/groups"
+import orgOnboardingRoutes from "./routes/orgOnboarding"
+import vendorInviteLinksRoutes from "./routes/vendorInviteLinks"
 
 const app = express()
 const PORT = process.env.PORT ?? 5000
@@ -43,7 +51,7 @@ app.use(cors({
     }
   },
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
-  allowedHeaders: ["Content-Type", "Authorization"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Org-Id"],
   credentials: true,
 }))
 
@@ -70,6 +78,14 @@ app.use("/api/ratings", ratingsRoutes)
 app.use("/api/documents", documentsRoutes)
 app.use("/api/analytics", analyticsRoutes)
 app.use("/api/audit-log", auditLogRoutes)
+app.use("/api/organizations", organizationsRoutes)
+app.use("/api/superadmin", superadminRoutes)
+app.use("/api/access", accessRoutes)
+app.use("/api/org-members", orgMembersRoutes)
+app.use("/api/vendor-users", vendorUsersRoutes)
+app.use("/api/groups", groupsRoutes)
+app.use("/api/org-onboarding", orgOnboardingRoutes)
+app.use("/api/vendor-invite-links", vendorInviteLinksRoutes)
 
 if (process.env.NODE_ENV !== "production" && process.env.NODE_ENV !== "test") {
   app.listen(PORT, () => {

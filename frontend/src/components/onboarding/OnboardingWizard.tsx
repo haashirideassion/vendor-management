@@ -8,6 +8,7 @@ import { Step5Documents } from "./Step5Documents"
 import { Step6Review } from "./Step6Review"
 import { api } from "@/lib/api"
 import { useAuth } from "@/contexts/AuthContext"
+import { useResolveVendorInviteLink, VENDOR_INVITE_TOKEN_KEY } from "@/hooks/useVendorInviteLinks"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { AppLogo } from "@/components/shared/AppLogo"
@@ -27,8 +28,12 @@ export interface OnboardingData {
   contact_name: string
   contact_email: string
   contact_phone: string
+  is_solo_user: boolean
+  org_code?: string
+  group_code?: string
   // Step 2
   tax_gst_number: string
+  pan_number: string
   bank_name: string
   bank_account_number: string
   bank_routing_number: string
@@ -80,6 +85,33 @@ export function OnboardingWizard() {
   const [localDocs, setLocalDocs] = useState<LocalDocument[]>([])
   const [submitting, setSubmitting] = useState(false)
 
+  // Kept in sessionStorage (not just component state) across the whole
+  // wizard so a mid-wizard page refresh doesn't un-lock a field that was
+  // populated from an invite link -- cleared only alongside the wizard's
+  // own draft, in finalSubmit and handleClose below.
+  const [inviteToken] = useState(() => {
+    try { return sessionStorage.getItem(VENDOR_INVITE_TOKEN_KEY) } catch { return null }
+  })
+  const { data: inviteResolved, isSuccess: inviteResolvedOk, isError: inviteResolveFailed } = useResolveVendorInviteLink(inviteToken)
+  const inviteLocked = !!inviteToken && inviteResolvedOk && !!inviteResolved
+
+  useEffect(() => {
+    if (!inviteResolvedOk || !inviteResolved) return
+    setData((prev) => ({
+      ...prev,
+      org_code: inviteResolved.scope === "org" ? inviteResolved.code : prev.org_code,
+      group_code: inviteResolved.scope === "group" ? inviteResolved.code : prev.group_code,
+    }))
+  }, [inviteResolvedOk, inviteResolved])
+
+  useEffect(() => {
+    // An expired/invalid token shouldn't block signup -- just drop it and
+    // let the vendor fill the code in themselves, same as walking up cold.
+    if (inviteResolveFailed) {
+      try { sessionStorage.removeItem(VENDOR_INVITE_TOKEN_KEY) } catch { /* ignore */ }
+    }
+  }, [inviteResolveFailed])
+
   useEffect(() => {
     try {
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(data))
@@ -113,10 +145,14 @@ export function OnboardingWizard() {
           contact_email: final.contact_email,
           contact_phone: final.contact_phone || null,
           tax_gst_number: final.tax_gst_number || null,
+          pan_number: final.pan_number || null,
           bank_name: final.bank_name || null,
           bank_account_number: final.bank_account_number || null,
           bank_routing_number: final.bank_routing_number || null,
           category_ids: final.category_ids ?? [],
+          is_solo_user: final.is_solo_user ?? false,
+          org_code: final.org_code || null,
+          group_code: final.group_code || null,
         },
         accessToken
       )
@@ -137,7 +173,11 @@ export function OnboardingWizard() {
         throw docError
       }
 
-      try { sessionStorage.removeItem(STORAGE_KEY); sessionStorage.removeItem(`${STORAGE_KEY}_step`) } catch { /* ignore */ }
+      try {
+        sessionStorage.removeItem(STORAGE_KEY)
+        sessionStorage.removeItem(`${STORAGE_KEY}_step`)
+        sessionStorage.removeItem(VENDOR_INVITE_TOKEN_KEY)
+      } catch { /* ignore */ }
       toast.success("Application submitted successfully!")
       navigate("/vendor/dashboard")
     } catch (e: unknown) {
@@ -148,7 +188,11 @@ export function OnboardingWizard() {
   }
 
   function handleClose() {
-    try { sessionStorage.removeItem(STORAGE_KEY); sessionStorage.removeItem(`${STORAGE_KEY}_step`) } catch { /* ignore */ }
+    try {
+      sessionStorage.removeItem(STORAGE_KEY)
+      sessionStorage.removeItem(`${STORAGE_KEY}_step`)
+      sessionStorage.removeItem(VENDOR_INVITE_TOKEN_KEY)
+    } catch { /* ignore */ }
     setData({})
     setLocalDocs([])
     setStep(0)
@@ -179,7 +223,7 @@ export function OnboardingWizard() {
         <Progress value={((step) / (STEPS.length - 1)) * 100} className="mb-8" />
 
         {/* Steps */}
-        {step === 0 && <Step1CompanyInfo defaultValues={data} onNext={next} />}
+        {step === 0 && <Step1CompanyInfo defaultValues={data} onNext={next} inviteLocked={inviteLocked} />}
         {step === 1 && <Step2TaxBanking defaultValues={data} onNext={next} onBack={back} />}
         {step === 2 && <Step3Categories defaultValues={data} onNext={next} onBack={back} />}
         {step === 3 && (

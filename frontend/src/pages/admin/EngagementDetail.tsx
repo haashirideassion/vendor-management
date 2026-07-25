@@ -5,6 +5,7 @@ import { usePurchaseOrders, useCreatePurchaseOrder } from "@/hooks/usePurchaseOr
 import { useApprovalRequests, useReviewApproval } from "@/hooks/useApprovalWorkflow"
 import { useEngagementQuotations } from "@/hooks/useQuotations"
 import { usePermissions } from "@/hooks/usePermissions"
+import { useOrg } from "@/contexts/OrgContext"
 import { AttachmentList } from "@/components/shared/AttachmentList"
 import { CreatePODialog } from "@/components/shared/CreatePODialog"
 import { toast } from "sonner"
@@ -55,6 +56,8 @@ export function EngagementDetail() {
   const reviewApproval = useReviewApproval()
   const createPO = useCreatePurchaseOrder()
   const { canCreateEngagement, canCreatePO } = usePermissions()
+  const { activeOrg } = useOrg()
+  const isManagerOrAdminViewer = !!activeOrg?.roleNames.some((r) => r === "Manager" || r === "Admin")
 
   // POs have already been dispatched for this engagement — lock the selection UI
   const posSent = pos.length > 0
@@ -182,6 +185,16 @@ export function EngagementDetail() {
 
         {/* Action buttons */}
         <div className="flex flex-wrap gap-2">
+          {status === "pending_approval" && isManagerOrAdminViewer && (
+            <>
+              <Button size="sm" variant="success" onClick={() => setDialog("approve")}>
+                Approve
+              </Button>
+              <Button size="sm" variant="danger" onClick={() => setDialog("reject")}>
+                Reject
+              </Button>
+            </>
+          )}
           {status === "approved" && (
             <Button size="sm" variant="outline" onClick={() => setPoDialogOpen(true)}>
               <SolarDuotoneIcon icon={Add01Icon} size={14} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" className="mr-1.5" />

@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { useCategories, useCreateCategory, useUpdateCategory, useDeleteCategory } from "@/hooks/useCategories"
+import { usePendingApprovals, useReviewApproval } from "@/hooks/useApprovalWorkflow"
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
 import { AnimatedPage } from "@/components/shared/AnimatedPage"
 import { Button } from "@/components/ui/button"
@@ -65,14 +66,22 @@ function CategoryTable({
   return (
     <div className="space-y-4">
       {/* Search */}
-      <div className="relative max-w-xs">
-        <SolarDuotoneIcon icon={Search01Icon} size={14} strokeWidth={1.5} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-        <Input
-          placeholder="Search categories…"
-          value={search}
-          onChange={(e) => handleSearch(e.target.value)}
-          className="pl-9 h-9 text-sm"
-        />
+      <div className="flex items-center gap-2">
+        <div className="relative max-w-xs flex-1">
+          <SolarDuotoneIcon icon={Search01Icon} size={14} strokeWidth={1.5} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+          <Input
+            placeholder="Search categories…"
+            value={search}
+            onChange={(e) => handleSearch(e.target.value)}
+            className="pl-9 h-9 text-sm"
+          />
+        </div>
+        {search && (
+          <Button variant="ghost" size="sm" className="h-9 gap-1.5 text-muted-foreground" onClick={() => handleSearch("")}>
+            <SolarDuotoneIcon icon={Cancel01Icon} size={13} strokeWidth={1.5} />
+            Clear
+          </Button>
+        )}
       </div>
 
       {/* Table */}
@@ -186,12 +195,46 @@ export function CategoryManagement() {
   const createCategory = useCreateCategory()
   const updateCategory = useUpdateCategory()
   const deleteCategory = useDeleteCategory()
+  const { data: pendingApprovals = [] } = usePendingApprovals("category")
+  const reviewApproval = useReviewApproval()
 
   const [sheetOpen, setSheetOpen]   = useState(false)
   const [editTarget, setEditTarget] = useState<ServiceCategory | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const [toggling, setToggling]     = useState<string | null>(null)
   const [form, setForm]             = useState<CategoryForm>({ name: "", description: "", is_active: true })
+  const [rejectTarget, setRejectTarget] = useState<ServiceCategory | null>(null)
+  const [rejectNotes, setRejectNotes]   = useState("")
+
+  const approvalIdByCategory = new Map(pendingApprovals.map((a) => [a.entity_id, a.id]))
+
+  async function handleApproveCategory(cat: ServiceCategory) {
+    const approvalId = approvalIdByCategory.get(cat.id)
+    if (!approvalId) return
+    try {
+      await reviewApproval.mutateAsync({ id: approvalId, status: "approved", entityType: "category", entityId: cat.id })
+      await updateCategory.mutateAsync({ id: cat.id, status: "active" } as Partial<ServiceCategory> & { id: string })
+      toast.success("Category approved")
+    } catch (e: unknown) {
+      toast.error((e as Error).message ?? "Failed to approve category")
+    }
+  }
+
+  async function handleRejectCategory() {
+    if (!rejectTarget) return
+    const approvalId = approvalIdByCategory.get(rejectTarget.id)
+    if (!approvalId || !rejectNotes.trim()) return
+    try {
+      await reviewApproval.mutateAsync({
+        id: approvalId, status: "rejected", notes: rejectNotes.trim(),
+        entityType: "category", entityId: rejectTarget.id,
+      })
+      toast.success("Category returned to its creator")
+      setRejectTarget(null); setRejectNotes("")
+    } catch (e: unknown) {
+      toast.error((e as Error).message ?? "Failed to reject category")
+    }
+  }
 
   const { data: vcRows = [] } = useQuery({
     queryKey: ["vendor-category-counts"],
@@ -204,8 +247,9 @@ export function CategoryManagement() {
   })
   const vendorCount = (catId: string) => vcRows.filter((r) => r.category_id === catId).length
 
-  const activeCategories   = categories.filter((c) => c.is_active)
-  const dormantCategories  = categories.filter((c) => !c.is_active)
+  const pendingCategories  = categories.filter((c) => c.status === "pending_approval")
+  const activeCategories   = categories.filter((c) => c.status !== "pending_approval" && c.is_active)
+  const dormantCategories  = categories.filter((c) => c.status !== "pending_approval" && !c.is_active)
 
   function openCreate() {
     setEditTarget(null)
@@ -267,6 +311,10 @@ export function CategoryManagement() {
               Active
               {activeCategories.length > 0 && <span className="tab-count">{activeCategories.length}</span>}
             </TabsTrigger>
+            <TabsTrigger value="pending" className="text-sm">
+              Pending Approval
+              {pendingCategories.length > 0 && <span className="tab-count">{pendingCategories.length}</span>}
+            </TabsTrigger>
             <TabsTrigger value="dormant" className="text-sm">
               Dormant
               {dormantCategories.length > 0 && <span className="tab-count">{dormantCategories.length}</span>}
@@ -277,6 +325,34 @@ export function CategoryManagement() {
             Add category
           </Button>
           </div>
+
+          <TabsContent value="pending" className="mt-4">
+            {pendingCategories.length === 0 ? (
+              <div className="rounded-xl border border-dashed p-12 text-center">
+                <SolarDuotoneIcon icon={Tag01Icon} size={32} strokeWidth={1.5} className="text-muted-foreground/30 mx-auto mb-3" />
+                <p className="text-sm font-medium text-muted-foreground">No categories pending approval</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {pendingCategories.map((cat) => (
+                  <div key={cat.id} className="flex items-center justify-between gap-3 rounded-lg border p-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">{cat.name}</p>
+                      {cat.description && <p className="text-xs text-muted-foreground truncate">{cat.description}</p>}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Button size="sm" onClick={() => handleApproveCategory(cat)} disabled={reviewApproval.isPending}>
+                        Approve
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => setRejectTarget(cat)} disabled={reviewApproval.isPending}>
+                        Reject
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </TabsContent>
 
           <TabsContent value="active" className="mt-4">
             {activeCategories.length === 0 ? (
@@ -385,6 +461,27 @@ export function CategoryManagement() {
         }}
         loading={deleteCategory.isPending}
       />
+
+      <Dialog open={!!rejectTarget} onOpenChange={(o) => { if (!o) { setRejectTarget(null); setRejectNotes("") } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Reject "{rejectTarget?.name}"</DialogTitle></DialogHeader>
+          <div className="flex flex-col gap-1.5 py-2">
+            <Label>Notes for the creator <span className="text-destructive">*</span></Label>
+            <Textarea
+              placeholder="Why is this being sent back?"
+              value={rejectNotes}
+              onChange={(e) => setRejectNotes(e.target.value)}
+              rows={3}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setRejectTarget(null); setRejectNotes("") }}>Cancel</Button>
+            <Button variant="destructive" onClick={handleRejectCategory} disabled={!rejectNotes.trim() || reviewApproval.isPending}>
+              {reviewApproval.isPending ? "Rejecting…" : "Reject"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AnimatedPage>
   )
 }

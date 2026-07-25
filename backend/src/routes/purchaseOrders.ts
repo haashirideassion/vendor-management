@@ -1,21 +1,24 @@
 import { Router, Request, Response } from "express"
 import { getSupabaseAdmin } from "../utils/supabaseAdmin"
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth"
-import { getDefaultOrgId } from "../utils/org"
+import { requireOrg, OrgScopedRequest } from "../middleware/org"
+import { writeAudit, resolveActingAs } from "../services/audit"
 
 const router = Router()
 function db(): any { return getSupabaseAdmin() }
 
 // POST /api/purchase-orders/list
-router.post("/list", requireAuth, async (req: Request, res: Response) => {
+router.post("/list", requireAuth, requireOrg, async (req: Request, res: Response) => {
   try {
     const { status, vendor_id, engagement_id, contract_id } = req.body
+    const { orgId } = req as OrgScopedRequest
 
     let query = db()
       .from("purchase_orders")
       .select(
         "*, vendor:vendor_id(company_name, contact_name), engagement:engagement_id(title), line_items:po_line_items(*)"
       )
+      .eq("org_id", orgId)
       .order("created_at", { ascending: false })
 
     if (status) query = query.eq("status", status)
@@ -35,9 +38,10 @@ router.post("/list", requireAuth, async (req: Request, res: Response) => {
 })
 
 // POST /api/purchase-orders/get
-router.post("/get", requireAuth, async (req: Request, res: Response) => {
+router.post("/get", requireAuth, requireOrg, async (req: Request, res: Response) => {
   try {
     const { id } = req.body
+    const { orgId } = req as OrgScopedRequest
     if (!id) return res.status(400).json({ error: "id is required" })
 
     const { data, error } = await db()
@@ -46,6 +50,7 @@ router.post("/get", requireAuth, async (req: Request, res: Response) => {
         "*, vendor:vendor_id(company_name, contact_name), engagement:engagement_id(title), line_items:po_line_items(*)"
       )
       .eq("id", id)
+      .eq("org_id", orgId)
       .single()
 
     if (error) throw error
@@ -58,7 +63,7 @@ router.post("/get", requireAuth, async (req: Request, res: Response) => {
 })
 
 // POST /api/purchase-orders/create
-router.post("/create", requireAuth, async (req: Request, res: Response) => {
+router.post("/create", requireAuth, requireOrg, async (req: Request, res: Response) => {
   try {
     const {
       engagement_id,
@@ -74,12 +79,11 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
       created_by,
       status,
     } = req.body
+    const { orgId } = req as OrgScopedRequest
 
     if (!vendor_id || total_value === undefined || !created_by) {
       return res.status(400).json({ error: "vendor_id, total_value, and created_by are required" })
     }
-
-    const orgId = await getDefaultOrgId()
 
     // "Send Purchase Order" (the only creation flow in the UI) issues the PO
     // immediately — there's no separate draft-approval step to go through.
@@ -144,6 +148,13 @@ router.post("/issue", requireAuth, async (req: Request, res: Response) => {
     const { id } = req.body
     if (!id) return res.status(400).json({ error: "id is required" })
 
+    const { data: existing, error: getError } = await db()
+      .from("purchase_orders")
+      .select("status, org_id")
+      .eq("id", id)
+      .single()
+    if (getError) throw getError
+
     const { data, error } = await db()
       .from("purchase_orders")
       .update({ status: "issued", issue_date: new Date().toISOString().split("T")[0] })
@@ -152,6 +163,20 @@ router.post("/issue", requireAuth, async (req: Request, res: Response) => {
       .single()
 
     if (error) throw error
+
+    if (existing.status !== "issued") {
+      const userId = (req as AuthenticatedRequest).user.id
+      await writeAudit({
+        entityType: "purchase_order",
+        entityId: id,
+        action: "status_changed",
+        oldValue: { status: existing.status },
+        newValue: { status: "issued" },
+        performedBy: userId,
+        orgId: existing.org_id,
+        actingAs: await resolveActingAs(userId, existing.org_id),
+      })
+    }
 
     res.json({ data })
   } catch (err: any) {
@@ -166,6 +191,13 @@ router.post("/update-status", requireAuth, async (req: Request, res: Response) =
     const { id, status } = req.body
     if (!id || !status) return res.status(400).json({ error: "id and status are required" })
 
+    const { data: existing, error: getError } = await db()
+      .from("purchase_orders")
+      .select("status, org_id")
+      .eq("id", id)
+      .single()
+    if (getError) throw getError
+
     const { data, error } = await db()
       .from("purchase_orders")
       .update({ status })
@@ -174,6 +206,20 @@ router.post("/update-status", requireAuth, async (req: Request, res: Response) =
       .single()
 
     if (error) throw error
+
+    if (existing.status !== status) {
+      const userId = (req as AuthenticatedRequest).user.id
+      await writeAudit({
+        entityType: "purchase_order",
+        entityId: id,
+        action: "status_changed",
+        oldValue: { status: existing.status },
+        newValue: { status },
+        performedBy: userId,
+        orgId: existing.org_id,
+        actingAs: await resolveActingAs(userId, existing.org_id),
+      })
+    }
 
     res.json({ data })
   } catch (err: any) {

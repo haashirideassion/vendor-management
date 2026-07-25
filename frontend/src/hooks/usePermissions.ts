@@ -1,7 +1,14 @@
 import { useAuth } from "@/contexts/AuthContext"
+import { useOrg } from "@/contexts/OrgContext"
 import type { UserRole } from "@/lib/types"
 
-/** All non-vendor roles that access the admin portal */
+/**
+ * Legacy role bucket, still read from the unchanged profiles.role column
+ * (not part of the RBAC bundle cutover -- profiles.role stays valid through
+ * the transition window, dropped only in a later, separately-reviewed
+ * migration). Used only for the coarse internal-vs-vendor identity check;
+ * fine-grained authorization now comes from hasPermission() below.
+ */
 export const INTERNAL_ROLES: UserRole[] = [
   "admin",
   "super_admin",
@@ -12,75 +19,100 @@ export const INTERNAL_ROLES: UserRole[] = [
 ]
 
 /**
- * Maximum INR amount each role can approve unilaterally.
- * Amounts above the threshold require a higher-privilege approver.
- */
-export const APPROVAL_THRESHOLDS: Partial<Record<UserRole, number>> = {
-  manager: 100_000,
-  procurement_admin: 500_000,
-  finance_ap: 1_000_000,
-  super_admin: Infinity,
-  admin: Infinity,
-}
-
-/**
- * Returns a stable set of boolean permission flags derived from the
- * current user's role. Use these in components instead of hardcoding
- * role strings — so permission logic lives in one place.
+ * Returns a stable set of boolean permission flags derived from the active
+ * org's resolved permission-key set (org_member_roles -> role_permissions ->
+ * permissions), rather than hardcoded role strings — so bundle definitions
+ * live in one place (the roles/permissions tables) and editing a bundle
+ * automatically propagates here.
+ *
+ * NOTE on behavior changes from the old role-string model, direct
+ * consequences of the confirmed legacy-role -> bundle mapping (hr_user ->
+ * Associate; manager, finance_ap, procurement_admin -> Manager; org_admin/
+ * admin/super_admin -> Admin), not new decisions made here:
+ *  - canRecordGRN: previously procurement_admin+ only: now Associate-tier
+ *    too (hr_user maps here), since grns.record is an Associate permission.
+ *  - canCreatePO / canApprovePO: previously procurement_admin+ only; now any
+ *    Manager-tier role (manager, finance_ap, procurement_admin all map to
+ *    Manager), since purchase_orders.create/approve are Manager permissions.
+ *  - canApproveInvoice: previously finance_ap+admin only; now any
+ *    Manager-tier role too, since invoices.approve is a Manager permission.
+ *  - canRateVendors: previously manager+procurement_admin+admin; now
+ *    Admin-tier only, since vendors.rate is seeded as an Admin-only
+ *    permission (not included in the Manager bundle).
+ * None of these have live impact today -- the only real organization_members
+ * row in the live database is org_admin (-> Admin), and zero rows exist for
+ * manager/procurement_admin/finance_ap/hr_user.
  */
 export function usePermissions() {
   const { profile } = useAuth()
-  const role = profile?.role ?? null
+  const { activeOrg } = useOrg()
 
-  function hasRole(roles: UserRole[]): boolean {
-    return role !== null && roles.includes(role)
+  const isVendor = profile?.role === "vendor"
+  const isInternalUser = !!profile && !isVendor
+  const isSuperAdmin = profile?.role === "admin" || profile?.role === "super_admin"
+
+  const permissionKeys = activeOrg?.permissions ?? []
+  function hasPermission(module: string, action: string): boolean {
+    return permissionKeys.includes(`${module}.${action}`)
   }
+
+  const approvalThreshold = activeOrg?.approvalThreshold ?? 0
+  const hasUnlimitedApproval = hasPermission("purchase_orders", "approve_unlimited") || hasPermission("invoices", "approve_unlimited")
 
   return {
     // ── Identity ────────────────────────────────────────────────────────────
-    role,
-    isVendor: role === "vendor",
-    isInternalUser: hasRole(INTERNAL_ROLES),
-    isSuperAdmin: hasRole(["admin", "super_admin"]),
+    role: profile?.role ?? null,
+    isVendor,
+    isInternalUser,
+    isSuperAdmin,
+    /** True when the active org is reached only via standing group_admin access, not direct membership -- drives the "acting as group admin" banner. */
+    isActingAsGroupAdmin: activeOrg?.access === "group_admin" && !activeOrg.isLocalMember,
 
     // ── Vendor management ───────────────────────────────────────────────────
-    canViewVendors:        hasRole(INTERNAL_ROLES),
-    canManageVendorStatus: hasRole(["admin", "super_admin"]),        // approve/reject/suspend
-    canRateVendors:        hasRole(["manager", "procurement_admin", "admin", "super_admin"]),
-    canManageCategories:   hasRole(["admin", "super_admin"]),
-    canVerifyDocuments:    hasRole(["admin", "super_admin"]),
+    canViewVendors:        isInternalUser,
+    canManageVendorStatus: hasPermission("vendors", "manage_status"),
+    canRateVendors:        hasPermission("vendors", "rate"),
+    canManageCategories:   hasPermission("categories", "manage"),
+    canVerifyDocuments:    hasPermission("documents", "verify"),
 
     // ── Procurement — Engagements ────────────────────────────────────────────
-    canCreateEngagement: hasRole(["hr_user", "manager", "procurement_admin", "admin", "super_admin"]),
-    canApproveEngagement: hasRole(["manager", "procurement_admin", "admin", "super_admin"]),
+    canCreateEngagement: hasPermission("engagements", "draft"),
+    canApproveEngagement: hasPermission("engagements", "finalize"),
 
     // ── Procurement — Purchase Orders ────────────────────────────────────────
-    canCreatePO:  hasRole(["procurement_admin", "admin", "super_admin"]),
-    canApprovePO: hasRole(["procurement_admin", "admin", "super_admin"]),
+    canCreatePO:  hasPermission("purchase_orders", "create"),
+    canApprovePO: hasPermission("purchase_orders", "approve") || hasPermission("purchase_orders", "approve_unlimited"),
 
     // ── Procurement — GRN ────────────────────────────────────────────────────
-    canRecordGRN: hasRole(["procurement_admin", "admin", "super_admin"]),
+    canRecordGRN: hasPermission("grns", "record"),
 
     // ── Procurement — Invoices ───────────────────────────────────────────────
-    canSubmitInvoice:  role === "vendor",
-    canApproveInvoice: hasRole(["finance_ap", "admin", "super_admin"]),
+    canSubmitInvoice:  isVendor,
+    canApproveInvoice: hasPermission("invoices", "approve") || hasPermission("invoices", "approve_unlimited"),
 
     // ── Contracts ────────────────────────────────────────────────────────────
-    canManageContracts: hasRole(["procurement_admin", "admin", "super_admin"]),
+    // The old single boolean conflated drafting and execution/signing, which
+    // the new bundle model deliberately splits (Manager drafts, Admin-only
+    // executes/signs). Kept as an OR here so existing draft/list screens
+    // still show for either tier; screens gating the actual sign/execute
+    // action should move to hasPermission("contracts", "execute") directly.
+    canManageContracts: hasPermission("contracts", "draft") || hasPermission("contracts", "execute"),
 
     // ── Reports ─────────────────────────────────────────────────────────────
-    canViewReports: hasRole(["manager", "procurement_admin", "finance_ap", "admin", "super_admin"]),
+    canViewReports: hasPermission("reports", "view"),
 
     // ── User management ──────────────────────────────────────────────────────
-    canManageUsers: hasRole(["admin", "super_admin"]),
+    canManageUsers: hasPermission("users", "manage"),
 
     // ── Approval thresholds ──────────────────────────────────────────────────
-    approvalThreshold: role ? (APPROVAL_THRESHOLDS[role] ?? 0) : 0,
+    approvalThreshold,
 
     /** Returns true if this user can approve an action of the given INR amount */
     canApproveAmount(amount: number): boolean {
-      const threshold = role ? (APPROVAL_THRESHOLDS[role] ?? 0) : 0
-      return amount <= threshold
+      return hasUnlimitedApproval || amount <= approvalThreshold
     },
+
+    /** Direct access to the resolved permission set, for new code that wants finer granularity than the boolean shims above. */
+    hasPermission,
   }
 }

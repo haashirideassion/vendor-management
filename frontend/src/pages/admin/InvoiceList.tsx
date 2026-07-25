@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react"
+import { Link } from "react-router-dom"
 import { useInvoices, useReviewInvoice, useRunThreeWayMatch, useMarkInvoicePaid } from "@/hooks/useInvoices"
 import { usePermissions } from "@/hooks/usePermissions"
 import { usePagination } from "@/hooks/usePagination"
@@ -16,7 +17,7 @@ import {
 import { formatCurrency } from "@/lib/utils"
 import type { InvoiceStatus, MatchStatus, Invoice } from "@/lib/types"
 import { format } from "date-fns"
-import { CheckmarkCircle01Icon, Cancel01Icon } from "@/components/shared/SolarIcon"
+import { CheckmarkCircle01Icon, Cancel01Icon, EyeIcon } from "@/components/shared/SolarIcon"
 import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
 import { toast } from "sonner"
 
@@ -77,6 +78,12 @@ export function InvoiceList() {
               {STATUSES.map((s) => <SelectItem key={s} value={s}>{INVOICE_STATUS_LABELS[s]}</SelectItem>)}
             </SelectContent>
           </Select>
+          {status && (
+            <Button variant="ghost" size="sm" className="h-9 gap-1.5 text-muted-foreground" onClick={() => setStatus("")}>
+              <SolarDuotoneIcon icon={Cancel01Icon} size={13} strokeWidth={1.5} />
+              Clear
+            </Button>
+          )}
         </div>
 
         {/* Table */}
@@ -190,6 +197,12 @@ export function InvoiceList() {
                             Mark Paid
                           </Button>
                         )}
+                        <Button asChild size="sm" variant="ghost" className="h-7 px-2 gap-1.5 text-xs text-muted-foreground">
+                          <Link to={`/admin/invoices/${inv.id}`}>
+                            <SolarDuotoneIcon icon={EyeIcon} size={13} strokeWidth={1.5} />
+                            <span>View</span>
+                          </Link>
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>

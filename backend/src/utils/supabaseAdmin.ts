@@ -34,3 +34,16 @@ export function getSupabaseClient() {
   }
   return _client
 }
+
+// A fresh client per call, carrying the caller's own JWT. Needed for RPCs
+// like support_view_entity() that rely on auth.uid() inside a SECURITY
+// DEFINER function -- getSupabaseAdmin()'s service-role client has no
+// per-request user JWT, so auth.uid() would resolve to NULL and any
+// is_platform_admin()-style check inside the function would always fail.
+export function getSupabaseAsUser(accessToken: string) {
+  return createClient(
+    process.env.SUPABASE_URL!,
+    process.env.SUPABASE_PUBLISHABLE_KEY!,
+    { ...serverClientOpts, global: { headers: { Authorization: `Bearer ${accessToken}` } } }
+  )
+}

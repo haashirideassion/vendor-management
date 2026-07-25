@@ -5,6 +5,7 @@ import { z } from "zod"
 import { useNavigate, Link } from "react-router-dom"
 import { useAuth } from "@/contexts/AuthContext"
 import { INTERNAL_ROLES } from "@/hooks/usePermissions"
+import { fetchWhoami } from "@/hooks/useSuperadmin"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -29,8 +30,18 @@ export function LoginForm() {
   async function onSubmit(data: FormData) {
     setLoading(true)
     try {
-      const user = await login(data.email, data.password)
+      const { user, accessToken } = await login(data.email, data.password)
       const isInternal = INTERNAL_ROLES.includes(user.role as never)
+      if (isInternal) {
+        // A platform admin with no org of their own would otherwise land on
+        // an empty admin dashboard -- send them straight to the superadmin
+        // console instead.
+        const whoami = await fetchWhoami(accessToken).catch(() => null)
+        if (whoami?.isPlatformAdmin && !whoami.hasOrgMembership) {
+          navigate("/admin/superadmin")
+          return
+        }
+      }
       navigate(isInternal ? "/admin/dashboard" : "/vendor/profile")
     } catch (err: any) {
       toast.error(err.message ?? "Login failed. Please try again.")
@@ -68,7 +79,7 @@ export function LoginForm() {
             {loading ? "Signing in…" : "Sign in"}
           </Button>
           <p className="text-sm text-muted-foreground text-center">
-            New vendor?{" "}
+            New vendor/organization?{" "}
             <Link to="/signup" className="text-primary hover:underline">
               Register here
             </Link>

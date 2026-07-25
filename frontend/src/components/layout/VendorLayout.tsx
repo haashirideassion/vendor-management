@@ -9,7 +9,9 @@ import { UserDropdown } from "@/components/shared/UserDropdown"
 import { AppLogo } from "@/components/shared/AppLogo"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { useVendor } from "@/hooks/useVendor"
+import { useMyVendorRole } from "@/hooks/useVendorUsers"
 import { getVendorStage, type VendorStage } from "@/components/auth/VendorStatusGuard"
+import { useSidebarCollapse } from "@/hooks/useSidebarCollapse"
 import { cn } from "@/lib/utils"
 import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
 import {
@@ -23,6 +25,9 @@ import {
   Invoice02Icon,
   Briefcase01Icon,
   InformationCircleIcon,
+  UserGroup02Icon,
+  SidebarCollapseIcon,
+  SidebarExpandIcon,
 } from "@/components/shared/SolarIcon"
 
 const allNavItems = [
@@ -32,6 +37,7 @@ const allNavItems = [
   { id: "contracts", label: "Contracts", to: "/vendor/contracts", icon: ContractsIcon,            stages: ["APPROVED"] as VendorStage[] },
   { id: "rfqs",      label: "RFQs",      to: "/vendor/rfqs",      icon: Briefcase01Icon,          stages: ["APPROVED"] as VendorStage[] },
   { id: "invoices",  label: "Invoices",  to: "/vendor/invoices",  icon: Invoice02Icon,            stages: ["APPROVED"] as VendorStage[] },
+  { id: "team",      label: "Team",      to: "/vendor/team",      icon: UserGroup02Icon,          stages: ["APPROVED"] as VendorStage[] },
 ]
 
 function StageBanner({ stage, vendorStatus }: { stage: VendorStage; vendorStatus?: string }) {
@@ -85,11 +91,15 @@ function SidebarContent({
   stage,
   vendor,
   onNavClick,
+  collapsed,
+  onToggleCollapse,
 }: {
   pathname: string
   stage: VendorStage
   vendor: { company_name: string; vendor_id_code?: string | null; status: string } | null | undefined
   onNavClick?: () => void
+  collapsed?: boolean
+  onToggleCollapse?: () => void
 }) {
   const showRenewal = vendor?.status === "action_required"
   const visibleItems = allNavItems.filter((item) => item.stages.includes(stage))
@@ -97,11 +107,21 @@ function SidebarContent({
   return (
     <div className="flex flex-col h-full">
       {/* Logo + vendor chip */}
-      <div className="px-4 pt-5 pb-4">
-        <div className="flex items-center mb-4">
-          <AppLogo className="h-10 w-auto max-w-[180px]" />
+      <div className={cn("px-4 pt-5 pb-4", collapsed && "px-2")}>
+        <div className={cn("flex items-center mb-4", collapsed ? "justify-center" : "justify-between")}>
+          {!collapsed && <AppLogo className="h-10 w-auto max-w-[180px]" />}
+          {onToggleCollapse && (
+            <button
+              type="button"
+              onClick={onToggleCollapse}
+              title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground/70 transition-colors hover:bg-accent hover:text-foreground"
+            >
+              <SolarDuotoneIcon icon={collapsed ? SidebarExpandIcon : SidebarCollapseIcon} size={16} strokeWidth={1.5} />
+            </button>
+          )}
         </div>
-        {vendor && (
+        {vendor && !collapsed && (
           <div className="rounded-xl bg-muted/60 px-3 py-2.5 space-y-1.5">
             <p className="text-xs font-semibold truncate leading-snug">{vendor.company_name}</p>
             {vendor.vendor_id_code && (
@@ -121,8 +141,10 @@ function SidebarContent({
               key={to}
               to={to}
               onClick={onNavClick}
+              title={collapsed ? label : undefined}
               className={cn(
                 "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150",
+                collapsed && "justify-center px-0",
                 active
                   ? "bg-[image:var(--brand-gradient)] text-white shadow-sm"
                   : "text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -135,7 +157,7 @@ function SidebarContent({
                 primaryColor={active ? "currentColor" : "var(--icon-nav-inactive)"}
                 secondaryColor={active ? "currentColor" : "var(--icon-nav-inactive)"}
               />
-              {label}
+              {!collapsed && label}
             </Link>
           )
         })}
@@ -144,8 +166,10 @@ function SidebarContent({
           <Link
             to="/vendor/renewal"
             onClick={onNavClick}
+            title={collapsed ? "Renewal Required" : undefined}
             className={cn(
               "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all duration-150 mt-2",
+              collapsed && "justify-center px-0",
               pathname === "/vendor/renewal"
                 ? "bg-orange-500 text-white shadow-sm"
                 : "bg-orange-100 text-orange-800 hover:bg-orange-200 dark:bg-orange-900/30 dark:text-orange-300"
@@ -158,7 +182,7 @@ function SidebarContent({
               primaryColor="currentColor"
               secondaryColor="currentColor"
             />
-            Renewal Required
+            {!collapsed && "Renewal Required"}
           </Link>
         )}
       </nav>
@@ -170,7 +194,9 @@ export function VendorLayout() {
   const { profile, signOut } = useAuth()
   const { pathname } = useLocation()
   const { data: vendor } = useVendor()
+  const { data: roleNames } = useMyVendorRole()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [collapsed, setCollapsed] = useSidebarCollapse()
 
   const stage = getVendorStage(vendor)
 
@@ -185,8 +211,19 @@ export function VendorLayout() {
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex flex-col w-[220px] shrink-0 m-3 rounded-2xl bg-card border border-border/60 shadow-sm overflow-hidden">
-        <SidebarContent pathname={pathname} stage={stage} vendor={vendor} />
+      <aside
+        className={cn(
+          "hidden md:flex flex-col shrink-0 m-3 rounded-2xl bg-card border border-border/60 shadow-sm overflow-hidden transition-[width] duration-200",
+          collapsed ? "w-[76px]" : "w-[220px]"
+        )}
+      >
+        <SidebarContent
+          pathname={pathname}
+          stage={stage}
+          vendor={vendor}
+          collapsed={collapsed}
+          onToggleCollapse={() => setCollapsed((c) => !c)}
+        />
       </aside>
 
       {/* Mobile Sidebar */}
@@ -237,8 +274,10 @@ export function VendorLayout() {
             <NotificationBell />
             <ThemeToggle />
             <UserDropdown
+              fullName={profile?.full_name}
               email={profile?.email}
               role={profile?.role}
+              roleNames={roleNames}
               onSignOut={signOut}
             />
           </div>

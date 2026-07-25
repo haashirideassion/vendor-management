@@ -100,6 +100,16 @@ export function useVerifyDocument() {
   })
 }
 
+export function useOrgOnboardingDocumentSignedUrl() {
+  return async (storagePath: string): Promise<string> => {
+    const { data, error } = await supabase.storage
+      .from("org-onboarding-documents")
+      .createSignedUrl(storagePath, 300) // 5 min expiry
+    if (error) throw error
+    return data.signedUrl
+  }
+}
+
 export function useDocumentSignedUrl() {
   return async (storagePath: string): Promise<string> => {
     const { data, error } = await supabase.storage

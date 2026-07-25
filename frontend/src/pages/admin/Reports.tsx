@@ -115,11 +115,6 @@ export function Reports() {
 
         {/* ── Vendor Overview ─────────────────────────────────────────────── */}
         <div className="space-y-6">
-          <div>
-            <h1 className="text-xl font-bold tracking-tight">Reports</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">Vendor and procurement analytics.</p>
-          </div>
-
           {/* Vendor KPI cards */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <Card className="shadow-none border-blue-200 dark:border-blue-800 overflow-hidden bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900/60 dark:to-blue-800/40">

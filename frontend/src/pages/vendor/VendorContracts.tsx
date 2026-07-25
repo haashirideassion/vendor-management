@@ -12,6 +12,7 @@ import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
 import {
   ContractsIcon,
   Search01Icon,
+  Cancel01Icon,
   ArrowLeft01Icon,
   ArrowRight01Icon,
   EyeIcon,
@@ -21,6 +22,7 @@ import { differenceInDays, format } from "date-fns"
 import type { Contract, ContractStatus } from "@/lib/types"
 
 const STATUS_COLORS: Record<ContractStatus, string> = {
+  pending_approval: "bg-yellow-100 text-yellow-800 border-yellow-200",
   draft: "bg-muted text-muted-foreground border-border/60",
   active: "bg-green-100 text-green-600 border-green-200",
   expired: "bg-orange-100 text-orange-700 border-orange-200",
@@ -28,6 +30,7 @@ const STATUS_COLORS: Record<ContractStatus, string> = {
 }
 
 const STATUS_LABELS: Record<ContractStatus, string> = {
+  pending_approval: "Pending Approval",
   draft: "Draft",
   active: "Active",
   expired: "Expired",
@@ -65,19 +68,27 @@ function ContractTable({
 
   return (
     <div className="space-y-3">
-      <div className="relative">
-        <SolarDuotoneIcon
-          icon={Search01Icon}
-          size={15}
-          strokeWidth={1.5}
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
-        />
-        <Input
-          className="pl-8 h-8 text-sm"
-          placeholder="Search by name or contract ID…"
-          value={search}
-          onChange={(e) => { setSearch(e.target.value); setPage(0) }}
-        />
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <SolarDuotoneIcon
+            icon={Search01Icon}
+            size={15}
+            strokeWidth={1.5}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
+          />
+          <Input
+            className="pl-8 h-8 text-sm"
+            placeholder="Search by name or contract ID…"
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(0) }}
+          />
+        </div>
+        {search && (
+          <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-muted-foreground" onClick={() => { setSearch(""); setPage(0) }}>
+            <SolarDuotoneIcon icon={Cancel01Icon} size={13} strokeWidth={1.5} />
+            Clear
+          </Button>
+        )}
       </div>
 
       <div className="rounded-xl border overflow-hidden">
@@ -237,13 +248,6 @@ export function VendorContracts() {
   return (
     <AnimatedPage>
       <div className="p-6 space-y-6">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight">Contracts</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            View all contracts associated with your vendor account.
-          </p>
-        </div>
-
         <Tabs defaultValue="active">
           <TabsList className="mb-4">
             <TabsTrigger value="active">

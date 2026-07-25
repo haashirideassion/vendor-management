@@ -2,7 +2,7 @@ import { useCallback, useRef, useState } from "react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { formatBytes } from "@/lib/utils"
-import { validateFile, ALLOWED_EXT_LABEL } from "@/hooks/useAttachments"
+import { validateFile, ALLOWED_EXT_LABEL, ALLOWED_EXTENSIONS } from "@/hooks/useAttachments"
 import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
 import { Upload01Icon, File01Icon, Cancel01Icon } from "@/components/shared/SolarIcon"
 
@@ -128,7 +128,7 @@ export function FileUploadZone({
           ref={inputRef}
           type="file"
           multiple
-          accept=".doc,.docx,.jpg,.jpeg,.pdf"
+          accept={ALLOWED_EXTENSIONS.join(",")}
           className="hidden"
           disabled={disabled}
           onChange={handleInputChange}

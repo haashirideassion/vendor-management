@@ -3,7 +3,9 @@ import { useVendor } from "@/hooks/useVendor"
 import { useContracts } from "@/hooks/useContracts"
 import { useEngagements } from "@/hooks/useEngagements"
 import { useInvoices } from "@/hooks/useInvoices"
+import { useMyVendorAssignmentStatus } from "@/hooks/useVendorUsers"
 import { AnimatedPage } from "@/components/shared/AnimatedPage"
+import { VerificationStatusBadge } from "@/components/shared/VerificationStatusBadge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
@@ -30,6 +32,7 @@ export function VendorDashboard() {
   const { data: invoices = [], isLoading: invoicesLoading } = useInvoices(
     vendor?.id ? { vendor_id: vendor.id } : undefined
   )
+  const { data: assignmentStatus } = useMyVendorAssignmentStatus()
 
   if (isLoading) {
     return (
@@ -109,6 +112,32 @@ export function VendorDashboard() {
   return (
     <AnimatedPage>
       <div className="p-6 space-y-6">
+        {/* Restricted-Associate note. Informational only for now -- the
+            engagements/contracts/invoices queries below aren't yet filtered
+            by assigned client org, only the vendor as a whole. */}
+        {assignmentStatus?.isRestricted && (
+          <div className="rounded-lg border bg-muted/50 px-4 py-2 text-xs text-muted-foreground">
+            Showing your assigned clients only.
+          </div>
+        )}
+
+        {/* Compliance verification status — a client org can list this vendor
+            as active, but it stays ineligible for NEW engagements platform-wide
+            until superadmin verifies it (separate from the org-level status above). */}
+        {vendor.verification_status !== "verified" && (
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50/60 dark:bg-amber-950/20 dark:border-amber-800 px-4 py-3">
+            <div className="flex items-center gap-3">
+              <SolarDuotoneIcon icon={AlertCircleIcon} size={18} strokeWidth={1.5} className="text-orange-600 shrink-0" />
+              <p className="text-sm text-orange-900 dark:text-orange-300">
+                {vendor.verification_status === "rejected"
+                  ? "Your compliance verification was rejected. Please contact your client organization for details."
+                  : "Your compliance verification is pending. You won't be eligible for new engagements until it's verified."}
+              </p>
+            </div>
+            <VerificationStatusBadge status={vendor.verification_status} className="shrink-0" />
+          </div>
+        )}
+
         {/* Renewal alert banner */}
         {showRenewalAlert && (
           <div className="relative overflow-hidden rounded-xl border border-amber-200 bg-amber-50/60 dark:bg-amber-950/20 dark:border-amber-800 p-4">

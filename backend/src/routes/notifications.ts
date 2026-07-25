@@ -28,11 +28,13 @@ router.post("/mark-read", requireAuth, async (req: Request, res: Response) => {
   try {
     const { id } = req.body
     if (!id) return res.status(400).json({ error: "Missing id" })
+    const userId = (req as AuthenticatedRequest).user?.id
 
     const { error } = await db()
       .from("notifications")
       .update({ is_read: true })
       .eq("id", id)
+      .eq("user_id", userId)
 
     if (error) throw error
     return res.json({ ok: true })

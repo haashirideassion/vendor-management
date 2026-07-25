@@ -40,7 +40,16 @@ export function DocumentUploader({
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: { "application/pdf": [".pdf"], "image/*": [".png", ".jpg", ".jpeg"] },
+    accept: {
+      "application/pdf": [".pdf"],
+      "application/msword": [".doc"],
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
+      "application/vnd.ms-excel": [".xls"],
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
+      "application/vnd.ms-powerpoint": [".ppt"],
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation": [".pptx"],
+      "image/*": [".png", ".jpg", ".jpeg"],
+    },
     maxFiles: 1,
     maxSize: 10 * 1024 * 1024, // 10 MB
   })
@@ -88,7 +97,7 @@ export function DocumentUploader({
         ) : (
           <>
             <p className="text-sm font-medium">Drag & drop or click to upload</p>
-            <p className="text-xs text-muted-foreground mt-1">PDF, PNG, JPG up to 10 MB</p>
+            <p className="text-xs text-muted-foreground mt-1">PDF, DOC(X), XLS(X), PPT(X), PNG, JPG up to 10 MB</p>
           </>
         )}
       </div>

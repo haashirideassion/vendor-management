@@ -101,6 +101,7 @@ export function Step6Review({ data, localDocs, onEdit, onSubmit, submitting }: P
         {data.tax_gst_number || data.bank_name ? (
           <>
             <Row label="Tax / GST" value={data.tax_gst_number} />
+            <Row label="PAN" value={data.pan_number} />
             <Row label="Bank" value={data.bank_name} />
             <Row label="Account No." value={data.bank_account_number} />
             <Row label="Routing No." value={data.bank_routing_number} />

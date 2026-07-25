@@ -5,7 +5,9 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { useContract, useUpdateContractStatus, useMarkContractSigned, useAddAmendment } from "@/hooks/useContracts"
 import { usePurchaseOrders } from "@/hooks/usePurchaseOrders"
+import { useApprovalRequests, useReviewApproval } from "@/hooks/useApprovalWorkflow"
 import { usePermissions } from "@/hooks/usePermissions"
+import { useOrg } from "@/contexts/OrgContext"
 import { toast } from "sonner"
 import { AnimatedPage } from "@/components/shared/AnimatedPage"
 import { AttachmentList } from "@/components/shared/AttachmentList"
@@ -38,7 +40,7 @@ import {
 } from "@/components/shared/SolarIcon"
 import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
 
-type ActionDialog = "activate" | "terminate" | "sign" | "amend" | null
+type ActionDialog = "activate" | "terminate" | "sign" | "amend" | "reject" | null
 
 const amendSchema = z.object({
   title:          z.string().min(1, "Title is required"),
@@ -70,11 +72,18 @@ export function ContractDetail() {
 
   const { data: contract, isLoading } = useContract(id!)
   const { data: pos = [] }            = usePurchaseOrders({ contract_id: id })
+  const { data: approvals = [] }      = useApprovalRequests("contract", id!)
 
   const updateStatus   = useUpdateContractStatus()
   const markSigned     = useMarkContractSigned()
   const addAmendment   = useAddAmendment()
+  const reviewApproval = useReviewApproval()
   const { canManageContracts } = usePermissions()
+  const { activeOrg } = useOrg()
+  const isManagerOrAdminViewer = !!activeOrg?.roleNames.some((r) => r === "Manager" || r === "Admin")
+
+  const [rejectNotes, setRejectNotes] = useState("")
+  const pendingApproval = approvals.find((a) => a.status === "pending")
 
   const amendForm = useForm<AmendForm>({ resolver: zodResolver(amendSchema) })
 
@@ -86,6 +95,31 @@ export function ContractDetail() {
       toast.success("Contract activated.")
     } catch {
       toast.error("Failed to activate contract. Please try again.")
+    }
+  }
+
+  async function handleApproveContract() {
+    if (!id || !pendingApproval) return
+    try {
+      await reviewApproval.mutateAsync({ id: pendingApproval.id, status: "approved", entityType: "contract", entityId: id })
+      await updateStatus.mutateAsync({ id, status: "draft" })
+      toast.success("Contract approved.")
+    } catch {
+      toast.error("Failed to approve contract. Please try again.")
+    }
+  }
+
+  async function handleRejectContract() {
+    if (!id || !pendingApproval || !rejectNotes.trim()) return
+    try {
+      await reviewApproval.mutateAsync({
+        id: pendingApproval.id, status: "rejected", notes: rejectNotes.trim(),
+        entityType: "contract", entityId: id,
+      })
+      setDialog(null); setRejectNotes("")
+      toast.success("Contract returned to its creator.")
+    } catch {
+      toast.error("Failed to reject contract. Please try again.")
     }
   }
 
@@ -183,6 +217,18 @@ export function ContractDetail() {
         {/* Action buttons */}
         {canManageContracts && (
           <div className="flex flex-wrap gap-2">
+            {status === "pending_approval" && isManagerOrAdminViewer && (
+              <>
+                <Button size="sm" variant="success" onClick={handleApproveContract} disabled={reviewApproval.isPending || updateStatus.isPending}>
+                  <SolarDuotoneIcon icon={CheckmarkCircle01Icon} size={14} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" className="mr-1.5" />
+                  Approve
+                </Button>
+                <Button size="sm" variant="danger" onClick={() => setDialog("reject")} disabled={reviewApproval.isPending || updateStatus.isPending}>
+                  <SolarDuotoneIcon icon={Cancel01Icon} size={14} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" className="mr-1.5" />
+                  Reject
+                </Button>
+              </>
+            )}
             {status === "draft" && (
               <Button size="sm" variant="success" onClick={() => setDialog("activate")}>
                 <SolarDuotoneIcon icon={CheckmarkCircle01Icon} size={14} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" className="mr-1.5" />
@@ -375,6 +421,22 @@ export function ContractDetail() {
           canUpload={false}
         />
       </div>
+
+      {/* Reject dialog */}
+      <Dialog open={dialog === "reject"} onOpenChange={() => { setDialog(null); setRejectNotes("") }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Reject Contract</DialogTitle></DialogHeader>
+          <div className="space-y-3 pt-2">
+            <Textarea placeholder="Reason for rejection…" value={rejectNotes} onChange={(e) => setRejectNotes(e.target.value)} rows={3} />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setDialog(null); setRejectNotes("") }}>Cancel</Button>
+            <Button variant="danger" onClick={handleRejectContract} disabled={!rejectNotes.trim() || reviewApproval.isPending}>
+              {reviewApproval.isPending ? "Rejecting…" : "Reject"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Activate dialog */}
       <Dialog open={dialog === "activate"} onOpenChange={() => setDialog(null)}>

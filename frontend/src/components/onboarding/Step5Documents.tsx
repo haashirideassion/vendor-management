@@ -10,7 +10,12 @@ import { CheckmarkCircle01Icon, Upload01Icon, Delete02Icon } from "@/components/
 import { cn } from "@/lib/utils"
 
 const OPTIONAL_DOCUMENTS: DocumentType[] = ["insurance_coi", "bank_letter", "tax_certificate", "other"]
-const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
+const MAX_FILE_SIZE = 15 * 1024 * 1024 // 15 MB
+const ALLOWED_MIME_TYPES = new Set([
+  "application/pdf",
+  "image/jpeg",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+])
 
 interface Props {
   localDocs: LocalDocument[]
@@ -40,7 +45,12 @@ function DocRow({
     const file = e.target.files?.[0]
     if (!file) return
     if (file.size > MAX_FILE_SIZE) {
-      toast.error("File must be under 10 MB.")
+      toast.error("File must be under 15 MB.")
+      e.target.value = ""
+      return
+    }
+    if (!ALLOWED_MIME_TYPES.has(file.type)) {
+      toast.error("Only PDF, JPEG, and DOCX files are allowed.")
       e.target.value = ""
       return
     }
@@ -96,7 +106,7 @@ function DocRow({
         <input
           ref={inputRef}
           type="file"
-          accept=".pdf,.png,.jpg,.jpeg"
+          accept=".pdf,.docx,.jpg,.jpeg"
           className="hidden"
           onChange={handleChange}
         />
@@ -125,6 +135,7 @@ export function Step5Documents({ localDocs, onDocsChange, onNext, onBack }: Prop
         <CardTitle>Upload Documents</CardTitle>
         <CardDescription>
           Select the required documents. Files are uploaded only after you submit on the Review screen.
+          PDF, JPEG, or DOCX only, up to 15 MB each.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">

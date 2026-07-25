@@ -4,11 +4,13 @@ import type { Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { useQuery } from "@tanstack/react-query"
+import { Link } from "react-router-dom"
 import { useInvoices, useSubmitInvoice } from "@/hooks/useInvoices"
 import { useUploadAttachments } from "@/hooks/useAttachments"
 import { FileUploadZone } from "@/components/shared/FileUploadZone"
 import { AttachmentList } from "@/components/shared/AttachmentList"
 import { useVendor } from "@/hooks/useVendor"
+import { useMyVendorRole } from "@/hooks/useVendorUsers"
 import { useContracts } from "@/hooks/useContracts"
 import { supabase } from "@/lib/supabase"
 import { AnimatedPage } from "@/components/shared/AnimatedPage"
@@ -26,7 +28,7 @@ import {
 import { formatCurrency } from "@/lib/utils"
 import type { InvoiceStatus } from "@/lib/types"
 import { format } from "date-fns"
-import { Add01Icon, File01Icon } from "@/components/shared/SolarIcon"
+import { Add01Icon, File01Icon, EyeIcon } from "@/components/shared/SolarIcon"
 import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
 import { toast } from "sonner"
 
@@ -55,6 +57,8 @@ export function VendorInvoices() {
   const [docsInvoiceId, setDocsInvoiceId] = useState<string | null>(null)
 
   const { data: vendor }                           = useVendor()
+  const { data: myRoleNames = [] }                 = useMyVendorRole()
+  const canSubmitInvoice = myRoleNames.includes("Admin") || myRoleNames.includes("Finance")
   const { data: invoices = [], isLoading }         = useInvoices({ vendor_id: vendor?.id })
   const { data: contracts = [], isLoading: contractsLoading } = useContracts(
     vendor?.id ? { vendor_id: vendor.id, status: "active" } : undefined
@@ -65,7 +69,7 @@ export function VendorInvoices() {
   // Fetch vendor's engagements (those they've been invited to via RFQs)
   const { data: vendorEngagements = [], isLoading: engagementsLoading } = useQuery({
     queryKey: ["vendor-engagements-for-invoice", vendor?.id],
-    enabled: !!vendor?.id,
+    enabled: !!vendor?.id && submitting,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("engagement_vendors")
@@ -159,19 +163,15 @@ export function VendorInvoices() {
   return (
     <AnimatedPage>
       <div className="flex-1 flex flex-col min-h-0 p-6 gap-6">
-        {/* Header */}
-        <div className="shrink-0 flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold tracking-tight">Invoices</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Submit and track invoices for your contracts or engagements.
-            </p>
+        {/* Actions */}
+        {canSubmitInvoice && (
+          <div className="shrink-0 flex items-center justify-end">
+            <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setSubmitting(true)}>
+              <SolarDuotoneIcon icon={Add01Icon} size={14} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" />
+              Submit Invoice
+            </Button>
           </div>
-          <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setSubmitting(true)}>
-            <SolarDuotoneIcon icon={Add01Icon} size={14} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" />
-            Submit Invoice
-          </Button>
-        </div>
+        )}
 
         {/* Table */}
         <div className="flex-1 min-h-0 overflow-auto rounded-xl border">
@@ -185,7 +185,7 @@ export function VendorInvoices() {
                 <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Amount</TableHead>
                 <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Status</TableHead>
                 <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Date</TableHead>
-                <TableHead className="w-12" />
+                <TableHead className="w-28" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -242,15 +242,23 @@ export function VendorInvoices() {
                       </span>
                     </TableCell>
                     <TableCell>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 px-2 gap-1.5 text-muted-foreground"
-                        onClick={() => setDocsInvoiceId(inv.id)}
-                      >
-                        <SolarDuotoneIcon icon={File01Icon} size={13} strokeWidth={1.5} />
-                        <span className="text-xs">Document</span>
-                      </Button>
+                      <div className="flex gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2 gap-1.5 text-muted-foreground"
+                          onClick={() => setDocsInvoiceId(inv.id)}
+                        >
+                          <SolarDuotoneIcon icon={File01Icon} size={13} strokeWidth={1.5} />
+                          <span className="text-xs">Document</span>
+                        </Button>
+                        <Button asChild size="sm" variant="ghost" className="h-7 px-2 gap-1.5 text-xs text-muted-foreground">
+                          <Link to={`/vendor/invoices/${inv.id}`}>
+                            <SolarDuotoneIcon icon={EyeIcon} size={13} strokeWidth={1.5} />
+                            <span>View</span>
+                          </Link>
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))

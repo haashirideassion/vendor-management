@@ -1,15 +1,21 @@
 import { Router, Request, Response } from "express"
 import { getSupabaseAdmin } from "../utils/supabaseAdmin"
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth"
-import { getDefaultOrgId } from "../utils/org"
+import { requireOrg, OrgScopedRequest, resolveListScope } from "../middleware/org"
+import { writeAudit, resolveActingAs } from "../services/audit"
+import { gateOnCreate, isManagerOrAdmin } from "../services/approvalGate"
 
 const router = Router()
 function db(): any { return getSupabaseAdmin() }
 
-// POST /api/contracts/list
+// POST /api/contracts/list — shared between internal staff and vendors
+// (vendor contracts/dashboard pages fetch their own contracts this way too).
 router.post("/list", requireAuth, async (req: Request, res: Response) => {
   try {
     const { vendor_id, contract_type, status } = req.body
+
+    const scope = await resolveListScope(req)
+    if ("error" in scope) return res.status(scope.error.status).json({ error: scope.error.message })
 
     let query = db()
       .from("contracts")
@@ -18,7 +24,14 @@ router.post("/list", requireAuth, async (req: Request, res: Response) => {
       )
       .order("created_at", { ascending: false })
 
-    if (vendor_id) query = query.eq("vendor_id", vendor_id)
+    if (scope.mode === "vendor") {
+      query = query.eq("vendor_id", scope.vendorId)
+      if (scope.allowedOrgIds !== null) query = query.in("org_id", scope.allowedOrgIds)
+    } else {
+      query = query.eq("org_id", scope.orgId)
+      if (vendor_id) query = query.eq("vendor_id", vendor_id)
+    }
+
     if (contract_type) query = query.eq("contract_type", contract_type)
     if (status) query = query.eq("status", status)
 
@@ -33,11 +46,15 @@ router.post("/list", requireAuth, async (req: Request, res: Response) => {
   }
 })
 
-// POST /api/contracts/get
+// POST /api/contracts/get — shared between internal staff and vendors, same
+// scoping rule as /list.
 router.post("/get", requireAuth, async (req: Request, res: Response) => {
   try {
     const { id } = req.body
     if (!id) return res.status(400).json({ error: "id is required" })
+
+    const scope = await resolveListScope(req)
+    if ("error" in scope) return res.status(scope.error.status).json({ error: scope.error.message })
 
     const { data, error } = await db()
       .from("contracts")
@@ -49,6 +66,10 @@ router.post("/get", requireAuth, async (req: Request, res: Response) => {
 
     if (error) throw error
 
+    if (scope.mode === "org" ? data.org_id !== scope.orgId : data.vendor_id !== scope.vendorId) {
+      return res.status(404).json({ error: "Contract not found" })
+    }
+
     res.json({ data })
   } catch (err: any) {
     console.error("[contracts/get]", err.message)
@@ -57,7 +78,7 @@ router.post("/get", requireAuth, async (req: Request, res: Response) => {
 })
 
 // POST /api/contracts/create
-router.post("/create", requireAuth, async (req: Request, res: Response) => {
+router.post("/create", requireAuth, requireOrg, async (req: Request, res: Response) => {
   try {
     const {
       vendor_id,
@@ -73,14 +94,13 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
       notes,
       created_by,
     } = req.body
+    const { orgId } = req as OrgScopedRequest
 
     if (!vendor_id || !contract_type || !title || !effective_date || !expiry_date || total_value === undefined || !created_by) {
       return res.status(400).json({
         error: "vendor_id, contract_type, title, effective_date, expiry_date, total_value, and created_by are required",
       })
     }
-
-    const orgId = await getDefaultOrgId()
 
     const payload: any = {
       vendor_id,
@@ -91,7 +111,7 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
       total_value,
       created_by,
       org_id: orgId,
-      status: "draft",
+      status: "pending_approval", // resolved to its real starting status just below
     }
     if (parent_id !== undefined) payload.parent_id = parent_id
     if (currency !== undefined) payload.currency = currency
@@ -99,13 +119,38 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
     if (renewal_notice_days !== undefined) payload.renewal_notice_days = renewal_notice_days
     if (notes !== undefined) payload.notes = notes
 
-    const { data, error } = await db()
+    const { data: inserted, error } = await db()
       .from("contracts")
       .insert(payload)
-      .select()
+      .select("id")
       .single()
-
     if (error) throw error
+
+    // Associate-only creators need Manager/Admin sign-off before the
+    // contract is even a real draft; Manager/Admin/solo-mode creators skip
+    // straight to draft, same as before this gate existed.
+    const actorId = (req as AuthenticatedRequest).user.id
+    const { gated } = await gateOnCreate({
+      entityType: "contract",
+      entityId: inserted.id,
+      requestedBy: actorId,
+      orgId,
+      amount: total_value,
+      entityLabel: "Contract",
+      entityTitle: title,
+      notifType: "contract_pending_approval",
+    })
+    if (!gated) {
+      const { error: unlockError } = await db().from("contracts").update({ status: "draft" }).eq("id", inserted.id)
+      if (unlockError) throw unlockError
+    }
+
+    const { data, error: getError } = await db()
+      .from("contracts")
+      .select("*, vendor:vendor_id(company_name, contact_name), parent:parent_id(contract_ref, title), amendments:contract_amendments(*)")
+      .eq("id", inserted.id)
+      .single()
+    if (getError) throw getError
 
     res.json({ data })
   } catch (err: any) {
@@ -120,6 +165,22 @@ router.post("/update-status", requireAuth, async (req: Request, res: Response) =
     const { id, status } = req.body
     if (!id || !status) return res.status(400).json({ error: "id and status are required" })
 
+    const { data: existing, error: getError } = await db()
+      .from("contracts")
+      .select("status, org_id")
+      .eq("id", id)
+      .single()
+    if (getError) throw getError
+
+    // The pending_approval -> draft transition is the Manager/Admin approval
+    // gate itself (gateOnCreate, approvalGate.ts) -- only they may resolve it.
+    if (existing.status === "pending_approval" && status === "draft") {
+      const actorId = (req as AuthenticatedRequest).user.id
+      if (!(await isManagerOrAdmin(actorId, existing.org_id))) {
+        return res.status(403).json({ error: "You are not authorized to approve this contract" })
+      }
+    }
+
     const { data, error } = await db()
       .from("contracts")
       .update({ status })
@@ -128,6 +189,20 @@ router.post("/update-status", requireAuth, async (req: Request, res: Response) =
       .single()
 
     if (error) throw error
+
+    if (existing.status !== status) {
+      const userId = (req as AuthenticatedRequest).user.id
+      await writeAudit({
+        entityType: "contract",
+        entityId: id,
+        action: "status_changed",
+        oldValue: { status: existing.status },
+        newValue: { status },
+        performedBy: userId,
+        orgId: existing.org_id,
+        actingAs: await resolveActingAs(userId, existing.org_id),
+      })
+    }
 
     res.json({ data })
   } catch (err: any) {
@@ -164,6 +239,13 @@ router.post("/mark-signed", requireAuth, async (req: Request, res: Response) => 
     const { id, signed_by_vendor, signed_by_internal } = req.body
     if (!id) return res.status(400).json({ error: "id is required" })
 
+    const { data: existing, error: getError } = await db()
+      .from("contracts")
+      .select("status, org_id")
+      .eq("id", id)
+      .single()
+    if (getError) throw getError
+
     const { error: rpcError } = await db().rpc("mark_contract_signed", {
       p_contract_id:       id,
       p_signed_by_vendor:   signed_by_vendor   ?? null,
@@ -177,6 +259,24 @@ router.post("/mark-signed", requireAuth, async (req: Request, res: Response) => 
       .eq("id", id)
       .single()
     if (error) throw error
+
+    // mark_contract_signed performs its own internal status transition
+    // (006_atomic_operations.sql) -- fetched the prior status ourselves
+    // above since the RPC doesn't expose it, mirroring what the removed
+    // contract_audit trigger used to see via OLD/NEW.
+    if (existing.status !== data.status) {
+      const userId = (req as AuthenticatedRequest).user.id
+      await writeAudit({
+        entityType: "contract",
+        entityId: id,
+        action: "status_changed",
+        oldValue: { status: existing.status },
+        newValue: { status: data.status },
+        performedBy: userId,
+        orgId: existing.org_id,
+        actingAs: await resolveActingAs(userId, existing.org_id),
+      })
+    }
 
     res.json({ data })
   } catch (err: any) {
@@ -211,6 +311,23 @@ router.post("/add-amendment", requireAuth, async (req: Request, res: Response) =
       .eq("id", amendmentId)
       .single()
     if (error) throw error
+
+    // contract_amendments has no status-change trigger of its own to
+    // replace -- this is a new, additive creation-event audit entry (same
+    // pattern as engagements/create and invoices/submit), not a replacement
+    // for lost coverage.
+    const { data: contract } = await db().from("contracts").select("org_id").eq("id", contract_id).maybeSingle()
+    if (contract?.org_id) {
+      await writeAudit({
+        entityType: "contract",
+        entityId: contract_id,
+        action: "amendment_added",
+        newValue: { amendment_id: amendmentId, title },
+        performedBy: created_by,
+        orgId: contract.org_id,
+        actingAs: await resolveActingAs(created_by, contract.org_id),
+      })
+    }
 
     res.json({ data })
   } catch (err: any) {

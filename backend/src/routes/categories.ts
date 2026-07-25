@@ -1,6 +1,8 @@
 import { Router, Request, Response } from "express"
 import { getSupabaseAdmin } from "../utils/supabaseAdmin"
-import { requireAuth } from "../middleware/auth"
+import { requireAuth, AuthenticatedRequest } from "../middleware/auth"
+import { requireOrg, OrgScopedRequest } from "../middleware/org"
+import { gateOnCreate, isManagerOrAdmin } from "../services/approvalGate"
 
 const router = Router()
 function db(): any { return getSupabaseAdmin() }
@@ -50,17 +52,45 @@ router.post("/vendor-counts", requireAuth, async (req: Request, res: Response) =
   }
 })
 
-// POST /api/categories/create — { name, description? }
-router.post("/create", requireAuth, async (req: Request, res: Response) => {
+// POST /api/categories/create — { name, description? }. Categories are a
+// platform-wide taxonomy (no org_id on the row itself), but the creating
+// user is always acting from some org (X-Org-Id) -- that org's Managers/
+// Admins are who get gated on and notified, same shared rule as
+// Engagements/Contracts/GRNs.
+router.post("/create", requireAuth, requireOrg, async (req: Request, res: Response) => {
   try {
     const { name, description } = req.body
     if (!name) return res.status(400).json({ error: "name is required" })
-    const { data, error } = await db()
+    const { orgId } = req as OrgScopedRequest
+
+    const { data: inserted, error } = await db()
       .from("service_categories")
-      .insert({ name, description: description ?? null, is_active: true })
-      .select()
+      .insert({ name, description: description ?? null, is_active: false, status: "pending_approval" })
+      .select("id")
       .single()
     if (error) throw error
+
+    const actorId = (req as AuthenticatedRequest).user.id
+    const { gated } = await gateOnCreate({
+      entityType: "category",
+      entityId: inserted.id,
+      requestedBy: actorId,
+      orgId,
+      entityLabel: "Category",
+      entityTitle: name,
+      notifType: "category_pending_approval",
+    })
+    if (!gated) {
+      const { error: unlockError } = await db()
+        .from("service_categories")
+        .update({ status: "active", is_active: true })
+        .eq("id", inserted.id)
+      if (unlockError) throw unlockError
+    }
+
+    const { data, error: getError } = await db().from("service_categories").select("*").eq("id", inserted.id).single()
+    if (getError) throw getError
+
     res.json({ data })
   } catch (err: any) {
     console.error("[categories/create]", err.message)
@@ -69,10 +99,31 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
 })
 
 // POST /api/categories/update — { id, ...fields }
-router.post("/update", requireAuth, async (req: Request, res: Response) => {
+router.post("/update", requireAuth, requireOrg, async (req: Request, res: Response) => {
   try {
     const { id, ...fields } = req.body
     if (!id) return res.status(400).json({ error: "id is required" })
+    const { orgId } = req as OrgScopedRequest
+
+    // The pending_approval -> active transition is the Manager/Admin
+    // approval gate itself (gateOnCreate, approvalGate.ts) -- only they may
+    // resolve it. Every other field edit is unchanged, no new restriction.
+    if (fields.status === "active") {
+      const { data: existing, error: existingError } = await db()
+        .from("service_categories")
+        .select("status")
+        .eq("id", id)
+        .single()
+      if (existingError) throw existingError
+      if (existing.status === "pending_approval") {
+        const actorId = (req as AuthenticatedRequest).user.id
+        if (!(await isManagerOrAdmin(actorId, orgId))) {
+          return res.status(403).json({ error: "You are not authorized to approve this category" })
+        }
+        fields.is_active = true
+      }
+    }
+
     const { data, error } = await db()
       .from("service_categories")
       .update(fields)

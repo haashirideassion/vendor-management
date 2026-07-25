@@ -5,7 +5,14 @@ import type { Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { useRFQ, useUpdateRFQStatus } from "@/hooks/useRFQs"
-import { useQuotationByRFQ, useCreateQuotation, useSubmitQuotation } from "@/hooks/useQuotations"
+import {
+  useQuotationByRFQ,
+  useCreateQuotation,
+  useSubmitQuotationForReview,
+  useApproveQuotation,
+  useReturnQuotationToAssociate,
+} from "@/hooks/useQuotations"
+import { useMyVendorPermissions } from "@/hooks/useVendorUsers"
 import { AnimatedPage } from "@/components/shared/AnimatedPage"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -40,19 +47,31 @@ const lineItemSchema = z.object({
 
 const quotationSchema = z.object({
   notes:      z.string().optional(),
-  line_items: z.array(lineItemSchema).min(1, "Add at least one line item"),
+  line_items: z.array(lineItemSchema),
 })
 type QuotationForm = z.infer<typeof quotationSchema>
 
 export function VendorRFQDetail() {
   const { id } = useParams<{ id: string }>()
   const [showQuotationDialog, setShowQuotationDialog] = useState(false)
+  const [showReturnDialog, setShowReturnDialog] = useState(false)
+  const [returnNotes, setReturnNotes] = useState("")
 
   const { data: rfq, isLoading } = useRFQ(id)
   const { data: quotation }      = useQuotationByRFQ(id)
-  const updateRFQStatus  = useUpdateRFQStatus()
-  const createQuotation  = useCreateQuotation()
-  const submitQuotation  = useSubmitQuotation()
+  const { data: myPermissions }  = useMyVendorPermissions()
+  const updateRFQStatus        = useUpdateRFQStatus()
+  const createQuotation        = useCreateQuotation()
+  const submitForReview        = useSubmitQuotationForReview()
+  const approveQuotation       = useApproveQuotation()
+  const returnToAssociate      = useReturnQuotationToAssociate()
+
+  const perms = myPermissions ?? []
+  // Associate (or Manager/Admin covering for one) can draft/send for review.
+  const canDraftOrSubmit = perms.includes("quotations.draft_line_items") || perms.includes("quotations.submit")
+  // Only a Manager/Admin (quotations.submit) can approve or return a
+  // quotation that's pending their review -- matches the backend gate.
+  const canReview = perms.includes("quotations.submit")
 
   useEffect(() => {
     if (rfq && rfq.status === "pending") {
@@ -62,7 +81,7 @@ export function VendorRFQDetail() {
 
   const form = useForm<QuotationForm>({
     resolver: zodResolver(quotationSchema) as unknown as Resolver<QuotationForm>,
-    defaultValues: { notes: "", line_items: [{ description: "", quantity: 1, unit_price: 0, tax_rate: 0, remarks: "" }] },
+    defaultValues: { notes: "", line_items: [] },
   })
   const { fields, append, remove } = useFieldArray({ control: form.control, name: "line_items" })
 
@@ -77,9 +96,7 @@ export function VendorRFQDetail() {
     }))
     form.reset({
       notes:      "",
-      line_items: seed.length > 0
-        ? seed
-        : [{ description: "", quantity: 1, unit_price: 0, tax_rate: 0, remarks: "" }],
+      line_items: seed,
     })
   }, [showQuotationDialog])
 
@@ -90,6 +107,8 @@ export function VendorRFQDetail() {
     const tax   = Number(item.tax_rate)   || 0
     return sum + qty * price * (1 + tax / 100)
   }, 0)
+
+  const quotationTotal = (quotation?.line_items ?? []).reduce((sum, li) => sum + (li.total ?? 0), 0)
 
   async function onSaveDraft(data: QuotationForm) {
     if (!rfq) return
@@ -105,19 +124,22 @@ export function VendorRFQDetail() {
     form.reset()
   }
 
-  async function onSubmitQuotation(data: QuotationForm) {
-    if (!rfq) return
-    const quot = await createQuotation.mutateAsync({
-      rfq_id:        rfq.id,
-      engagement_id: rfq.engagement_id,
-      vendor_id:     rfq.vendor_id,
-      notes:         data.notes ?? undefined,
-      line_items:    data.line_items.map((li) => ({ ...li, remarks: li.remarks ?? null })),
-    })
-    await submitQuotation.mutateAsync({ id: quot.id, total_amount: grandTotal })
+  async function onSubmitForReview() {
+    if (!quotation) return
+    await submitForReview.mutateAsync({ id: quotation.id, total_amount: quotationTotal })
+  }
+
+  async function onApprove() {
+    if (!quotation || !rfq) return
+    await approveQuotation.mutateAsync({ id: quotation.id })
     await updateRFQStatus.mutateAsync({ id: rfq.id, status: "responded" })
-    setShowQuotationDialog(false)
-    form.reset()
+  }
+
+  async function onReturnToAssociate() {
+    if (!quotation || !returnNotes.trim()) return
+    await returnToAssociate.mutateAsync({ id: quotation.id, notes: returnNotes.trim() })
+    setShowReturnDialog(false)
+    setReturnNotes("")
   }
 
   if (isLoading) {
@@ -138,7 +160,9 @@ export function VendorRFQDetail() {
     )
   }
 
-  const canProvideQuotation = !quotation || quotation.status === "draft"
+  const canProvideQuotation = (!quotation || quotation.status === "draft") && canDraftOrSubmit
+  const canSendForReview    = !!quotation && quotation.status === "draft" && canDraftOrSubmit
+  const canActOnReview      = !!quotation && quotation.status === "pending_manager_review" && canReview
 
   return (
     <AnimatedPage>
@@ -159,7 +183,7 @@ export function VendorRFQDetail() {
               </span>
               {canProvideQuotation && (
                 <Button size="sm" onClick={() => setShowQuotationDialog(true)}>
-                  Provide Quotation
+                  {quotation ? "Edit Quotation" : "Provide Quotation"}
                 </Button>
               )}
             </div>
@@ -244,6 +268,11 @@ export function VendorRFQDetail() {
             </CardHeader>
             <CardContent className="space-y-3">
               <p className="text-xs font-mono text-muted-foreground">{quotation.quot_number}</p>
+              {quotation.status === "draft" && quotation.manager_review_notes && (
+                <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  <span className="font-semibold">Manager requested changes:</span> {quotation.manager_review_notes}
+                </div>
+              )}
               {quotation.notes && <p className="text-sm">{quotation.notes}</p>}
               {quotation.total_amount != null && (
                 <p className="text-sm font-semibold">Total: {formatCurrency(quotation.total_amount, rfq.engagement?.currency ?? "INR")}</p>
@@ -256,6 +285,38 @@ export function VendorRFQDetail() {
                       <span className="tabular-nums">{formatCurrency(li.total, rfq.engagement?.currency ?? "INR")}</span>
                     </div>
                   ))}
+                </div>
+              )}
+
+              {canSendForReview && (
+                <div className="flex justify-end pt-2">
+                  <Button
+                    size="sm"
+                    disabled={submitForReview.isPending}
+                    onClick={onSubmitForReview}
+                  >
+                    {submitForReview.isPending ? "Sending…" : "Submit for Review"}
+                  </Button>
+                </div>
+              )}
+
+              {canActOnReview && (
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={returnToAssociate.isPending}
+                    onClick={() => setShowReturnDialog(true)}
+                  >
+                    Return to Associate
+                  </Button>
+                  <Button
+                    size="sm"
+                    disabled={approveQuotation.isPending}
+                    onClick={onApprove}
+                  >
+                    {approveQuotation.isPending ? "Approving…" : "Approve & Submit to Organisation"}
+                  </Button>
                 </div>
               )}
             </CardContent>
@@ -278,7 +339,7 @@ export function VendorRFQDetail() {
                   <p className="text-xs text-muted-foreground">Pre-filled from engagement scope — add pricing to each item.</p>
                 )}
                 <div className="flex items-center justify-between">
-                  <Label className="text-sm font-semibold">Line Items <span className="text-destructive">*</span></Label>
+                  <Label className="text-sm font-semibold">Line Items</Label>
                   <Button
                     type="button"
                     size="sm"
@@ -326,11 +387,9 @@ export function VendorRFQDetail() {
                         )}
                       </div>
                       <div className="col-span-1 flex justify-center pt-1">
-                        {fields.length > 1 && (
-                          <button type="button" onClick={() => remove(i)} className="text-muted-foreground hover:text-destructive">
-                            <SolarDuotoneIcon icon={Delete01Icon} size={14} strokeWidth={1.5} />
-                          </button>
-                        )}
+                        <button type="button" onClick={() => remove(i)} className="text-muted-foreground hover:text-destructive">
+                          <SolarDuotoneIcon icon={Delete01Icon} size={14} strokeWidth={1.5} />
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -347,18 +406,37 @@ export function VendorRFQDetail() {
             <Button type="button" variant="outline" onClick={() => setShowQuotationDialog(false)}>Cancel</Button>
             <Button
               type="button"
-              variant="outline"
               disabled={createQuotation.isPending}
               onClick={form.handleSubmit(onSaveDraft)}
             >
-              Save Draft
+              {createQuotation.isPending ? "Saving…" : "Save Draft"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showReturnDialog} onOpenChange={(o) => { if (!o) setReturnNotes(""); setShowReturnDialog(o) }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Return to Associate</DialogTitle></DialogHeader>
+          <DialogBody>
+            <div className="space-y-1.5">
+              <Label>Remarks <span className="text-destructive">*</span></Label>
+              <Textarea
+                value={returnNotes}
+                onChange={(e) => setReturnNotes(e.target.value)}
+                placeholder="Explain what needs to change before this can be re-submitted…"
+                rows={4}
+              />
+            </div>
+          </DialogBody>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setShowReturnDialog(false)}>Cancel</Button>
             <Button
               type="button"
-              disabled={createQuotation.isPending || submitQuotation.isPending}
-              onClick={form.handleSubmit(onSubmitQuotation)}
+              disabled={!returnNotes.trim() || returnToAssociate.isPending}
+              onClick={onReturnToAssociate}
             >
-              {(createQuotation.isPending || submitQuotation.isPending) ? "Submitting…" : "Submit Quotation"}
+              {returnToAssociate.isPending ? "Sending…" : "Send Back"}
             </Button>
           </DialogFooter>
         </DialogContent>

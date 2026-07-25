@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react"
 import { useLocation } from "react-router-dom"
+import { queryClient } from "@/lib/queryClient"
 import { setSupabaseAccessToken } from "@/lib/supabase"
 import { encryptPassword, clearPublicKeyCache } from "@/lib/crypto"
 import { api } from "@/lib/api"
@@ -7,7 +8,7 @@ import { API_BASE } from "@/lib/apiBase"
 import type { Profile, UserRole } from "@/lib/types"
 import { INTERNAL_ROLES } from "@/hooks/usePermissions"
 
-const PUBLIC_PATHS = new Set(["/login", "/signup", "/forgot-password", "/reset-password", "/verify-email"])
+const PUBLIC_PATHS = new Set(["/login", "/signup", "/forgot-password", "/reset-password", "/verify-email", "/accept-invite"])
 
 export interface AuthUser {
   id: string
@@ -23,8 +24,9 @@ interface AuthContextValue {
   isInternalUser: boolean
   loading: boolean
   accessToken: string | null
-  login: (email: string, password: string) => Promise<AuthUser>
+  login: (email: string, password: string) => Promise<{ user: AuthUser; accessToken: string }>
   signOut: () => Promise<void>
+  refreshProfile: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -74,6 +76,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setProfile(prof ?? null)
   }
 
+  async function refreshProfile() {
+    if (!accessToken) return
+    const { data: prof } = await api.post<{ data: Profile | null }>(
+      "/api/auth/profile", {}, accessToken
+    )
+    setProfile(prof ?? null)
+  }
+
   async function silentRefresh() {
     try {
       const res = await fetch(`${API_BASE}/api/auth/refresh`, {
@@ -94,6 +104,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null)
     setProfile(null)
     setSupabaseAccessToken(null)
+    // Wipes every cached query so a subsequent login (same tab, different
+    // account) can't render stale data from the previous session before its
+    // own queries refetch.
+    queryClient.clear()
   }
 
   useEffect(() => {
@@ -106,8 +120,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  async function login(email: string, password: string): Promise<AuthUser> {
-    async function attempt(isRetry = false): Promise<AuthUser> {
+  async function login(email: string, password: string): Promise<{ user: AuthUser; accessToken: string }> {
+    async function attempt(isRetry = false): Promise<{ user: AuthUser; accessToken: string }> {
       const encryptedPassword = await encryptPassword(password)
       const res = await authFetch("/api/auth/login", { email, password: encryptedPassword })
       const data = await readAuthJson<{ error?: string; accessToken: string; user: AuthUser }>(res)
@@ -119,7 +133,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error(data.error ?? "Login failed")
       }
       await applySession(data)
-      return data.user as AuthUser
+      return { user: data.user as AuthUser, accessToken: data.accessToken }
     }
     return attempt()
   }
@@ -142,6 +156,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         accessToken,
         login,
         signOut,
+        refreshProfile,
       }}
     >
       {children}

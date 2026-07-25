@@ -7,15 +7,22 @@ import type { Attachment, AttachmentEntityType } from "@/lib/types"
 
 // ─── Validation constants ─────────────────────────────────────────────────────
 
-export const ALLOWED_EXTENSIONS = [".doc", ".docx", ".jpg", ".jpeg", ".pdf"] as const
-export const ALLOWED_EXT_LABEL  = ".doc, .docx, .jpg, .jpeg, .pdf"
+export const ALLOWED_EXTENSIONS = [
+  ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".jpg", ".jpeg", ".png",
+] as const
+export const ALLOWED_EXT_LABEL  = ".pdf, .doc, .docx, .xls, .xlsx, .ppt, .pptx, .jpg, .jpeg, .png"
 export const MAX_ATTACHMENT_SIZE = 20 * 1024 * 1024  // 20 MB
 
 const ALLOWED_MIME_TYPES = new Set([
+  "application/pdf",
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
   "image/jpeg",
-  "application/pdf",
+  "image/png",
 ])
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -42,11 +49,11 @@ export function sanitizeFileName(name: string): string {
     .slice(0, 200)
 }
 
-/** Build a collision-proof storage path inside the vendor-documents bucket. */
-function buildStoragePath(entityType: AttachmentEntityType, entityId: string, file: File): string {
+/** Build a collision-proof, org-scoped storage path inside the vendor-documents bucket. */
+function buildStoragePath(orgId: string, entityType: AttachmentEntityType, entityId: string, file: File): string {
   const ext  = file.name.split(".").pop()?.toLowerCase() ?? "bin"
   const uid  = crypto.randomUUID()
-  return `attachments/${entityType}/${entityId}/${uid}.${ext}`
+  return `org/${orgId}/${entityType}/${entityId}/${uid}.${ext}`
 }
 
 // ─── Queries ──────────────────────────────────────────────────────────────────
@@ -110,6 +117,10 @@ export function useUploadAttachments() {
 
       const result: UploadResult = { uploaded: [], failed: [] }
 
+      const { data: { orgId } } = await api.post<{ data: { orgId: string } }>(
+        "/api/attachments/resolve-org", { entityType, entityId }, accessToken
+      )
+
       for (const file of files) {
         // Client-side validation (double-check; FileUploadZone already validates)
         const validationError = validateFile(file)
@@ -118,7 +129,7 @@ export function useUploadAttachments() {
           continue
         }
 
-        const storagePath   = buildStoragePath(entityType, entityId, file)
+        const storagePath   = buildStoragePath(orgId, entityType, entityId, file)
         const sanitizedName = sanitizeFileName(file.name)
         const ext           = file.name.split(".").pop()?.toLowerCase() ?? ""
 

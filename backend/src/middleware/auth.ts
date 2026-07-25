@@ -21,17 +21,26 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       return
     }
 
+    // req.user.role only ever drives a binary vendor-vs-internal branch
+    // across the backend (grep confirms no route checks a specific
+    // fine-grained role string server-side -- that logic lives in the
+    // frontend's usePermissions hook and, going forward, in has_permission()/
+    // has_vendor_permission()). account_type is the RBAC cutover's dedicated
+    // discriminator for exactly this binary, so it replaces profiles.role
+    // here; profiles.role itself is untouched and still used elsewhere
+    // (frontend AuthContext, legacy role-string reads) through the
+    // transition window.
     const { data: profile } = await getSupabaseAdmin()
       .from("profiles")
-      .select("role")
+      .select("account_type")
       .eq("id", authData.user.id)
       .maybeSingle()
-    const typedProfile = profile as { role?: string } | null
+    const typedProfile = profile as { account_type?: string } | null
 
     ;(req as AuthenticatedRequest).user = {
       id: authData.user.id,
       email: authData.user.email,
-      role: typedProfile?.role ?? "vendor",
+      role: typedProfile?.account_type ?? "vendor",
     }
     next()
   } catch {

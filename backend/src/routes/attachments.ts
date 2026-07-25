@@ -5,6 +5,33 @@ import { requireAuth, AuthenticatedRequest } from "../middleware/auth"
 const router = Router()
 function db(): any { return getSupabaseAdmin() }
 
+const ENTITY_TABLE: Record<string, string> = {
+  engagement: "engagements",
+  purchase_order: "purchase_orders",
+  grn: "grns",
+  contract: "contracts",
+  invoice: "invoices",
+}
+
+// POST /api/attachments/resolve-org — used by the frontend to construct the
+// org-scoped storage path (org/{orgId}/{entityType}/{entityId}/...) *before*
+// uploading, since uploads go straight to Supabase Storage from the client.
+router.post("/resolve-org", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const { entityType, entityId } = req.body
+    const table = ENTITY_TABLE[entityType]
+    if (!table || !entityId) return res.status(400).json({ error: "Invalid entityType or missing entityId" })
+
+    const { data, error } = await db().from(table).select("org_id").eq("id", entityId).single()
+    if (error) throw error
+
+    res.json({ data: { orgId: data.org_id } })
+  } catch (err: any) {
+    console.error("[attachments/resolve-org]", err.message)
+    res.status(500).json({ error: "Failed to resolve organization for entity" })
+  }
+})
+
 // POST /api/attachments/list
 router.post("/list", requireAuth, async (req: Request, res: Response) => {
   try {

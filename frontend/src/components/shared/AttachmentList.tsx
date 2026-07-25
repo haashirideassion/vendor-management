@@ -2,7 +2,7 @@ import { useState } from "react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { formatBytes } from "@/lib/utils"
-import { useAttachments, useDeleteAttachment, getAttachmentUrl, useUploadAttachments } from "@/hooks/useAttachments"
+import { useAttachments, useDeleteAttachment, getAttachmentUrl, useUploadAttachments, ALLOWED_EXTENSIONS } from "@/hooks/useAttachments"
 import { FileUploadZone } from "./FileUploadZone"
 import type { AttachmentEntityType, Attachment } from "@/lib/types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -181,7 +181,7 @@ export function AttachmentList({
                   const inp = document.createElement("input")
                   inp.type = "file"
                   inp.multiple = true
-                  inp.accept = ".doc,.docx,.jpg,.jpeg,.pdf"
+                  inp.accept = ALLOWED_EXTENSIONS.join(",")
                   inp.onchange = (e) => {
                     const target = e.target as HTMLInputElement
                     if (target.files) setAddFiles(Array.from(target.files))

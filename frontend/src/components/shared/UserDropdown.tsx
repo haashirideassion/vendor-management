@@ -21,14 +21,21 @@ const ROLE_LABELS: Record<string, string> = {
 }
 
 interface UserDropdownProps {
+  fullName?: string | null
   email?: string
   role?: string
+  /** The real functional bundle role(s) (e.g. ["Admin"], org_member_roles/
+   *  vendor_user_roles) -- takes precedence over the legacy `role` prop's
+   *  generic profiles.role label ("Vendor"/"Admin") when present. */
+  roleNames?: string[]
   onSignOut: () => void
 }
 
-export function UserDropdown({ email, role, onSignOut }: UserDropdownProps) {
-  const initial = email?.[0]?.toUpperCase() ?? "U"
-  const roleLabel = role ? (ROLE_LABELS[role] ?? role) : ""
+export function UserDropdown({ fullName, email, role, roleNames, onSignOut }: UserDropdownProps) {
+  const initial = (fullName || email)?.[0]?.toUpperCase() ?? "U"
+  const roleLabel = roleNames && roleNames.length > 0
+    ? roleNames.join(", ")
+    : role ? (ROLE_LABELS[role] ?? role) : ""
 
   return (
     <DropdownMenu>
@@ -48,7 +55,8 @@ export function UserDropdown({ email, role, onSignOut }: UserDropdownProps) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-52">
         <div className="px-3 py-2">
-          <p className="text-xs font-semibold truncate">{email ?? "User"}</p>
+          <p className="text-xs font-semibold truncate">{fullName || email || "User"}</p>
+          {fullName && email && <p className="text-[11px] text-muted-foreground truncate">{email}</p>}
           {roleLabel && (
             <p className="text-[11px] text-muted-foreground mt-0.5">{roleLabel}</p>
           )}

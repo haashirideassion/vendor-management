@@ -2,6 +2,7 @@ import { useState } from "react"
 import { Link } from "react-router-dom"
 import { useVendor } from "@/hooks/useVendor"
 import { useDocumentSignedUrl } from "@/hooks/useDocuments"
+import { useMyVendorRole } from "@/hooks/useVendorUsers"
 import { AnimatedPage } from "@/components/shared/AnimatedPage"
 import { DocumentUploader } from "@/components/shared/DocumentUploader"
 import { Card, CardContent } from "@/components/ui/card"
@@ -23,6 +24,8 @@ import { toast } from "sonner"
 export function VendorDocuments() {
   const { data: vendor, isLoading } = useVendor()
   const getSignedUrl = useDocumentSignedUrl()
+  const { data: myRoleNames = [] } = useMyVendorRole()
+  const isViewerAdmin = myRoleNames.includes("Admin")
   const [uploadOpen, setUploadOpen] = useState(false)
 
   const docs = vendor?.vendor_documents ?? []
@@ -69,17 +72,15 @@ export function VendorDocuments() {
   return (
     <AnimatedPage>
       <div className="p-6 space-y-6">
-        {/* Page header */}
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-xl font-bold tracking-tight">Documents</h1>
-            <p className="text-sm text-muted-foreground">Manage your uploaded documents.</p>
+        {/* Actions */}
+        {isViewerAdmin && (
+          <div className="flex items-center justify-end gap-4">
+            <Button size="sm" onClick={() => setUploadOpen(true)}>
+              <SolarDuotoneIcon icon={Upload01Icon} size={15} strokeWidth={1.5} className="mr-1.5" />
+              Upload document
+            </Button>
           </div>
-          <Button size="sm" onClick={() => setUploadOpen(true)}>
-            <SolarDuotoneIcon icon={Upload01Icon} size={15} strokeWidth={1.5} className="mr-1.5" />
-            Upload document
-          </Button>
-        </div>
+        )}
 
         {/* Document list */}
         {docs.length === 0 ? (
@@ -91,10 +92,12 @@ export function VendorDocuments() {
               <p className="text-sm font-medium">No documents uploaded yet</p>
               <p className="text-sm text-muted-foreground">Upload your required documents to complete verification.</p>
             </div>
-            <Button size="sm" onClick={() => setUploadOpen(true)}>
-              <SolarDuotoneIcon icon={Upload01Icon} size={15} strokeWidth={1.5} className="mr-1.5" />
-              Upload your first document
-            </Button>
+            {isViewerAdmin && (
+              <Button size="sm" onClick={() => setUploadOpen(true)}>
+                <SolarDuotoneIcon icon={Upload01Icon} size={15} strokeWidth={1.5} className="mr-1.5" />
+                Upload your first document
+              </Button>
+            )}
           </div>
         ) : (
           <div className="space-y-3">

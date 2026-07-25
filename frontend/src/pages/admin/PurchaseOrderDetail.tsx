@@ -229,19 +229,26 @@ export function PurchaseOrderDetail() {
                 ) : (
                   <div className="space-y-2">
                     {invoices.map((inv) => (
-                      <div key={inv.id} className="rounded-lg border px-2.5 py-2 space-y-1">
-                        <p className="font-mono text-xs">{inv.invoice_ref}</p>
-                        <p className="text-xs font-medium tabular-nums">{formatCurrency(inv.total_amount, inv.currency)}</p>
-                        <div className="flex gap-1 flex-wrap">
-                          <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium border ${INVOICE_STATUS_COLORS[inv.status as InvoiceStatus]}`}>
-                            {INVOICE_STATUS_LABELS[inv.status as InvoiceStatus]}
-                          </span>
-                          {inv.match_status && (
-                            <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium border ${MATCH_STATUS_COLORS[inv.match_status as MatchStatus]}`}>
-                              {MATCH_STATUS_LABELS[inv.match_status as MatchStatus]}
+                      <div key={inv.id} className="flex items-start justify-between gap-2 rounded-lg border px-2.5 py-2">
+                        <div className="space-y-1">
+                          <p className="font-mono text-xs">{inv.invoice_ref}</p>
+                          <p className="text-xs font-medium tabular-nums">{formatCurrency(inv.total_amount, inv.currency)}</p>
+                          <div className="flex gap-1 flex-wrap">
+                            <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium border ${INVOICE_STATUS_COLORS[inv.status as InvoiceStatus]}`}>
+                              {INVOICE_STATUS_LABELS[inv.status as InvoiceStatus]}
                             </span>
-                          )}
+                            {inv.match_status && (
+                              <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium border ${MATCH_STATUS_COLORS[inv.match_status as MatchStatus]}`}>
+                                {MATCH_STATUS_LABELS[inv.match_status as MatchStatus]}
+                              </span>
+                            )}
+                          </div>
                         </div>
+                        <Button asChild size="sm" variant="ghost" className="h-7 px-2 shrink-0">
+                          <Link to={`/admin/invoices/${inv.id}`}>
+                            <SolarDuotoneIcon icon={EyeIcon} size={13} strokeWidth={1.5} />
+                          </Link>
+                        </Button>
                       </div>
                     ))}
                   </div>
