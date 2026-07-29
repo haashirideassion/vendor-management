@@ -4,7 +4,7 @@ import { useVendor } from "@/hooks/useVendor"
 export type VendorStage = "REGISTERED" | "ONBOARDING_COMPLETED" | "APPROVED" | "RESTRICTED"
 
 export function getVendorStage(vendor: { status: string } | null | undefined): VendorStage {
-  if (!vendor) return "REGISTERED"
+  if (!vendor || vendor.status === "invited") return "REGISTERED"
   if (vendor.status === "active" || vendor.status === "action_required") return "APPROVED"
   if (vendor.status === "pending_review") return "ONBOARDING_COMPLETED"
   return "RESTRICTED"

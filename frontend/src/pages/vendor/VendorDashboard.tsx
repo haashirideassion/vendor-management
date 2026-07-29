@@ -25,7 +25,7 @@ import { differenceInDays, format } from "date-fns"
 
 export function VendorDashboard() {
   const { data: vendor, isLoading } = useVendor()
-  const { data: contracts = [], isLoading: contractsLoading } = useContracts(
+  const { data: contracts = [], isLoading: contractsLoading, isFetching: contractsFetching, refetch: refetchContracts } = useContracts(
     vendor?.id ? { vendor_id: vendor.id } : undefined
   )
   const { data: engagements = [], isLoading: engagementsLoading } = useEngagements()
@@ -97,6 +97,14 @@ export function VendorDashboard() {
     const d = differenceInDays(new Date(c.expiry_date), new Date())
     return d >= 0 && d <= (c.renewal_notice_days ?? 30)
   })
+  // Top 3-5 contracts by soonest renewal -- the card's own expiry_date/
+  // auto_renew per contract, not the legacy single vendor.contract_anniversary
+  // field the "Renewal Date" card used to read (which the adjacent
+  // Contracts Summary card, right next to it, already correctly ignores).
+  const upcomingRenewals = [...activeContracts]
+    .filter((c) => !!c.expiry_date)
+    .sort((a, b) => new Date(a.expiry_date!).getTime() - new Date(b.expiry_date!).getTime())
+    .slice(0, 5)
 
   // Invoices summary
   const paidInvoices = invoices.filter((i) => i.status === "paid")
@@ -213,19 +221,29 @@ export function VendorDashboard() {
             <CardContent className="pt-5 pb-4">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Renewal Date</span>
-                <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <SolarDuotoneIcon icon={Refresh01Icon} size={16} strokeWidth={1.5} className="text-primary" />
-                </div>
+                <button
+                  type="button"
+                  onClick={() => refetchContracts()}
+                  disabled={contractsFetching}
+                  className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center hover:bg-primary/20 transition-colors disabled:opacity-50"
+                >
+                  <SolarDuotoneIcon
+                    icon={Refresh01Icon}
+                    size={16}
+                    strokeWidth={1.5}
+                    className={`text-primary ${contractsFetching ? "animate-spin" : ""}`}
+                  />
+                </button>
               </div>
-              {vendor.contract_anniversary ? (
-                <>
-                  <p className="text-lg font-semibold">
-                    {format(new Date(vendor.contract_anniversary), "dd MMM yyyy")}
-                  </p>
-                  {daysToRenewal !== null && daysToRenewal >= 0 && (
-                    <p className="text-xs text-muted-foreground mt-0.5">in {daysToRenewal} days</p>
-                  )}
-                </>
+              {upcomingRenewals.length > 0 ? (
+                <div className="space-y-2">
+                  {upcomingRenewals.map((c) => (
+                    <div key={c.id} className="truncate">
+                      <p className="text-sm font-semibold truncate">{c.title ?? c.contract_ref}</p>
+                      <p className="text-xs text-muted-foreground">{format(new Date(c.expiry_date!), "dd MMM yyyy")}</p>
+                    </div>
+                  ))}
+                </div>
               ) : (
                 <p className="text-sm text-muted-foreground">Not set</p>
               )}

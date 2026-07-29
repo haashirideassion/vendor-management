@@ -161,12 +161,12 @@ export function OrgDetailPage() {
         <div className="border-b px-6 py-2.5 flex flex-wrap gap-2 bg-muted/30">
           {isPending && (
             <>
-              <button className="btn-grad h-8 text-xs !m-0 !py-0 !px-4 cursor-pointer" onClick={() => setPendingAction({ kind: "approve" })}>
+              <Button size="sm" variant="success" className="h-8 text-xs" onClick={() => setPendingAction({ kind: "approve" })}>
                 Approve Onboarding
-              </button>
-              <button className="btn-grad-danger h-8 text-xs !m-0 !py-0 !px-4 cursor-pointer" onClick={() => setPendingAction({ kind: "reject" })}>
+              </Button>
+              <Button size="sm" variant="danger" className="h-8 text-xs" onClick={() => setPendingAction({ kind: "reject" })}>
                 Reject Onboarding
-              </button>
+              </Button>
             </>
           )}
           {org.status !== "active" && (
@@ -471,8 +471,8 @@ export function OrgDetailPage() {
             <Separator />
             <DialogFooter>
               <Button variant="outline" onClick={closeDialog} disabled={updateStatus.isPending || review.isPending}>Cancel</Button>
-              <button
-                className={`${pendingAction?.kind === "approve" || pendingAction?.kind === "reactivate" ? "btn-grad" : "btn-grad-danger"} !m-0 !py-2 !px-5 cursor-pointer disabled:opacity-50`}
+              <Button
+                variant={pendingAction?.kind === "approve" || pendingAction?.kind === "reactivate" ? "success" : "danger"}
                 onClick={handleConfirm}
                 disabled={
                   updateStatus.isPending || review.isPending ||
@@ -480,7 +480,7 @@ export function OrgDetailPage() {
                 }
               >
                 {updateStatus.isPending || review.isPending ? "Processing…" : "Confirm"}
-              </button>
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

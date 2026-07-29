@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react"
+import { useNavigate } from "react-router-dom"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -66,6 +67,7 @@ const bankFields: { id: FieldId; label: string }[] = [
 ]
 
 export function VendorProfile() {
+  const navigate = useNavigate()
   const { data: vendor, isLoading } = useVendor()
   const { data: allCategories = [] } = useCategories(true)
   const updateVendor = useUpdateVendor()
@@ -155,17 +157,20 @@ export function VendorProfile() {
     )
   }
 
-  if (!vendor) {
+  if (!vendor || vendor.status === "invited") {
     return (
       <AnimatedPage>
-        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-2 p-6 text-center">
+        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3 p-6 text-center">
           <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
             <SolarDuotoneIcon icon={UserCircleIcon} size={32} strokeWidth={1.5} className="text-muted-foreground" />
           </div>
-          <p className="text-sm font-medium">No profile found</p>
+          <p className="text-sm font-medium">
+            {vendor ? "Onboarding not yet started" : "No profile found"}
+          </p>
           <p className="text-sm text-muted-foreground">
             Complete your onboarding to set up your vendor profile.
           </p>
+          <Button onClick={() => navigate("/onboarding")}>Start onboarding</Button>
         </div>
       </AnimatedPage>
     )

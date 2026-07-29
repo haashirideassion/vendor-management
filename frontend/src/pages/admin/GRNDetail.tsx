@@ -47,7 +47,7 @@ export function GRNDetail() {
         entityType: "grn", entityId: id,
       })
       if (gateDecision === "approved") {
-        await updateStatus.mutateAsync({ id, status: "submitted" })
+        await updateStatus.mutateAsync({ id, status: "submitted", silent: true })
       }
       toast.success(gateDecision === "approved" ? "GRN approved" : "GRN returned to its creator")
       setGateDecision(null); setGateNotes("")
@@ -74,7 +74,10 @@ export function GRNDetail() {
     )
   }
 
-  const lineTotal = (grn.line_items ?? []).reduce((sum, li) => sum + li.quantity_received * li.unit_price, 0)
+  const lineTotal = (grn.line_items ?? []).reduce(
+    (sum, li) => sum + li.quantity_received * li.unit_price * (1 + (li.tax_rate ?? 0) / 100),
+    0
+  )
 
   return (
     <AnimatedPage>
@@ -187,8 +190,9 @@ export function GRNDetail() {
                         <TableRow className="bg-muted/30 hover:bg-muted/30">
                           <TableHead className="text-xs text-muted-foreground">Description</TableHead>
                           <TableHead className="text-xs text-muted-foreground text-right">Qty Received</TableHead>
-                          <TableHead className="text-xs text-muted-foreground text-right">Unit</TableHead>
                           <TableHead className="text-xs text-muted-foreground text-right">Rate</TableHead>
+                          <TableHead className="text-xs text-muted-foreground text-right">Tax %</TableHead>
+                          <TableHead className="text-xs text-muted-foreground text-right">Unit</TableHead>
                           <TableHead className="text-xs text-muted-foreground text-right">Total</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -197,13 +201,16 @@ export function GRNDetail() {
                           <TableRow key={li.id}>
                             <TableCell className="text-sm">{li.description}</TableCell>
                             <TableCell className="text-sm text-right tabular-nums">{li.quantity_received}</TableCell>
-                            <TableCell className="text-sm text-right text-muted-foreground">{li.unit ?? "—"}</TableCell>
                             <TableCell className="text-sm text-right tabular-nums">{formatCurrency(li.unit_price)}</TableCell>
-                            <TableCell className="text-sm text-right font-medium tabular-nums">{formatCurrency(li.quantity_received * li.unit_price)}</TableCell>
+                            <TableCell className="text-sm text-right text-muted-foreground">{li.tax_rate ?? 0}%</TableCell>
+                            <TableCell className="text-sm text-right text-muted-foreground">{li.unit ?? "—"}</TableCell>
+                            <TableCell className="text-sm text-right font-medium tabular-nums">
+                              {formatCurrency(li.quantity_received * li.unit_price * (1 + (li.tax_rate ?? 0) / 100))}
+                            </TableCell>
                           </TableRow>
                         ))}
                         <TableRow className="bg-muted/20">
-                          <TableCell colSpan={4} className="text-sm font-semibold text-right">Total</TableCell>
+                          <TableCell colSpan={5} className="text-sm font-semibold text-right">Total</TableCell>
                           <TableCell className="text-sm font-semibold text-right tabular-nums">{formatCurrency(lineTotal)}</TableCell>
                         </TableRow>
                       </TableBody>

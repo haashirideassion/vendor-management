@@ -90,7 +90,7 @@ export function ContractDetail() {
   async function handleActivate() {
     if (!id) return
     try {
-      await updateStatus.mutateAsync({ id, status: "active" })
+      await updateStatus.mutateAsync({ id, status: "active", silent: true })
       setDialog(null)
       toast.success("Contract activated.")
     } catch {
@@ -102,7 +102,7 @@ export function ContractDetail() {
     if (!id || !pendingApproval) return
     try {
       await reviewApproval.mutateAsync({ id: pendingApproval.id, status: "approved", entityType: "contract", entityId: id })
-      await updateStatus.mutateAsync({ id, status: "draft" })
+      await updateStatus.mutateAsync({ id, status: "draft", silent: true })
       toast.success("Contract approved.")
     } catch {
       toast.error("Failed to approve contract. Please try again.")
@@ -126,7 +126,7 @@ export function ContractDetail() {
   async function handleTerminate() {
     if (!id) return
     try {
-      await updateStatus.mutateAsync({ id, status: "terminated" })
+      await updateStatus.mutateAsync({ id, status: "terminated", silent: true })
       setDialog(null)
       toast.success("Contract terminated.")
     } catch {

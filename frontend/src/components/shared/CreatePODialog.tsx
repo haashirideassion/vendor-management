@@ -17,6 +17,7 @@ const lineItemSchema = z.object({
   description: z.string().min(1, "Required"),
   quantity:    z.coerce.number().positive("Must be > 0"),
   unit_price:  z.coerce.number().min(0, "Must be ≥ 0"),
+  tax_rate:    z.coerce.number().min(0).max(100).default(0),
   unit:        z.string().optional(),
 })
 
@@ -34,7 +35,7 @@ export interface CreatePODialogProps {
   onOpenChange:      (o: boolean) => void
   defaultEngagementId?: string
   defaultVendors?:   { id: string; company_name: string }[]
-  defaultLineItems?: { description: string; quantity: number; unit_price: number; unit?: string | null }[]
+  defaultLineItems?: { description: string; quantity: number; unit_price: number; tax_rate?: number; unit?: string | null }[]
   currency?:         string
 }
 
@@ -56,8 +57,8 @@ export function CreatePODialog({
       currency,
       notes:       "",
       line_items:  defaultLineItems.length > 0
-        ? defaultLineItems.map((li) => ({ description: li.description, quantity: li.quantity, unit_price: li.unit_price, unit: li.unit ?? "" }))
-        : [{ description: "", quantity: 1, unit_price: 0, unit: "" }],
+        ? defaultLineItems.map((li) => ({ description: li.description, quantity: li.quantity, unit_price: li.unit_price, tax_rate: li.tax_rate ?? 0, unit: li.unit ?? "" }))
+        : [{ description: "", quantity: 1, unit_price: 0, tax_rate: 0, unit: "" }],
     },
   })
 
@@ -71,13 +72,16 @@ export function CreatePODialog({
       currency,
       notes:       "",
       line_items:  defaultLineItems.length > 0
-        ? defaultLineItems.map((li) => ({ description: li.description, quantity: li.quantity, unit_price: li.unit_price, unit: li.unit ?? "" }))
-        : [{ description: "", quantity: 1, unit_price: 0, unit: "" }],
+        ? defaultLineItems.map((li) => ({ description: li.description, quantity: li.quantity, unit_price: li.unit_price, tax_rate: li.tax_rate ?? 0, unit: li.unit ?? "" }))
+        : [{ description: "", quantity: 1, unit_price: 0, tax_rate: 0, unit: "" }],
     })
   }, [open])
 
   const watchedItems = form.watch("line_items")
-  const computedTotal = watchedItems.reduce((sum, li) => sum + (Number(li.quantity) || 0) * (Number(li.unit_price) || 0), 0)
+  const computedTotal = watchedItems.reduce(
+    (sum, li) => sum + (Number(li.quantity) || 0) * (Number(li.unit_price) || 0) * (1 + (Number(li.tax_rate) || 0) / 100),
+    0
+  )
 
   async function onSubmit(data: FormValues) {
     await createPO.mutateAsync({
@@ -134,22 +138,23 @@ export function CreatePODialog({
                 <Label className="text-sm font-semibold">Line Items <span className="text-destructive">*</span></Label>
                 <Button
                   type="button" size="sm" variant="outline" className="h-7 text-xs gap-1"
-                  onClick={() => append({ description: "", quantity: 1, unit_price: 0, unit: "" })}
+                  onClick={() => append({ description: "", quantity: 1, unit_price: 0, tax_rate: 0, unit: "" })}
                 >
                   <SolarDuotoneIcon icon={Add01Icon} size={12} strokeWidth={2} />
                   Add row
                 </Button>
               </div>
               <div className="grid grid-cols-12 gap-2 px-1">
-                <span className="col-span-5 text-xs text-muted-foreground">Description</span>
+                <span className="col-span-4 text-xs text-muted-foreground">Description</span>
                 <span className="col-span-2 text-xs text-muted-foreground">Qty</span>
                 <span className="col-span-2 text-xs text-muted-foreground">Unit Price</span>
+                <span className="col-span-1 text-xs text-muted-foreground">Tax %</span>
                 <span className="col-span-2 text-xs text-muted-foreground">Unit</span>
                 <span className="col-span-1" />
               </div>
               {fields.map((field, i) => (
                 <div key={field.id} className="grid grid-cols-12 gap-2 items-start">
-                  <div className="col-span-5">
+                  <div className="col-span-4">
                     <Input {...form.register(`line_items.${i}.description`)} placeholder="Description" className="h-8 text-xs" />
                   </div>
                   <div className="col-span-2">
@@ -157,6 +162,9 @@ export function CreatePODialog({
                   </div>
                   <div className="col-span-2">
                     <Input type="number" min={0} step="any" {...form.register(`line_items.${i}.unit_price`)} placeholder="0" className="h-8 text-xs" />
+                  </div>
+                  <div className="col-span-1">
+                    <Input type="number" min={0} max={100} step="any" {...form.register(`line_items.${i}.tax_rate`)} placeholder="0" className="h-8 text-xs" />
                   </div>
                   <div className="col-span-2">
                     <Input {...form.register(`line_items.${i}.unit`)} placeholder="pcs" className="h-8 text-xs" />

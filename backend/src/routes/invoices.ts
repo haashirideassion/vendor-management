@@ -3,9 +3,28 @@ import { getSupabaseAdmin } from "../utils/supabaseAdmin"
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth"
 import { requireOrg, OrgScopedRequest, resolveListScope, resolveVendorId } from "../middleware/org"
 import { writeAudit, resolveActingAs } from "../services/audit"
+import { findOrgRoleHolderIds, findVendorRoleHolderIds, notifyUsers } from "../services/approvalGate"
 
 const router = Router()
 function db(): any { return getSupabaseAdmin() }
+
+// An invoice's own grn_id is just the one GRN picked at submission time --
+// a PO can have several GRNs (partial deliveries), so the invoice detail
+// view needs all of them, not just that one. Attaches a `grns` array
+// (keyed by each row's po_id) to every row passed in.
+async function attachGRNsByPO<T extends { po_id: string | null }>(rows: T[]): Promise<(T & { grns: { id: string; grn_number: string | null }[] })[]> {
+  const poIds = [...new Set(rows.map((r) => r.po_id).filter(Boolean))] as string[]
+  if (poIds.length === 0) return rows.map((r) => ({ ...r, grns: [] }))
+
+  const { data: grns } = await db().from("grns").select("id, grn_number, po_id").in("po_id", poIds)
+  const grnsByPO = new Map<string, { id: string; grn_number: string | null }[]>()
+  for (const g of grns ?? []) {
+    const list = grnsByPO.get(g.po_id) ?? []
+    list.push({ id: g.id, grn_number: g.grn_number })
+    grnsByPO.set(g.po_id, list)
+  }
+  return rows.map((r) => ({ ...r, grns: r.po_id ? (grnsByPO.get(r.po_id) ?? []) : [] }))
+}
 
 async function hasVendorPermission(userId: string, vendorId: string, key: string): Promise<boolean> {
   const { data } = await db().rpc("has_vendor_permission_as", { p_user_id: userId, p_vendor_id: vendorId, p_key: key })
@@ -57,7 +76,7 @@ router.post("/list", requireAuth, async (req: Request, res: Response) => {
 
     if (error) throw error
 
-    res.json({ data })
+    res.json({ data: await attachGRNsByPO(data ?? []) })
   } catch (err: any) {
     console.error("[invoices/list]", err.message)
     res.status(500).json({ error: "Failed to list invoices" })
@@ -88,7 +107,8 @@ router.post("/get", requireAuth, async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Invoice not found" })
     }
 
-    res.json({ data })
+    const [withGRNs] = await attachGRNsByPO([data])
+    res.json({ data: withGRNs })
   } catch (err: any) {
     console.error("[invoices/get]", err.message)
     res.status(500).json({ error: "Failed to get invoice" })
@@ -228,6 +248,18 @@ router.post("/submit", requireAuth, async (req: Request, res: Response) => {
       actingAs: await resolveActingAs(submitted_by, orgId),
     })
 
+    // Replaces the old notify_admins_new_invoice DB trigger (dropped in
+    // 049_notification_rbac_cutover.sql), which filtered by the legacy
+    // profiles.role and so missed anyone invited into the org's Admin/
+    // Finance roles after that trigger was written.
+    const recipientIds = await findOrgRoleHolderIds(orgId, ["Admin", "Finance"])
+    await notifyUsers(recipientIds, {
+      type: "new_invoice",
+      title: "New Invoice Submitted",
+      message: `A vendor has submitted invoice ${vendor_invoice_number} for review.`,
+      moduleReferenceId: data.id,
+    })
+
     res.json({ data })
   } catch (err: any) {
     console.error("[invoices/submit]", err.message)
@@ -329,6 +361,14 @@ router.post("/review", requireAuth, requireOrg, async (req: Request, res: Respon
         orgId,
         actingAs: (req as OrgScopedRequest).orgAccess === "group_admin" ? "group_admin" : null,
       })
+
+      const recipientIds = await findVendorRoleHolderIds(data.vendor_id, ["Admin", "Finance"])
+      await notifyUsers(recipientIds, {
+        type: "invoice_status_update",
+        title: `Invoice ${status}`,
+        message: notes ? `Your invoice was ${status}: ${notes}` : `Your invoice was ${status}.`,
+        moduleReferenceId: id,
+      })
     }
 
     res.json({ data })
@@ -386,6 +426,14 @@ router.post("/mark-paid", requireAuth, requireOrg, async (req: Request, res: Res
         performedBy: userId,
         orgId,
         actingAs: (req as OrgScopedRequest).orgAccess === "group_admin" ? "group_admin" : null,
+      })
+
+      const recipientIds = await findVendorRoleHolderIds(data.vendor_id, ["Admin", "Finance"])
+      await notifyUsers(recipientIds, {
+        type: "invoice_status_update",
+        title: "Invoice paid",
+        message: "Your invoice has been marked as paid.",
+        moduleReferenceId: id,
       })
     }
 

@@ -4,7 +4,7 @@ import { getSupabaseAdmin, getSupabaseClient } from "../utils/supabaseAdmin"
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth"
 import { getKeyPair, decryptPassword } from "../services/crypto.service"
 import { REFRESH_COOKIE_NAME, REFRESH_TTL_DAYS } from "../services/jwt.service"
-import { sendEmail, signupConfirmationHtml, vendorSubmittedAdminHtml } from "../services/email.service"
+import { sendEmail, signupConfirmationHtml, vendorSubmittedAdminHtml, passwordResetHtml } from "../services/email.service"
 
 const router = Router()
 
@@ -440,8 +440,18 @@ router.post("/forgot-password", authLimiter, async (req: Request, res: Response)
   if (!email) return
 
   try {
-    await authClient().auth.resetPasswordForEmail(email.toLowerCase(), {
-      redirectTo: `${process.env.FRONTEND_URL}/reset-password`,
+    const normalizedEmail = email.trim().toLowerCase()
+    const { data, error } = await db().auth.admin.generateLink({
+      type: "recovery",
+      email: normalizedEmail,
+      options: { redirectTo: `${process.env.FRONTEND_URL}/reset-password` },
+    })
+    if (error) throw error
+
+    await sendEmail({
+      to: normalizedEmail,
+      subject: "Reset your CogniVend password",
+      html: passwordResetHtml({ resetLink: data.properties.action_link }),
     })
   } catch (err: any) {
     console.error("[forgot-password]", err.message)

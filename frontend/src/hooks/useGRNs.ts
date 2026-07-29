@@ -79,6 +79,9 @@ export function useUpdateGRNStatus() {
       id: string
       status: GRNStatus
       notes?: string
+      // Suppresses this hook's own toast -- for callers (e.g. the "Submit
+      // for review" action) that show their own, more specific message.
+      silent?: boolean
     }) => {
       return api.post<GRN>(
         "/api/grns/update-status",
@@ -86,11 +89,13 @@ export function useUpdateGRNStatus() {
         accessToken
       )
     },
-    onSuccess: (_, { id }) => {
+    onSuccess: (_, { id, silent }) => {
       queryClient.invalidateQueries({ queryKey: ["grns"] })
       queryClient.invalidateQueries({ queryKey: ["grns", id] })
-      toast.success("GRN updated")
+      if (!silent) toast.success("GRN updated")
     },
-    onError: () => toast.error("Failed to update GRN"),
+    onError: (_err, variables) => {
+      if (!variables?.silent) toast.error("Failed to update GRN")
+    },
   })
 }

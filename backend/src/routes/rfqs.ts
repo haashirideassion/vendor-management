@@ -33,22 +33,26 @@ router.post("/vendor-list", requireAuth, async (req: Request, res: Response) => 
     const userId = (req as AuthenticatedRequest).user?.id
     if (!userId) return res.status(400).json({ error: "Missing user id" })
 
-    const { data: vendor, error: vendorError } = await db()
-      .from("vendors")
-      .select("id")
-      .eq("profile_id", userId)
-      .maybeSingle()
+    // Resolve via vendor_users (multi-user vendors), not the legacy 1:1
+    // vendors.profile_id -- that column is NULL for any admin-onboarded
+    // vendor, so this always returned [] for every one of that vendor's
+    // staff regardless of role.
+    const vendorId = await resolveVendorId(userId)
+    if (!vendorId) return res.json([])
 
-    if (vendorError) throw vendorError
-    if (!vendor) return res.json([])
-
+    // !inner so the engagement.status filter below actually applies (a plain
+    // embedded select can't be filtered on in PostgREST) -- an RFQ's
+    // engagement is a NOT NULL FK, so this never drops a legitimate row.
+    // Vendors only see RFQs for engagements that have cleared internal
+    // approval, not ones still in draft/pending_approval.
     let query = db()
       .from("rfqs")
-      .select("*, engagement:engagement_id(*, line_items:engagement_line_items(*)), vendor:vendor_id(company_name)")
-      .eq("vendor_id", vendor.id)
+      .select("*, engagement:engagement_id!inner(*, line_items:engagement_line_items(*)), vendor:vendor_id(company_name)")
+      .eq("vendor_id", vendorId)
+      .eq("engagement.status", "approved")
       .order("created_at", { ascending: false })
 
-    const allowedOrgIds = await resolveVendorAllowedOrgIds(userId, vendor.id)
+    const allowedOrgIds = await resolveVendorAllowedOrgIds(userId, vendorId)
     if (allowedOrgIds !== null) query = query.in("org_id", allowedOrgIds)
 
     const { data, error } = await query
@@ -75,6 +79,12 @@ router.post("/get", requireAuth, async (req: Request, res: Response) => {
     if (!(await checkRfqAccess(req, data))) {
       return res.status(403).json({ error: "Not authorized to view this RFQ" })
     }
+    // Vendors can't view an RFQ for an engagement still awaiting internal
+    // approval -- internal staff (already scoped by checkRfqAccess above)
+    // have no such restriction.
+    if ((req as AuthenticatedRequest).user.role === "vendor" && data.engagement?.status !== "approved") {
+      return res.status(403).json({ error: "Not authorized to view this RFQ" })
+    }
     return res.json(data)
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Unexpected error" })
@@ -90,14 +100,14 @@ router.post("/by-engagement", requireAuth, async (req: Request, res: Response) =
 
     let query = db()
       .from("rfqs")
-      .select("*, engagement:engagement_id(*, line_items:engagement_line_items(*)), vendor:vendor_id(company_name)")
+      .select("*, engagement:engagement_id!inner(*, line_items:engagement_line_items(*)), vendor:vendor_id(company_name)")
       .eq("engagement_id", engagementId)
       .order("created_at", { ascending: false })
 
     if (role === "vendor") {
       const vendorId = await resolveVendorId(userId)
       if (!vendorId) return res.json([])
-      query = query.eq("vendor_id", vendorId)
+      query = query.eq("vendor_id", vendorId).eq("engagement.status", "approved")
       const allowedOrgIds = await resolveVendorAllowedOrgIds(userId, vendorId)
       if (allowedOrgIds !== null) query = query.in("org_id", allowedOrgIds)
     } else {
@@ -124,11 +134,14 @@ router.post("/update-status", requireAuth, async (req: Request, res: Response) =
 
     const { data: existing, error: fetchError } = await db()
       .from("rfqs")
-      .select("org_id, vendor_id")
+      .select("org_id, vendor_id, engagement:engagement_id(status)")
       .eq("id", id)
       .single()
     if (fetchError) throw fetchError
     if (!(await checkRfqAccess(req, existing))) {
+      return res.status(403).json({ error: "Not authorized to update this RFQ" })
+    }
+    if ((req as AuthenticatedRequest).user.role === "vendor" && (existing as any).engagement?.status !== "approved") {
       return res.status(403).json({ error: "Not authorized to update this RFQ" })
     }
 

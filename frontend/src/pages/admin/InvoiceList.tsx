@@ -172,15 +172,15 @@ export function InvoiceList() {
                         {["submitted", "under_review", "matched"].includes(inv.status) && canApproveInvoice && (
                           <>
                             <Button
-                              size="sm" variant="ghost"
-                              className="h-7 px-2 text-green-600 hover:bg-green-50"
+                              size="sm" variant="success"
+                              className="h-7 px-2"
                               onClick={() => setReviewDialog({ invoice: inv, action: "approve" })}
                             >
                               <SolarDuotoneIcon icon={CheckmarkCircle01Icon} size={13} strokeWidth={1.5} />
                             </Button>
                             <Button
-                              size="sm" variant="ghost"
-                              className="h-7 px-2 text-destructive hover:bg-destructive/8"
+                              size="sm" variant="danger"
+                              className="h-7 px-2"
                               onClick={() => setReviewDialog({ invoice: inv, action: "reject" })}
                             >
                               <SolarDuotoneIcon icon={Cancel01Icon} size={13} strokeWidth={1.5} />
@@ -250,21 +250,13 @@ export function InvoiceList() {
           <DialogFooter>
             <Button variant="outline" onClick={() => { setReviewDialog(null); setNotes("") }}>Cancel</Button>
             {reviewDialog?.action === "approve" ? (
-              <button
-                className="btn-grad !py-1.5 !px-4 text-sm cursor-pointer"
-                onClick={handleReview}
-                disabled={reviewInvoice.isPending}
-              >
+              <Button variant="success" onClick={handleReview} disabled={reviewInvoice.isPending}>
                 {reviewInvoice.isPending ? "Approving…" : "Approve"}
-              </button>
+              </Button>
             ) : (
-              <button
-                className="btn-grad-danger !py-1.5 !px-4 text-sm cursor-pointer"
-                onClick={handleReview}
-                disabled={reviewInvoice.isPending}
-              >
+              <Button variant="danger" onClick={handleReview} disabled={reviewInvoice.isPending}>
                 {reviewInvoice.isPending ? "Rejecting…" : "Reject"}
-              </button>
+              </Button>
             )}
           </DialogFooter>
         </DialogContent>

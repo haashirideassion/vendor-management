@@ -13,6 +13,7 @@ export type ApprovalEntityType = "engagement" | "purchase_order" | "invoice" | "
 export type ApprovalStatus = "pending" | "approved" | "rejected" | "cancelled"
 
 export type VendorStatus =
+  | "invited"
   | "pending_review"
   | "active"
   | "action_required"
@@ -332,6 +333,7 @@ export interface POLineItem {
   description: string
   quantity: number
   unit_price: number
+  tax_rate: number
   unit: string | null
   created_at: string
 }
@@ -362,6 +364,7 @@ export interface GRNLineItem {
   description: string
   quantity_received: number
   unit_price: number
+  tax_rate: number
   unit: string | null
   created_at: string
 }
@@ -394,6 +397,10 @@ export interface Invoice {
   vendor?: Pick<Vendor, "company_name">
   purchase_order?: Pick<PurchaseOrder, "po_number">
   grn?: Pick<GRN, "grn_number">
+  // Every GRN raised against this invoice's PO (not just the single grn_id
+  // picked at submission) -- a PO can have several GRNs for partial
+  // deliveries.
+  grns?: { id: string; grn_number: string | null }[]
   contract?: Pick<Contract, "contract_ref" | "title">
   engagement?: Pick<Engagement, "title">
 }
@@ -524,7 +531,11 @@ export interface OrgOnboardingDraft {
 
 // ─── Notifications ────────────────────────────────────────────────────────────
 
-export type NotificationType = "new_vendor" | "new_invoice" | "new_quotation"
+export type NotificationType =
+  | "new_vendor" | "new_invoice" | "new_quotation"
+  | "grn_pending_approval" | "engagement_pending_approval" | "contract_pending_approval" | "category_pending_approval"
+  | "grn_decision" | "engagement_decision" | "contract_decision" | "category_decision"
+  | "invoice_status_update"
 
 export interface Notification {
   id: string

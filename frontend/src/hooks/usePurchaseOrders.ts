@@ -66,6 +66,10 @@ export interface CreatePOInput {
   payment_terms?: string
   notes?: string
   line_items: Omit<POLineItem, "id" | "po_id" | "created_at">[]
+  // Suppresses this hook's own toast -- for callers issuing several POs at
+  // once (e.g. EngagementDetail's "Issue PO" bulk action) that show a single
+  // combined summary toast instead of one per PO.
+  silent?: boolean
 }
 
 export function useCreatePurchaseOrder() {
@@ -73,7 +77,7 @@ export function useCreatePurchaseOrder() {
   const { user, accessToken } = useAuth()
 
   return useMutation({
-    mutationFn: async ({ line_items, ...poInput }: CreatePOInput) => {
+    mutationFn: async ({ line_items, silent, ...poInput }: CreatePOInput) => {
       if (!user) throw new Error("Not authenticated")
 
       const { data } = await api.post<{ data: PurchaseOrder }>(
@@ -83,11 +87,13 @@ export function useCreatePurchaseOrder() {
       )
       return data as PurchaseOrder
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["purchase-orders"] })
-      toast.success("Purchase order created")
+      if (!variables.silent) toast.success("Purchase order created")
     },
-    onError: () => toast.error("Failed to create purchase order"),
+    onError: (_err, variables) => {
+      if (!variables?.silent) toast.error("Failed to create purchase order")
+    },
   })
 }
 

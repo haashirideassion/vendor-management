@@ -36,44 +36,84 @@ export async function isManagerOrAdmin(userId: string, orgId: string): Promise<b
   return roleNames.includes("Manager") || roleNames.includes("Admin")
 }
 
-// Every active Manager in the org, falling back to every active Admin if the
-// org has no Manager (solo-mode orgs, or a tiered org that just hasn't
-// invited one yet) -- matches the confirmed "Manager, or Admin if absent"
-// approval-routing rule.
-export async function findApproverIds(orgId: string): Promise<string[]> {
-  async function idsForRole(roleName: string): Promise<string[]> {
+// Every active org member holding any of the given org-scope role names
+// (e.g. ["Admin", "Finance"]) -- the general-purpose version of the
+// Manager/Admin lookup below, reused wherever a notification needs to reach
+// a specific role bundle rather than just the approval chain.
+export async function findOrgRoleHolderIds(orgId: string, roleNames: string[]): Promise<string[]> {
+  const ids = new Set<string>()
+  for (const roleName of roleNames) {
     const { data: role } = await db().from("roles").select("id").eq("scope", "org").eq("name", roleName).single()
-    if (!role) return []
+    if (!role) continue
     const { data: rows } = await db()
       .from("org_member_roles")
       .select("organization_members!inner(profile_id, org_id, status)")
       .eq("role_id", role.id)
       .eq("organization_members.org_id", orgId)
       .eq("organization_members.status", "active")
-    return (rows ?? []).map((r: any) => r.organization_members.profile_id)
+    for (const r of rows ?? []) ids.add(r.organization_members.profile_id)
   }
+  return [...ids]
+}
 
-  const managerIds = await idsForRole("Manager")
-  if (managerIds.length > 0) return [...new Set(managerIds)]
-  return [...new Set(await idsForRole("Admin"))]
+// Vendor-scope equivalent of findOrgRoleHolderIds -- every vendor_users
+// member (for this vendor) holding any of the given vendor-scope role names.
+export async function findVendorRoleHolderIds(vendorId: string, roleNames: string[]): Promise<string[]> {
+  const ids = new Set<string>()
+  for (const roleName of roleNames) {
+    const { data: role } = await db().from("roles").select("id").eq("scope", "vendor").eq("name", roleName).single()
+    if (!role) continue
+    const { data: rows } = await db()
+      .from("vendor_user_roles")
+      .select("vendor_users!inner(profile_id, vendor_id)")
+      .eq("role_id", role.id)
+      .eq("vendor_users.vendor_id", vendorId)
+    for (const r of rows ?? []) ids.add(r.vendor_users.profile_id)
+  }
+  return [...ids]
+}
+
+// Every active Manager in the org, falling back to every active Admin if the
+// org has no Manager (solo-mode orgs, or a tiered org that just hasn't
+// invited one yet) -- matches the confirmed "Manager, or Admin if absent"
+// approval-routing rule.
+export async function findApproverIds(orgId: string): Promise<string[]> {
+  const managerIds = await findOrgRoleHolderIds(orgId, ["Manager"])
+  if (managerIds.length > 0) return managerIds
+  return findOrgRoleHolderIds(orgId, ["Admin"])
+}
+
+// Shared notification-insert helper -- checks the result's `error` (the
+// previous inline insert in notifyApprovers never did, so a CHECK-constraint
+// violation on an unrecognized `type` silently dropped the notification with
+// no error page and no log line).
+export async function notifyUsers(userIds: string[], opts: {
+  type: string; title: string; message: string; moduleReferenceId?: string | null
+}): Promise<void> {
+  if (userIds.length === 0) return
+  const { error } = await db().from("notifications").insert(
+    userIds.map((id) => ({
+      user_id: id,
+      type: opts.type,
+      title: opts.title,
+      message: opts.message,
+      module_reference_id: opts.moduleReferenceId ?? null,
+      is_read: false,
+    }))
+  )
+  if (error) console.error("[notifications] insert failed:", error.message)
 }
 
 async function notifyApprovers(orgId: string, opts: {
   entityId: string; entityLabel: string; entityTitle: string; notifType: string
 }): Promise<void> {
   const approverIds = await findApproverIds(orgId)
-  if (approverIds.length === 0) return
-
-  await db().from("notifications").insert(
-    approverIds.map((id) => ({
-      user_id: id,
-      type: opts.notifType,
-      title: `${opts.entityLabel} pending your approval`,
-      message: `"${opts.entityTitle}" needs your review before it can proceed.`,
-      module_reference_id: opts.entityId,
-      is_read: false,
-    }))
-  )
+  await notifyUsers(approverIds, {
+    type: opts.notifType,
+    title: `${opts.entityLabel} pending your approval`,
+    message: `"${opts.entityTitle}" needs your review before it can proceed.`,
+    moduleReferenceId: opts.entityId,
+  })
 }
 
 // Called once, right after an entity row is created. Always inserts an

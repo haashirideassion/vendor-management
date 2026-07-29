@@ -105,7 +105,13 @@ export async function resolveVendorAllowedOrgIds(userId: string, vendorId: strin
     .select("role:role_id(name)")
     .eq("vendor_user_id", vendorUser.id)
   const roleNames = new Set((roleRows ?? []).map((r: any) => r.role.name))
-  if (roleNames.has("Admin") || roleNames.has("Manager")) return null // unrestricted
+  // The "sees nothing until explicitly assigned" restriction below is an
+  // Associate-specific concept (the "Client Access" picker in
+  // VendorTeam.tsx only ever shows for Associates) -- Finance (added in
+  // 040_finance_role.sql, after this function was written) needs the same
+  // full read visibility as Admin/Manager to see which contracts/
+  // engagements it can raise or approve invoices against.
+  if (roleNames.has("Admin") || roleNames.has("Manager") || roleNames.has("Finance")) return null // unrestricted
 
   return [] // Associate (or no recognized role) with no explicit assignments -- sees nothing yet
 }

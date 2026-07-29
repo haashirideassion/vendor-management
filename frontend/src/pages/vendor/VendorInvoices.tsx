@@ -12,7 +12,9 @@ import { AttachmentList } from "@/components/shared/AttachmentList"
 import { useVendor } from "@/hooks/useVendor"
 import { useMyVendorRole } from "@/hooks/useVendorUsers"
 import { useContracts } from "@/hooks/useContracts"
-import { supabase } from "@/lib/supabase"
+import { useEngagements } from "@/hooks/useEngagements"
+import { useAuth } from "@/contexts/AuthContext"
+import { api } from "@/lib/api"
 import { AnimatedPage } from "@/components/shared/AnimatedPage"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -56,6 +58,7 @@ export function VendorInvoices() {
   const [stagedFiles,   setStagedFiles]   = useState<File[]>([])
   const [docsInvoiceId, setDocsInvoiceId] = useState<string | null>(null)
 
+  const { accessToken } = useAuth()
   const { data: vendor }                           = useVendor()
   const { data: myRoleNames = [] }                 = useMyVendorRole()
   const canSubmitInvoice = myRoleNames.includes("Admin") || myRoleNames.includes("Finance")
@@ -66,26 +69,14 @@ export function VendorInvoices() {
   const submitInvoice     = useSubmitInvoice()
   const uploadAttachments = useUploadAttachments()
 
-  // Fetch vendor's engagements (those they've been invited to via RFQs)
-  const { data: vendorEngagements = [], isLoading: engagementsLoading } = useQuery({
-    queryKey: ["vendor-engagements-for-invoice", vendor?.id],
-    enabled: !!vendor?.id && submitting,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("engagement_vendors")
-        .select("engagement:engagement_id ( id, title, status )")
-        .eq("vendor_id", vendor!.id)
-      if (error) throw error
-      const seen = new Set<string>()
-      return (data ?? [])
-        .map((r) => r.engagement as unknown as { id: string; title: string; status: string } | null)
-        .filter((e): e is { id: string; title: string; status: string } => {
-          if (!e || seen.has(e.id)) return false
-          seen.add(e.id)
-          return true
-        })
-    },
-  })
+  // Fetch vendor's engagements (those they've been invited to via RFQs).
+  // Goes through the backend's /engagements/list (resolveListScope ->
+  // resolveVendorId, vendor_users-based) rather than a direct Supabase
+  // client query -- the latter relies on engagement_vendors' RLS policy,
+  // which still checks the legacy 1:1 vendors.profile_id and so returns
+  // nothing for any multi-user vendor (e.g. admin-onboarded ones, whose
+  // vendors.profile_id is NULL) regardless of which staff member is asking.
+  const { data: vendorEngagements = [], isLoading: engagementsLoading } = useEngagements()
 
   const form = useForm<SubmitForm>({
     resolver: zodResolver(submitSchema) as unknown as Resolver<SubmitForm>,
@@ -99,14 +90,12 @@ export function VendorInvoices() {
     queryKey: ["linked-po-for-invoice", watchedEngagementId, vendor?.id],
     enabled: !!watchedEngagementId && !!vendor?.id,
     queryFn: async () => {
-      const { data } = await supabase
-        .from("purchase_orders")
-        .select("id, po_number")
-        .eq("engagement_id", watchedEngagementId!)
-        .eq("vendor_id", vendor!.id)
-        .limit(1)
-        .maybeSingle()
-      return data
+      const { data } = await api.post<{ data: { id: string; po_number: string }[] }>(
+        "/api/purchase-orders/vendor-list-by-engagement",
+        { engagement_id: watchedEngagementId },
+        accessToken
+      )
+      return data[0] ?? null
     },
   })
 
@@ -182,6 +171,7 @@ export function VendorInvoices() {
                 <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Your Invoice #</TableHead>
                 <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Linked To</TableHead>
                 <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">PO</TableHead>
+                <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">GRN</TableHead>
                 <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Amount</TableHead>
                 <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Status</TableHead>
                 <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Date</TableHead>
@@ -191,7 +181,7 @@ export function VendorInvoices() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-12">
+                  <TableCell colSpan={9} className="text-center py-12">
                     <div className="flex flex-col items-center gap-2">
                       <div className="h-5 w-5 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
                       <span className="text-sm text-muted-foreground">Loading…</span>
@@ -200,7 +190,7 @@ export function VendorInvoices() {
                 </TableRow>
               ) : invoices.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-12">
+                  <TableCell colSpan={9} className="text-center py-12">
                     <p className="text-sm font-medium text-muted-foreground">No invoices submitted yet</p>
                     <p className="text-xs text-muted-foreground/70 mt-1">
                       Click "Submit Invoice" to upload your first invoice.
@@ -227,6 +217,15 @@ export function VendorInvoices() {
                     </TableCell>
                     <TableCell>
                       <span className="text-xs text-muted-foreground font-mono">{inv.purchase_order?.po_number ?? "—"}</span>
+                    </TableCell>
+                    <TableCell>
+                      {inv.grns && inv.grns.length > 0 ? (
+                        <span className="text-xs text-muted-foreground font-mono">
+                          {inv.grns.map((g) => g.grn_number ?? "—").join(", ")}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <p className="text-sm font-medium tabular-nums">{formatCurrency(inv.total_amount, inv.currency)}</p>

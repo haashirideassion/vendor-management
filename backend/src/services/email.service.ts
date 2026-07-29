@@ -275,6 +275,17 @@ export const signupConfirmationHtml = ({ fullName, confirmationLink }) =>
     </p>
   `);
 
+export const inviteHtml = ({ fullName, entityName, entityLabel, inviteLink }) =>
+    layout(`
+    <h2 style="color:#1e3a5f;margin-top:0;">You've been invited to CogniVend</h2>
+    <p>Hi ${fullName},</p>
+    <p>You've been invited to join <strong>${entityName}</strong>${entityLabel ? ` as ${entityLabel}` : ""} on CogniVend.</p>
+    ${btn(inviteLink, "Accept Invitation")}
+    <p style="color:#666;font-size:13px;">
+      This link expires in 24 hours. If you weren't expecting this invitation, you can safely ignore this email.
+    </p>
+  `);
+
 export const passwordResetHtml = ({ resetLink }) =>
     layout(`
     <h2 style="color:#1e3a5f;margin-top:0;">Reset your password</h2>

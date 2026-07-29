@@ -1,6 +1,7 @@
 import type { VendorStatus, VendorVerificationStatus, DocumentType } from "./types"
 
 export const VENDOR_STATUS_LABELS: Record<VendorStatus, string> = {
+  invited: "Invited",
   pending_review: "Pending Review",
   active: "Active",
   action_required: "Action Required",
@@ -9,6 +10,7 @@ export const VENDOR_STATUS_LABELS: Record<VendorStatus, string> = {
 }
 
 export const VENDOR_STATUS_COLORS: Record<VendorStatus, string> = {
+  invited: "bg-blue-100 text-blue-800 border-blue-200",
   pending_review: "bg-yellow-100 text-yellow-800 border-yellow-200",
   active: "bg-green-100 text-green-800 border-green-200",
   action_required: "bg-orange-100 text-orange-800 border-orange-200",
@@ -70,6 +72,7 @@ export const ALL_DOCUMENT_TYPES: DocumentType[] = [
 ]
 
 export const VENDOR_STATUSES: VendorStatus[] = [
+  "invited",
   "pending_review",
   "active",
   "action_required",

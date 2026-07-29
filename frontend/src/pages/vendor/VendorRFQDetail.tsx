@@ -87,15 +87,28 @@ export function VendorRFQDetail() {
 
   useEffect(() => {
     if (!showQuotationDialog) return
-    const seed = (rfq?.engagement?.line_items ?? []).map((li) => ({
-      description: li.description,
-      quantity:    li.quantity,
-      unit_price:  0,
-      tax_rate:    0,
-      remarks:     "",
-    }))
+    // An existing draft (created earlier via Save Draft, or sent back by the
+    // Manager for changes) already has real rate/tax/remarks values --
+    // previously this always rebuilt from the engagement's line items with
+    // unit_price/tax_rate hardcoded to 0, silently discarding whatever the
+    // vendor had already entered every time "Edit Quotation" was reopened.
+    const seed = quotation?.line_items && quotation.line_items.length > 0
+      ? quotation.line_items.map((li) => ({
+          description: li.description,
+          quantity:    li.quantity,
+          unit_price:  li.unit_price,
+          tax_rate:    li.tax_rate,
+          remarks:     li.remarks ?? "",
+        }))
+      : (rfq?.engagement?.line_items ?? []).map((li) => ({
+          description: li.description,
+          quantity:    li.quantity,
+          unit_price:  0,
+          tax_rate:    0,
+          remarks:     "",
+        }))
     form.reset({
-      notes:      "",
+      notes:      quotation?.notes ?? "",
       line_items: seed,
     })
   }, [showQuotationDialog])
@@ -354,9 +367,10 @@ export function VendorRFQDetail() {
                 <div className="space-y-2">
                   <div className="grid grid-cols-12 gap-2 text-xs text-muted-foreground font-medium px-1">
                     <span className="col-span-3">Description</span>
-                    <span className="col-span-2">Qty</span>
+                    <span className="col-span-1">Qty</span>
                     <span className="col-span-2">Rate</span>
                     <span className="col-span-2">Tax %</span>
+                    <span className="col-span-1">Unit</span>
                     <span className="col-span-2">Remarks</span>
                     <span className="col-span-1" />
                   </div>
@@ -365,7 +379,7 @@ export function VendorRFQDetail() {
                       <div className="col-span-3">
                         <Input {...form.register(`line_items.${i}.description`)} placeholder="Item" className="h-8 text-xs" />
                       </div>
-                      <div className="col-span-2">
+                      <div className="col-span-1">
                         <Input type="number" min={0.01} step="any" {...form.register(`line_items.${i}.quantity`)} placeholder="1" className="h-8 text-xs" />
                       </div>
                       <div className="col-span-2">
@@ -379,6 +393,12 @@ export function VendorRFQDetail() {
                       </div>
                       <div className="col-span-2">
                         <Input type="number" min={0} max={100} step="any" {...form.register(`line_items.${i}.tax_rate`)} placeholder="0" className="h-8 text-xs" />
+                      </div>
+                      <div className="col-span-1 flex items-center h-8">
+                        {/* Read-only -- unit is set by the organisation on the engagement's line item, not editable by the vendor. */}
+                        <span className="text-xs text-muted-foreground truncate">
+                          {rfq?.engagement?.line_items?.[i]?.unit ?? "—"}
+                        </span>
                       </div>
                       <div className="col-span-2">
                         <Input {...form.register(`line_items.${i}.remarks`)} placeholder="Optional" className={`h-8 text-xs ${form.formState.errors.line_items?.[i]?.remarks ? "border-destructive" : ""}`} />

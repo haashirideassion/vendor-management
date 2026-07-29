@@ -33,9 +33,25 @@ function notificationMeta(type: Notification["type"]): {
         href: (refId) => (refId ? `/admin/vendors/${refId}` : "/admin/vendors"),
       }
     case "new_invoice":
-      return { icon: Invoice02Icon, href: () => "/admin/invoices" }
+    case "invoice_status_update":
+      return { icon: Invoice02Icon, href: (refId) => (refId ? `/admin/invoices/${refId}` : "/admin/invoices") }
     case "new_quotation":
-      return { icon: Briefcase01Icon, href: () => "/admin/engagements" }
+      // No dedicated quotation detail page exists -- quotations are viewed
+      // inside their engagement, so refId (an engagement id) is the correct
+      // "respective view detail screen" here, not the engagement list.
+      return { icon: Briefcase01Icon, href: (refId) => (refId ? `/admin/engagements/${refId}` : "/admin/engagements") }
+    case "grn_pending_approval":
+    case "grn_decision":
+      return { icon: Briefcase01Icon, href: (refId) => (refId ? `/admin/grns/${refId}` : "/admin/grns") }
+    case "engagement_pending_approval":
+    case "engagement_decision":
+      return { icon: Briefcase01Icon, href: (refId) => (refId ? `/admin/engagements/${refId}` : "/admin/engagements") }
+    case "contract_pending_approval":
+    case "contract_decision":
+      return { icon: Briefcase01Icon, href: (refId) => (refId ? `/admin/contracts/${refId}` : "/admin/contracts") }
+    case "category_pending_approval":
+    case "category_decision":
+      return { icon: Briefcase01Icon, href: () => "/admin/categories" }
     default:
       return { icon: Notification01Icon, href: () => "/admin/dashboard" }
   }

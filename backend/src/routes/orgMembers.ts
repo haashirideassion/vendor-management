@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from "../utils/supabaseAdmin"
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth"
 import { requireOrg, OrgScopedRequest } from "../middleware/org"
 import { writeAudit, resolveActingAs } from "../services/audit"
+import { sendEmail, inviteHtml } from "../services/email.service"
 
 const router = Router()
 function db(): any { return getSupabaseAdmin() }
@@ -132,7 +133,7 @@ router.post("/invite", requireAuth, requireOrg, async (req: Request, res: Respon
   let memberId: string | null = null
 
   try {
-    const { data: org, error: orgError } = await db().from("organizations").select("role_mode").eq("id", orgId).single()
+    const { data: org, error: orgError } = await db().from("organizations").select("role_mode, name").eq("id", orgId).single()
     if (orgError) throw orgError
 
     let finalRoleIds = roleIds ?? []
@@ -151,9 +152,13 @@ router.post("/invite", requireAuth, requireOrg, async (req: Request, res: Respon
     if (existingProfile) {
       profileId = existingProfile.id
     } else {
-      const { data: invited, error: inviteError } = await db().auth.admin.inviteUserByEmail(normalizedEmail, {
-        redirectTo: `${process.env.FRONTEND_URL}/accept-invite`,
-        data: { full_name: fullName.trim(), role: "admin" },
+      const { data: invited, error: inviteError } = await db().auth.admin.generateLink({
+        type: "invite",
+        email: normalizedEmail,
+        options: {
+          redirectTo: `${process.env.FRONTEND_URL}/accept-invite`,
+          data: { full_name: fullName.trim(), role: "admin" },
+        },
       })
       if (inviteError) throw inviteError
       createdNewAuthUser = true
@@ -162,6 +167,11 @@ router.post("/invite", requireAuth, requireOrg, async (req: Request, res: Respon
       // No manual profiles insert here -- on_auth_user_created fires
       // synchronously and creates the row (same pattern as
       // superadmin.ts's create-with-admin).
+      await sendEmail({
+        to: normalizedEmail,
+        subject: `You've been invited to join ${org.name} on CogniVend`,
+        html: inviteHtml({ fullName: fullName.trim(), entityName: org.name, entityLabel: "a team member", inviteLink: invited.properties.action_link }),
+      })
     }
 
     // A profile can hold a second organization_members row at a different

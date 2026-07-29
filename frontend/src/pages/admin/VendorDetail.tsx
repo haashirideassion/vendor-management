@@ -5,6 +5,7 @@ import { useVerifyDocument, useDocumentSignedUrl } from "@/hooks/useDocuments"
 import { useUpsertRating, useVendorRatings } from "@/hooks/useRatings"
 import { useAuditLog } from "@/hooks/useAuditLog"
 import { useCategories } from "@/hooks/useCategories"
+import { useOrgScopedVendorUsers } from "@/hooks/useVendorUsers"
 import { supabase } from "@/lib/supabase"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { StatusBadge } from "@/components/shared/StatusBadge"
@@ -39,6 +40,7 @@ import {
   Add01Icon,
   ArrowLeft01Icon,
   UserCircleIcon,
+  UserGroup02Icon,
   Alert01Icon,
 } from "@/components/shared/SolarIcon"
 import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
@@ -76,6 +78,7 @@ export function VendorDetail() {
   const { data: ratings = [] } = useVendorRatings(id)
   const { data: auditLog = [] } = useAuditLog(id)
   const { data: categories = [] } = useCategories()
+  const { data: orgScopedVendorUsers = [], isLoading: teamLoading } = useOrgScopedVendorUsers(id)
   const getSignedUrl = useDocumentSignedUrl()
 
   // Status action dialog
@@ -230,22 +233,16 @@ export function VendorDetail() {
         {/* Action bar */}
         <div className="border-b px-6 py-2.5 flex flex-wrap gap-2 bg-muted/30">
           {actions.map((a) => (
-            a.variant === "success" ? (
-              <button
+            a.variant === "success" || a.variant === "danger" ? (
+              <Button
                 key={a.status}
-                className="btn-grad h-8 text-xs !m-0 !py-0 !px-4 cursor-pointer"
+                size="sm"
+                variant={a.variant}
+                className="h-8 text-xs"
                 onClick={() => setActionDialog(a)}
               >
                 {a.label}
-              </button>
-            ) : a.variant === "danger" ? (
-              <button
-                key={a.status}
-                className="btn-grad-danger h-8 text-xs !m-0 !py-0 !px-4 cursor-pointer"
-                onClick={() => setActionDialog(a)}
-              >
-                {a.label}
-              </button>
+              </Button>
             ) : (
             <Button
               key={a.status}
@@ -281,6 +278,10 @@ export function VendorDetail() {
               <TabsTrigger value="rating" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm gap-1.5 text-sm h-8 px-3">
                 <SolarDuotoneIcon icon={BarChartIcon} size={14} strokeWidth={1.5} />
                 Rating & History
+              </TabsTrigger>
+              <TabsTrigger value="team" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm gap-1.5 text-sm h-8 px-3">
+                <SolarDuotoneIcon icon={UserGroup02Icon} size={14} strokeWidth={1.5} />
+                Team
               </TabsTrigger>
             </TabsList>
 
@@ -613,6 +614,53 @@ export function VendorDetail() {
                 </CardContent>
               </Card>
             </TabsContent>
+
+            {/* ── Team ── */}
+            <TabsContent value="team" className="space-y-4 mt-0">
+              <Card className="shadow-none">
+                <CardHeader className="pb-3 border-b">
+                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                    <SolarDuotoneIcon icon={UserGroup02Icon} size={15} strokeWidth={1.5} className="text-muted-foreground" />
+                    Team members with access to your organization
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground pt-1">
+                    Read-only — this vendor's own Admin/Manager assign which of their staff can see your organization's engagements.
+                  </p>
+                </CardHeader>
+                <CardContent className="pt-4">
+                  {teamLoading ? (
+                    <div className="space-y-2">
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} className="h-10 rounded bg-muted animate-pulse" />
+                      ))}
+                    </div>
+                  ) : orgScopedVendorUsers.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No staff from this vendor currently have access to your organization.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {orgScopedVendorUsers.map((u) => (
+                        <div key={u.id} className="flex items-center justify-between gap-3 py-2 border-b last:border-0">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">{u.profile.full_name ?? u.profile.email}</p>
+                            <p className="text-xs text-muted-foreground truncate">{u.profile.email}</p>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-xs text-muted-foreground">{u.roleNames.join(", ") || "—"}</span>
+                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium border ${
+                              u.accessScope === "all"
+                                ? "bg-blue-50 text-blue-700 border-blue-200"
+                                : "bg-muted text-muted-foreground border-border"
+                            }`}>
+                              {u.accessScope === "all" ? "All clients" : "Assigned to you"}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
           </Tabs>
         </div>
 
@@ -643,8 +691,8 @@ export function VendorDetail() {
               <Button variant="outline" onClick={closeDialog} disabled={updateStatus.isPending}>
                 Cancel
               </Button>
-              <button
-                className={`${actionDialog?.variant === "success" ? "btn-grad" : "btn-grad-danger"} !m-0 !py-2 !px-5 cursor-pointer disabled:opacity-50`}
+              <Button
+                variant={actionDialog?.variant === "success" ? "success" : "danger"}
                 onClick={handleStatusChange}
                 disabled={
                   updateStatus.isPending ||
@@ -652,7 +700,7 @@ export function VendorDetail() {
                 }
               >
                 {updateStatus.isPending ? "Processing…" : actionDialog?.label}
-              </button>
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

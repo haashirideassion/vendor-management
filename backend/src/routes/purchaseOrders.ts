@@ -1,11 +1,42 @@
 import { Router, Request, Response } from "express"
 import { getSupabaseAdmin } from "../utils/supabaseAdmin"
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth"
-import { requireOrg, OrgScopedRequest } from "../middleware/org"
+import { requireOrg, OrgScopedRequest, resolveVendorId } from "../middleware/org"
 import { writeAudit, resolveActingAs } from "../services/audit"
 
 const router = Router()
 function db(): any { return getSupabaseAdmin() }
+
+// POST /api/purchase-orders/vendor-list-by-engagement — vendor-side lookup
+// (e.g. VendorInvoices.tsx's "auto-linked PO" hint). Goes through the
+// backend/resolveVendorId rather than a direct Supabase client query: the
+// vendor-facing RLS policy on purchase_orders (007_procurement_schema.sql)
+// still checks the legacy 1:1 vendors.profile_id, which is NULL for any
+// multi-user vendor (e.g. admin-onboarded ones), so a direct client read
+// would silently return nothing for that vendor's staff regardless of role.
+router.post("/vendor-list-by-engagement", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const { engagement_id } = req.body
+    if (!engagement_id) return res.status(400).json({ error: "engagement_id is required" })
+
+    const userId = (req as AuthenticatedRequest).user.id
+    const vendorId = await resolveVendorId(userId)
+    if (!vendorId) return res.json({ data: [] })
+
+    const { data, error } = await db()
+      .from("purchase_orders")
+      .select("id, po_number")
+      .eq("engagement_id", engagement_id)
+      .eq("vendor_id", vendorId)
+
+    if (error) throw error
+
+    res.json({ data })
+  } catch (err: any) {
+    console.error("[purchase-orders/vendor-list-by-engagement]", err.message)
+    res.status(500).json({ error: "Failed to look up linked purchase order" })
+  }
+})
 
 // POST /api/purchase-orders/list
 router.post("/list", requireAuth, requireOrg, async (req: Request, res: Response) => {
@@ -119,6 +150,7 @@ router.post("/create", requireAuth, requireOrg, async (req: Request, res: Respon
             description: item.description,
             quantity:    item.quantity   ?? null,
             unit_price:  item.unit_price ?? null,
+            tax_rate:    item.tax_rate   ?? 0,
             unit:        item.unit       ?? null,
           }))
         )

@@ -90,7 +90,12 @@ export function InvoiceDetail() {
               <span className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-xs font-medium border ${INVOICE_STATUS_COLORS[status]}`}>
                 {INVOICE_STATUS_LABELS[status]}
               </span>
-              {invoice.match_status && (
+              {/* invoice.status already becomes "matched" alongside
+                  match_status once the 3-way match runs clean, so a second
+                  "Matched" pill here was pure duplication -- only surface
+                  match_status when it adds information the status pill
+                  doesn't already carry (a variance flag). */}
+              {invoice.match_status === "variance" && (
                 <span className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-medium border ${MATCH_STATUS_COLORS[invoice.match_status as MatchStatus]}`}>
                   {MATCH_STATUS_LABELS[invoice.match_status as MatchStatus]}
                 </span>
@@ -178,10 +183,17 @@ export function InvoiceDetail() {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground mb-0.5">GRN</p>
-                  {invoice.grn_id ? (
-                    <Link to={`/admin/grns/${invoice.grn_id}`} className="font-medium text-primary hover:underline">
-                      {invoice.grn?.grn_number ?? "View GRN"}
-                    </Link>
+                  {invoice.grns && invoice.grns.length > 0 ? (
+                    <p className="font-medium">
+                      {invoice.grns.map((g, i) => (
+                        <span key={g.id}>
+                          <Link to={`/admin/grns/${g.id}`} className="text-primary hover:underline">
+                            {g.grn_number ?? "View GRN"}
+                          </Link>
+                          {i < invoice.grns!.length - 1 && ", "}
+                        </span>
+                      ))}
+                    </p>
                   ) : <p className="font-medium">—</p>}
                 </div>
                 {invoice.contract_id && (

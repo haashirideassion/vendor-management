@@ -11,12 +11,14 @@ jest.mock("../services/email.service", () => ({
   sendEmail: jest.fn().mockResolvedValue(undefined),
   signupConfirmationHtml: jest.fn().mockReturnValue("<html>confirm</html>"),
   vendorSubmittedAdminHtml: jest.fn().mockReturnValue("<html>admin</html>"),
+  passwordResetHtml: jest.fn().mockReturnValue("<html>reset</html>"),
 }), { virtual: true })
 
 const mockAdminAuth = {
   admin: {
     createUser: jest.fn(),
     updateUserById: jest.fn(),
+    generateLink: jest.fn(),
   },
   getUser: jest.fn(),
   signOut: jest.fn(),
@@ -25,7 +27,6 @@ const mockAdminAuth = {
 const mockClientAuth = {
   signInWithPassword: jest.fn(),
   refreshSession: jest.fn(),
-  resetPasswordForEmail: jest.fn(),
   getUser: jest.fn(),
   signOut: jest.fn(),
 }
@@ -194,8 +195,11 @@ describe("POST /api/auth/refresh", () => {
 })
 
 describe("POST /api/auth/forgot-password", () => {
-  it("always returns ok and asks Supabase to send reset email when email exists", async () => {
-    mockClientAuth.resetPasswordForEmail.mockResolvedValue({ data: {}, error: null })
+  it("always returns ok and emails a self-hosted reset link instead of using Supabase's mailer", async () => {
+    mockAdminAuth.admin.generateLink.mockResolvedValue({
+      data: { properties: { action_link: "https://example.com/verify?type=recovery" } },
+      error: null,
+    })
 
     const res = await request(app)
       .post("/api/auth/forgot-password")
@@ -203,9 +207,12 @@ describe("POST /api/auth/forgot-password", () => {
 
     expect(res.status).toBe(200)
     expect(res.body.ok).toBe(true)
-    expect(mockClientAuth.resetPasswordForEmail).toHaveBeenCalledWith(
-      "a@b.com",
-      expect.objectContaining({ redirectTo: expect.stringContaining("/reset-password") })
+    expect(mockAdminAuth.admin.generateLink).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "recovery",
+        email: "a@b.com",
+        options: expect.objectContaining({ redirectTo: expect.stringContaining("/reset-password") }),
+      })
     )
   })
 })

@@ -5,6 +5,7 @@ import { requireSuperAdmin } from "../middleware/superadmin"
 import { ServiceError, mergeGroups, removeOrgFromGroup, dissolveGroup } from "../services/groups"
 import { writeAudit } from "../services/audit"
 import { generateUniqueOrgCode, generateUniqueGroupCode } from "../utils/codeGenerator"
+import { sendEmail, inviteHtml } from "../services/email.service"
 
 const router = Router()
 function db(): any { return getSupabaseAdmin() }
@@ -231,8 +232,9 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 // POST /api/superadmin/organizations/create-with-admin — the real onboarding
 // path: create an org and invite its first admin in one step. Never touches
 // a plaintext password -- if the email has no existing Supabase Auth user,
-// Supabase's own inviteUserByEmail creates the account and emails a link
-// that lets the admin set their password directly with Supabase.
+// generateLink() creates the account and returns an invite link, which we
+// email ourselves via our own SMTP service (email.service.ts) rather than
+// Supabase's own outgoing mailer.
 router.post("/organizations/create-with-admin", requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
   const { orgName, orgCode, adminEmail, adminName } = req.body as {
     orgName?: string; orgCode?: string; adminEmail?: string; adminName?: string
@@ -279,9 +281,13 @@ router.post("/organizations/create-with-admin", requireAuth, requireSuperAdmin, 
     if (existingProfile) {
       profileId = existingProfile.id
     } else {
-      const { data: invited, error: inviteError } = await db().auth.admin.inviteUserByEmail(email, {
-        redirectTo: `${process.env.FRONTEND_URL}/accept-invite`,
-        data: { full_name: adminName.trim(), role: "admin" },
+      const { data: invited, error: inviteError } = await db().auth.admin.generateLink({
+        type: "invite",
+        email,
+        options: {
+          redirectTo: `${process.env.FRONTEND_URL}/accept-invite`,
+          data: { full_name: adminName.trim(), role: "admin" },
+        },
       })
       if (inviteError) throw inviteError
       createdNewAuthUser = true
@@ -293,6 +299,11 @@ router.post("/organizations/create-with-admin", requireAuth, requireSuperAdmin, 
       // auth.users insert this API call makes, and already creates the
       // profiles row from the same user_metadata passed above (full_name,
       // role) -- inserting again here would just collide on profiles_pkey.
+      await sendEmail({
+        to: email,
+        subject: `You've been invited to join ${orgName.trim()} on CogniVend`,
+        html: inviteHtml({ fullName: adminName.trim(), entityName: orgName.trim(), entityLabel: "the organization admin", inviteLink: invited.properties.action_link }),
+      })
     }
 
     // org_role is kept populated for now (not dropped until the RLS cutover

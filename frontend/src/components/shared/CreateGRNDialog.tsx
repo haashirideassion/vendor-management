@@ -24,6 +24,7 @@ const lineItemSchema = z.object({
   description:       z.string().min(1, "Required"),
   quantity_received: z.coerce.number().positive("Must be > 0"),
   unit_price:        z.coerce.number().min(0),
+  tax_rate:          z.coerce.number().min(0),
   unit:              z.string().optional(),
 })
 
@@ -87,7 +88,7 @@ export function CreateGRNDialog({ open, onOpenChange, defaultPOId, defaultVendor
       po_id:         defaultPOId ?? "",
       vendor_id:     defaultVendorId ?? "",
       received_date: new Date().toISOString().slice(0, 10),
-      line_items:    [{ description: "", quantity_received: 1, unit_price: 0, unit: "" }],
+      line_items:    [{ description: "", quantity_received: 1, unit_price: 0, tax_rate: 0, unit: "" }],
     },
   })
   const { fields, append, remove } = useFieldArray({ control: form.control, name: "line_items" })
@@ -107,9 +108,10 @@ export function CreateGRNDialog({ open, onOpenChange, defaultPOId, defaultVendor
               description:       li.description,
               quantity_received: li.remaining,
               unit_price:        li.unit_price,
+              tax_rate:          li.tax_rate,
               unit:              li.unit ?? "",
             }))
-          : [{ description: "", quantity_received: 1, unit_price: 0, unit: "" }],
+          : [{ description: "", quantity_received: 1, unit_price: 0, tax_rate: 0, unit: "" }],
       })
     }
     init()
@@ -127,6 +129,7 @@ export function CreateGRNDialog({ open, onOpenChange, defaultPOId, defaultVendor
         description:       li.description,
         quantity_received: li.remaining,
         unit_price:        li.unit_price,
+        tax_rate:          li.tax_rate,
         unit:              li.unit ?? "",
       })))
     }
@@ -211,16 +214,24 @@ export function CreateGRNDialog({ open, onOpenChange, defaultPOId, defaultVendor
                   size="sm"
                   variant="outline"
                   className="h-7 text-xs gap-1"
-                  onClick={() => append({ description: "", quantity_received: 1, unit_price: 0, unit: "" })}
+                  onClick={() => append({ description: "", quantity_received: 1, unit_price: 0, tax_rate: 0, unit: "" })}
                 >
                   <SolarDuotoneIcon icon={Add01Icon} size={12} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" />
                   Add Row
                 </Button>
               </div>
               <div className="space-y-2">
+                <div className="grid grid-cols-12 gap-2 px-0.5 text-[11px] font-medium text-muted-foreground">
+                  <div className="col-span-4">Description</div>
+                  <div className="col-span-2">Qty Received</div>
+                  <div className="col-span-2">Rate</div>
+                  <div className="col-span-1">Tax %</div>
+                  <div className="col-span-2">Unit</div>
+                  <div className="col-span-1" />
+                </div>
                 {fields.map((field, i) => (
                   <div key={field.id} className="grid grid-cols-12 gap-2 items-start">
-                    <div className="col-span-5">
+                    <div className="col-span-4">
                       <Input {...form.register(`line_items.${i}.description`)} placeholder="Item description" className="h-8 text-xs" />
                     </div>
                     <div className="col-span-2">
@@ -228,6 +239,9 @@ export function CreateGRNDialog({ open, onOpenChange, defaultPOId, defaultVendor
                     </div>
                     <div className="col-span-2">
                       <Input type="number" min={0} step="any" {...form.register(`line_items.${i}.unit_price`)} placeholder="Rate" className="h-8 text-xs" />
+                    </div>
+                    <div className="col-span-1">
+                      <Input type="number" min={0} step="any" {...form.register(`line_items.${i}.tax_rate`)} placeholder="Tax" className="h-8 text-xs" />
                     </div>
                     <div className="col-span-2">
                       <Input {...form.register(`line_items.${i}.unit`)} placeholder="Unit" className="h-8 text-xs" />

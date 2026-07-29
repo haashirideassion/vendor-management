@@ -67,6 +67,12 @@ export interface VendorUser {
   profile: VendorUserProfile
   roleNames: string[]
 }
+export interface OrgScopedVendorUser extends VendorUser {
+  // "all" -- Admin/Manager/Finance, unrestricted across every client org.
+  // "assigned" -- an Associate explicitly given access to this org via the
+  // vendor's own "Client Access" picker.
+  accessScope: "all" | "assigned"
+}
 export interface VendorClientOrg { id: string; name: string; slug: string; status: string }
 export interface AssignableVendorRole { id: string; name: string; description: string | null }
 
@@ -77,6 +83,23 @@ export function useVendorUsers() {
     enabled: !!user,
     queryFn: async () => {
       const { data } = await api.post<{ data: VendorUser[] }>("/api/vendor-users/list", {}, accessToken)
+      return data
+    },
+  })
+}
+
+// Org-side: which of a given vendor's staff can see/act on THIS org
+// (X-Org-Id, attached by api.post automatically) -- read-only, for the org
+// admin's Vendor Detail page.
+export function useOrgScopedVendorUsers(vendorId: string | undefined) {
+  const { accessToken } = useAuth()
+  return useQuery({
+    queryKey: ["org-scoped-vendor-users", vendorId],
+    enabled: !!vendorId,
+    queryFn: async () => {
+      const { data } = await api.post<{ data: OrgScopedVendorUser[] }>(
+        "/api/vendor-users/org-list", { vendor_id: vendorId }, accessToken
+      )
       return data
     },
   })

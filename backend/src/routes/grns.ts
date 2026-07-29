@@ -3,7 +3,7 @@ import { getSupabaseAdmin } from "../utils/supabaseAdmin"
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth"
 import { requireOrg, OrgScopedRequest } from "../middleware/org"
 import { writeAudit, resolveActingAs } from "../services/audit"
-import { gateOnCreate, isManagerOrAdmin } from "../services/approvalGate"
+import { gateOnCreate, isManagerOrAdmin, notifyUsers } from "../services/approvalGate"
 
 const router = Router()
 function db(): any { return getSupabaseAdmin() }
@@ -147,6 +147,7 @@ router.post("/create", requireAuth, requireOrg, async (req: Request, res: Respon
             description:       item.description,
             quantity_received: item.quantity_received  ?? null,
             unit_price:        item.unit_price         ?? null,
+            tax_rate:          item.tax_rate           ?? 0,
             unit:              item.unit               ?? null,
           }))
         )
@@ -177,7 +178,7 @@ router.post("/update-status", requireAuth, async (req: Request, res: Response) =
 
     const { data: existing, error: getError } = await db()
       .from("grns")
-      .select("status, org_id")
+      .select("status, org_id, created_by, po_id")
       .eq("id", id)
       .single()
     if (getError) throw getError
@@ -218,6 +219,19 @@ router.post("/update-status", requireAuth, async (req: Request, res: Response) =
         performedBy: userId,
         orgId: existing.org_id,
         actingAs: await resolveActingAs(userId, existing.org_id),
+      })
+    }
+
+    // The verify/reject step (submitted -> verified/rejected) is a separate
+    // business decision from the pending_approval gate (which already
+    // notifies via approvals.ts's /review) -- the GRN's creator should hear
+    // about this outcome too.
+    if (existing.status === "submitted" && (status === "verified" || status === "rejected") && existing.created_by) {
+      await notifyUsers([existing.created_by], {
+        type: "grn_decision",
+        title: `GRN ${status}`,
+        message: notes ? `Your GRN was ${status}: ${notes}` : `Your GRN was ${status}.`,
+        moduleReferenceId: id,
       })
     }
 

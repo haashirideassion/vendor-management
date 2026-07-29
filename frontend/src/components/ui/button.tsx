@@ -10,8 +10,14 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:  "bg-[image:var(--brand-gradient)] text-primary-foreground hover:brightness-110 hover:saturate-110",
-        danger:   "bg-[image:var(--gradient-danger)] text-white hover:brightness-105 hover:saturate-110 focus-visible:ring-red-500/30",
-        success:  "bg-[image:var(--gradient-success)] text-foreground hover:brightness-105 hover:saturate-110 focus-visible:ring-green-500/30",
+        // Same gradient look as the app's approve/reject actions everywhere
+        // (previously inconsistent: some screens used these variants, others
+        // a hand-rolled .btn-grad/.btn-grad-danger class or ghost-variant
+        // color overrides) -- unified here so every Approve/Reject pair in
+        // the app renders identically regardless of which one a given screen
+        // reaches for.
+        danger:   "bg-[image:var(--gradient-danger)] text-white font-semibold tracking-wide hover:brightness-105 hover:saturate-110 focus-visible:ring-red-500/30",
+        success:  "bg-[image:var(--gradient-success)] text-white font-semibold tracking-wide hover:brightness-105 hover:saturate-110 focus-visible:ring-green-500/30",
         outline:
           "border-border/70 bg-[linear-gradient(180deg,var(--surface-top),var(--surface-bottom))] hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-input/30",
         secondary:

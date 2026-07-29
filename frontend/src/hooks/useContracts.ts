@@ -84,7 +84,7 @@ export function useUpdateContractStatus() {
   const { accessToken } = useAuth()
 
   return useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: ContractStatus }) => {
+    mutationFn: async ({ id, status }: { id: string; status: ContractStatus; silent?: boolean }) => {
       const { data } = await api.post<{ data: Contract }>(
         "/api/contracts/update-status",
         { id, status },
@@ -92,12 +92,14 @@ export function useUpdateContractStatus() {
       )
       return data as Contract
     },
-    onSuccess: (_, { id }) => {
+    onSuccess: (_, { id, silent }) => {
       queryClient.invalidateQueries({ queryKey: ["contracts"] })
       queryClient.invalidateQueries({ queryKey: ["contracts", id] })
-      toast.success("Contract status updated")
+      if (!silent) toast.success("Contract status updated")
     },
-    onError: () => toast.error("Failed to update contract"),
+    onError: (_err, variables) => {
+      if (!variables?.silent) toast.error("Failed to update contract")
+    },
   })
 }
 

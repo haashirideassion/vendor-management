@@ -117,17 +117,17 @@ export function VendorVerificationDetailPage() {
             the normal Approve/Reject pair. */}
         <div className="border-b px-6 py-2.5 flex flex-wrap gap-2 bg-muted/30">
           {vendor.verificationStatus === "verified" ? (
-            <button className="btn-grad-danger h-8 text-xs !m-0 !py-0 !px-4 cursor-pointer" onClick={() => setPendingAction("suspend")}>
+            <Button variant="danger" size="sm" onClick={() => setPendingAction("suspend")}>
               Suspend
-            </button>
+            </Button>
           ) : (
             <>
-              <button className="btn-grad h-8 text-xs !m-0 !py-0 !px-4 cursor-pointer" onClick={() => setPendingAction("approve")}>
+              <Button variant="success" size="sm" onClick={() => setPendingAction("approve")}>
                 Approve
-              </button>
-              <button className="btn-grad-danger h-8 text-xs !m-0 !py-0 !px-4 cursor-pointer" onClick={() => setPendingAction("reject")}>
+              </Button>
+              <Button variant="danger" size="sm" onClick={() => setPendingAction("reject")}>
                 Reject
-              </button>
+              </Button>
             </>
           )}
         </div>
@@ -247,13 +247,13 @@ export function VendorVerificationDetailPage() {
             <Separator />
             <DialogFooter>
               <Button variant="outline" onClick={closeDialog} disabled={setStatus.isPending}>Cancel</Button>
-              <button
-                className={`${pendingAction === "approve" ? "btn-grad" : "btn-grad-danger"} !m-0 !py-2 !px-5 cursor-pointer disabled:opacity-50`}
+              <Button
+                variant={pendingAction === "approve" ? "success" : "danger"}
                 onClick={handleConfirm}
                 disabled={setStatus.isPending || ((pendingAction === "reject" || pendingAction === "suspend") && !reason.trim())}
               >
                 {setStatus.isPending ? "Processing…" : pendingAction === "approve" ? "Approve" : pendingAction === "suspend" ? "Suspend" : "Reject"}
-              </button>
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

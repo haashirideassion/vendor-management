@@ -95,8 +95,10 @@ export function EngagementDetail() {
             description: i.line.description,
             quantity: i.line.quantity,
             unit_price: i.line.unit_price,
+            tax_rate: i.line.tax_rate,
             unit: null,
           })),
+          silent: true, // this handler shows its own single summary toast below
         })
       )
     )
@@ -308,7 +310,15 @@ export function EngagementDetail() {
                   {approvals.map((a) => (
                     <div key={a.id} className="text-xs space-y-1">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-medium">{a.requester?.full_name ?? a.requester?.email ?? "Unknown"}</span>
+                        {/* Pending: show who requested it (nobody has acted yet).
+                            Approved/rejected: show who actually made that decision,
+                            not the original requester -- these can be different
+                            people, and this card is meant to show WHO approved. */}
+                        <span className="font-medium">
+                          {a.status === "pending"
+                            ? (a.requester?.full_name ?? a.requester?.email ?? "Unknown")
+                            : (a.reviewer?.full_name ?? a.reviewer?.email ?? "Unknown")}
+                        </span>
                         <Badge variant="outline" className={`text-[10px] py-0 ${a.status === "approved" ? "text-green-600 border-green-200" : a.status === "rejected" ? "text-red-700 border-red-200" : "text-yellow-700 border-yellow-200"}`}>
                           {a.status}
                         </Badge>
@@ -452,9 +462,9 @@ export function EngagementDetail() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
-            <button className="btn-grad !py-1.5 !px-4 text-sm cursor-pointer" onClick={handleApprove} disabled={reviewApproval.isPending || updateStatus.isPending}>
+            <Button variant="success" onClick={handleApprove} disabled={reviewApproval.isPending || updateStatus.isPending}>
               {reviewApproval.isPending ? "Approving…" : "Approve"}
-            </button>
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -468,9 +478,9 @@ export function EngagementDetail() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
-            <button className="btn-grad-danger !py-1.5 !px-4 text-sm cursor-pointer" onClick={handleReject} disabled={reviewApproval.isPending || updateStatus.isPending}>
+            <Button variant="danger" onClick={handleReject} disabled={reviewApproval.isPending || updateStatus.isPending}>
               {reviewApproval.isPending ? "Rejecting…" : "Reject"}
-            </button>
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

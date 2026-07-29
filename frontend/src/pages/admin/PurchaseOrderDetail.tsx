@@ -56,7 +56,27 @@ export function PurchaseOrderDetail() {
     )
   }
 
-  const lineTotal = (po.line_items ?? []).reduce((sum, li) => sum + li.quantity * li.unit_price, 0)
+  const lineTotal = (po.line_items ?? []).reduce(
+    (sum, li) => sum + li.quantity * li.unit_price * (1 + (li.tax_rate ?? 0) / 100),
+    0
+  )
+
+  // Fully received -- every PO line item's quantity is covered by verified
+  // GRNs (mirrors perform_three_way_match's own "verified GRN lines only"
+  // rule). Once true, cancelling the PO would leave goods already recorded
+  // as delivered with no PO to reconcile against, so Cancel PO is disabled.
+  const receivedByLine = new Map<string, number>()
+  for (const g of grns) {
+    if (g.status !== "verified") continue
+    for (const li of g.line_items ?? []) {
+      if (!li.po_line_item_id) continue
+      receivedByLine.set(li.po_line_item_id, (receivedByLine.get(li.po_line_item_id) ?? 0) + Number(li.quantity_received))
+    }
+  }
+  const poLineItems = po.line_items ?? []
+  const fullyReceived = poLineItems.length > 0 && poLineItems.every(
+    (pli) => (receivedByLine.get(pli.id) ?? 0) >= pli.quantity - 1e-6
+  )
 
   return (
     <AnimatedPage>
@@ -105,7 +125,8 @@ export function PurchaseOrderDetail() {
               size="sm"
               variant="danger"
               onClick={() => setShowCancelConfirm(true)}
-              disabled={updateStatus.isPending}
+              disabled={updateStatus.isPending || fullyReceived}
+              title={fullyReceived ? "This PO's items have already been fully received and verified — it can no longer be cancelled." : undefined}
             >
               Cancel PO
             </Button>
@@ -161,8 +182,9 @@ export function PurchaseOrderDetail() {
                         <TableRow className="bg-muted/30 hover:bg-muted/30">
                           <TableHead className="text-xs text-muted-foreground">Description</TableHead>
                           <TableHead className="text-xs text-muted-foreground text-right">Qty</TableHead>
-                          <TableHead className="text-xs text-muted-foreground text-right">Unit</TableHead>
                           <TableHead className="text-xs text-muted-foreground text-right">Rate</TableHead>
+                          <TableHead className="text-xs text-muted-foreground text-right">Tax %</TableHead>
+                          <TableHead className="text-xs text-muted-foreground text-right">Unit</TableHead>
                           <TableHead className="text-xs text-muted-foreground text-right">Total</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -171,13 +193,16 @@ export function PurchaseOrderDetail() {
                           <TableRow key={li.id}>
                             <TableCell className="text-sm">{li.description}</TableCell>
                             <TableCell className="text-sm text-right tabular-nums">{li.quantity}</TableCell>
-                            <TableCell className="text-sm text-right text-muted-foreground">{li.unit ?? "—"}</TableCell>
                             <TableCell className="text-sm text-right tabular-nums">{formatCurrency(li.unit_price, po.currency)}</TableCell>
-                            <TableCell className="text-sm text-right font-medium tabular-nums">{formatCurrency(li.quantity * li.unit_price, po.currency)}</TableCell>
+                            <TableCell className="text-sm text-right text-muted-foreground">{li.tax_rate ?? 0}%</TableCell>
+                            <TableCell className="text-sm text-right text-muted-foreground">{li.unit ?? "—"}</TableCell>
+                            <TableCell className="text-sm text-right font-medium tabular-nums">
+                              {formatCurrency(li.quantity * li.unit_price * (1 + (li.tax_rate ?? 0) / 100), po.currency)}
+                            </TableCell>
                           </TableRow>
                         ))}
                         <TableRow className="bg-muted/20">
-                          <TableCell colSpan={4} className="text-sm font-semibold text-right">Total</TableCell>
+                          <TableCell colSpan={5} className="text-sm font-semibold text-right">Total</TableCell>
                           <TableCell className="text-sm font-semibold text-right tabular-nums">{formatCurrency(lineTotal, po.currency)}</TableCell>
                         </TableRow>
                       </TableBody>

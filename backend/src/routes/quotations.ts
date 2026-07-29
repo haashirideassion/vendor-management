@@ -131,16 +131,46 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
 
     const orgId = await getDefaultOrgId()
 
-    // Step 1: create quotation header
-    const { data: quot, error: quotError } = await db()
+    // quotations.rfq_id is UNIQUE, and the frontend reuses this same "save
+    // draft" action to re-save an already-created draft (VendorRFQDetail's
+    // "Edit Quotation" button just reopens the same form) -- so this must be
+    // an upsert onto any existing draft for this RFQ, not a blind insert,
+    // or the second save ever hits the unique constraint and 500s.
+    const { data: existingQuot, error: existingError } = await db()
       .from("quotations")
-      .insert({ rfq_id, engagement_id, vendor_id, notes: notes ?? null, status: "draft", org_id: orgId })
-      .select("id")
-      .single()
-    if (quotError) throw quotError
-    const quotId: string = quot.id
+      .select("id, status")
+      .eq("rfq_id", rfq_id)
+      .maybeSingle()
+    if (existingError) throw existingError
 
-    // Step 2: insert line items
+    if (existingQuot && existingQuot.status !== "draft") {
+      return res.status(400).json({ error: "This RFQ already has a quotation that's no longer a draft" })
+    }
+
+    let quotId: string
+    if (existingQuot) {
+      const { error: updateError } = await db()
+        .from("quotations")
+        .update({ notes: notes ?? null })
+        .eq("id", existingQuot.id)
+      if (updateError) throw updateError
+      quotId = existingQuot.id
+
+      const { error: deleteLiError } = await db()
+        .from("quotation_line_items")
+        .delete()
+        .eq("quotation_id", quotId)
+      if (deleteLiError) throw deleteLiError
+    } else {
+      const { data: quot, error: quotError } = await db()
+        .from("quotations")
+        .insert({ rfq_id, engagement_id, vendor_id, notes: notes ?? null, status: "draft", org_id: orgId })
+        .select("id")
+        .single()
+      if (quotError) throw quotError
+      quotId = quot.id
+    }
+
     if (line_items.length > 0) {
       const { error: liError } = await db()
         .from("quotation_line_items")
@@ -155,7 +185,7 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
           }))
         )
       if (liError) {
-        await db().from("quotations").delete().eq("id", quotId)
+        if (!existingQuot) await db().from("quotations").delete().eq("id", quotId)
         throw liError
       }
     }

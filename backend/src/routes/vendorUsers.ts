@@ -1,8 +1,9 @@
 import { Router, Request, Response } from "express"
 import { getSupabaseAdmin } from "../utils/supabaseAdmin"
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth"
-import { resolveVendorId } from "../middleware/org"
+import { resolveVendorId, resolveVendorAllowedOrgIds, requireOrg, OrgScopedRequest } from "../middleware/org"
 import { writeAudit } from "../services/audit"
+import { sendEmail, inviteHtml } from "../services/email.service"
 
 const router = Router()
 function db(): any { return getSupabaseAdmin() }
@@ -58,6 +59,72 @@ router.post("/list", requireAuth, async (req: Request, res: Response) => {
   } catch (err: any) {
     console.error("[vendor-users/list]", err.message)
     res.status(500).json({ error: "Failed to list vendor staff" })
+  }
+})
+
+// POST /api/vendor-users/org-list — read-only, for an org viewing one of
+// its vendors: which of that vendor's staff can actually see/act on this
+// org's engagements. A vendor's Admin/Manager/Finance are unrestricted
+// (relevant to every client org, per resolveVendorAllowedOrgIds), so they
+// always show; an Associate only shows if explicitly assigned to this org
+// via vendor_user_assignments (the vendor's own "Client Access" picker).
+// Reuses resolveVendorAllowedOrgIds rather than re-deriving the same
+// access rule a second time.
+router.post("/org-list", requireAuth, requireOrg, async (req: Request, res: Response) => {
+  try {
+    const { vendor_id } = req.body as { vendor_id?: string }
+    const { orgId } = req as OrgScopedRequest
+    if (!vendor_id) return res.status(400).json({ error: "vendor_id is required" })
+
+    const { data: link } = await db()
+      .from("organization_vendors")
+      .select("vendor_id")
+      .eq("org_id", orgId)
+      .eq("vendor_id", vendor_id)
+      .maybeSingle()
+    if (!link) return res.status(404).json({ error: "Vendor not found for this organization" })
+
+    const { data: users, error } = await db()
+      .from("vendor_users")
+      .select("id, status, is_primary, profile:profile_id(id, full_name, email)")
+      .eq("vendor_id", vendor_id)
+    if (error) throw error
+
+    const userIds = (users ?? []).map((u: any) => u.id)
+    const roleNamesByUser = new Map<string, string[]>()
+    if (userIds.length > 0) {
+      const { data: userRoles, error: urError } = await db()
+        .from("vendor_user_roles")
+        .select("vendor_user_id, role:role_id(name)")
+        .in("vendor_user_id", userIds)
+      if (urError) throw urError
+      for (const row of userRoles ?? []) {
+        const names = roleNamesByUser.get(row.vendor_user_id) ?? []
+        names.push(row.role.name)
+        roleNamesByUser.set(row.vendor_user_id, names)
+      }
+    }
+
+    const data = []
+    for (const u of (users ?? [])) {
+      if (!u.profile) continue
+      const allowedOrgIds = await resolveVendorAllowedOrgIds(u.profile.id, vendor_id)
+      const hasAccess = allowedOrgIds === null || allowedOrgIds.includes(orgId)
+      if (!hasAccess) continue
+      data.push({
+        id: u.id,
+        status: u.status,
+        isPrimary: u.is_primary,
+        profile: u.profile,
+        roleNames: roleNamesByUser.get(u.id) ?? [],
+        accessScope: allowedOrgIds === null ? "all" as const : "assigned" as const,
+      })
+    }
+
+    res.json({ data })
+  } catch (err: any) {
+    console.error("[vendor-users/org-list]", err.message)
+    res.status(500).json({ error: "Failed to list vendor staff for this organization" })
   }
 })
 
@@ -176,14 +243,25 @@ router.post("/invite", requireAuth, async (req: Request, res: Response) => {
     if (existingProfile) {
       profileId = existingProfile.id
     } else {
-      const { data: invited, error: inviteError } = await db().auth.admin.inviteUserByEmail(normalizedEmail, {
-        redirectTo: `${process.env.FRONTEND_URL}/accept-invite`,
-        data: { full_name: fullName.trim(), role: "vendor" },
+      const { data: vendor } = await db().from("vendors").select("company_name").eq("id", vendorId).single()
+
+      const { data: invited, error: inviteError } = await db().auth.admin.generateLink({
+        type: "invite",
+        email: normalizedEmail,
+        options: {
+          redirectTo: `${process.env.FRONTEND_URL}/accept-invite`,
+          data: { full_name: fullName.trim(), role: "vendor" },
+        },
       })
       if (inviteError) throw inviteError
       createdNewAuthUser = true
       profileId = invited.user.id
       inviteSent = true
+      await sendEmail({
+        to: normalizedEmail,
+        subject: `You've been invited to join ${vendor?.company_name ?? "your vendor team"} on CogniVend`,
+        html: inviteHtml({ fullName: fullName.trim(), entityName: vendor?.company_name ?? "your vendor team", entityLabel: "a team member", inviteLink: invited.properties.action_link }),
+      })
     }
 
     const { data: newVendorUser, error: vuError } = await db()
@@ -283,11 +361,24 @@ router.post("/assignments/list", requireAuth, async (req: Request, res: Response
     const vendorId = await resolveVendorId(actorId)
     if (!vendorId) return res.status(403).json({ error: "No vendor profile found for this user" })
 
+    // targetUserId is a vendor_users.id (that's what /vendor-users/list hands
+    // the frontend), but vendor_user_assignments.user_id is a profiles.id
+    // FK -- resolve it here, scoped to the caller's own vendor so this can't
+    // be used to probe another vendor's staff.
+    const { data: targetVendorUser, error: targetError } = await db()
+      .from("vendor_users")
+      .select("profile_id")
+      .eq("id", targetUserId)
+      .eq("vendor_id", vendorId)
+      .maybeSingle()
+    if (targetError) throw targetError
+    if (!targetVendorUser) return res.status(404).json({ error: "Staff member not found" })
+
     const { data, error } = await db()
       .from("vendor_user_assignments")
       .select("organization_id")
       .eq("vendor_id", vendorId)
-      .eq("user_id", targetUserId)
+      .eq("user_id", targetVendorUser.profile_id)
     if (error) throw error
 
     res.json({ data: (data ?? []).map((r: any) => r.organization_id) })
@@ -316,19 +407,31 @@ router.post("/assignments/set", requireAuth, async (req: Request, res: Response)
       return res.status(403).json({ error: "You do not have permission to manage client assignments" })
     }
 
+    // Same resolution as /assignments/list: targetUserId is a vendor_users.id,
+    // but vendor_user_assignments.user_id is a profiles.id FK.
+    const { data: targetVendorUser, error: targetError } = await db()
+      .from("vendor_users")
+      .select("profile_id")
+      .eq("id", targetUserId)
+      .eq("vendor_id", vendorId)
+      .maybeSingle()
+    if (targetError) throw targetError
+    if (!targetVendorUser) return res.status(404).json({ error: "Staff member not found" })
+    const targetProfileId = targetVendorUser.profile_id
+
     const dedupedOrgIds = [...new Set(organizationIds)]
 
     const { error: deleteError } = await db()
       .from("vendor_user_assignments")
       .delete()
       .eq("vendor_id", vendorId)
-      .eq("user_id", targetUserId)
+      .eq("user_id", targetProfileId)
     if (deleteError) throw deleteError
 
     if (dedupedOrgIds.length > 0) {
       const { error: insertError } = await db()
         .from("vendor_user_assignments")
-        .insert(dedupedOrgIds.map((organizationId) => ({ vendor_id: vendorId, user_id: targetUserId, organization_id: organizationId })))
+        .insert(dedupedOrgIds.map((organizationId) => ({ vendor_id: vendorId, user_id: targetProfileId, organization_id: organizationId })))
       if (insertError) throw insertError
     }
 

@@ -42,6 +42,7 @@ const STATUSES: EngagementStatus[] = [
 const lineItemSchema = z.object({
   description: z.string().min(1, "Description required"),
   quantity:    z.coerce.number().positive("Must be > 0"),
+  unit_price:  z.coerce.number().min(0).optional(),
   unit:        z.string().optional(),
 })
 
@@ -203,7 +204,7 @@ export function EngagementList() {
         line_items:      (data.line_items ?? []).map((li) => ({
           description: li.description,
           quantity:    li.quantity,
-          unit_price:  0,
+          unit_price:  li.unit_price ?? null,
           unit:        li.unit ?? null,
         })),
       })
@@ -441,7 +442,7 @@ export function EngagementList() {
                     size="sm"
                     variant="outline"
                     className="h-7 text-xs gap-1"
-                    onClick={() => appendLineItem({ description: "", quantity: 1, unit: "" })}
+                    onClick={() => appendLineItem({ description: "", quantity: 1, unit_price: undefined, unit: "" })}
                   >
                     <SolarDuotoneIcon icon={Add01Icon} size={12} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" />
                     Add Item
@@ -451,14 +452,15 @@ export function EngagementList() {
                 {lineItemFields.length > 0 && (
                   <div className="space-y-2">
                     <div className="grid grid-cols-12 gap-2 text-xs text-muted-foreground font-medium px-1">
-                      <span className="col-span-7">Description</span>
+                      <span className="col-span-5">Description</span>
                       <span className="col-span-2">Qty</span>
+                      <span className="col-span-2">Rate</span>
                       <span className="col-span-2">Unit</span>
                       <span className="col-span-1" />
                     </div>
                     {lineItemFields.map((field, i) => (
                       <div key={field.id} className="grid grid-cols-12 gap-2 items-start">
-                        <div className="col-span-7">
+                        <div className="col-span-5">
                           <Input
                             {...form.register(`line_items.${i}.description`)}
                             placeholder="Item description"
@@ -475,6 +477,14 @@ export function EngagementList() {
                             type="number" min={0.01} step="any"
                             {...form.register(`line_items.${i}.quantity`)}
                             placeholder="1"
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                        <div className="col-span-2">
+                          <Input
+                            type="number" min={0} step="any"
+                            {...form.register(`line_items.${i}.unit_price`)}
+                            placeholder="Optional"
                             className="h-8 text-xs"
                           />
                         </div>

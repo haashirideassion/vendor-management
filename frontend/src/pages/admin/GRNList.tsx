@@ -195,7 +195,7 @@ export function GRNList() {
                             variant="ghost"
                             className="h-7 px-2 text-xs"
                             onClick={() => updateStatus.mutate(
-                              { id: grn.id, status: "submitted" },
+                              { id: grn.id, status: "submitted", silent: true },
                               {
                                 onSuccess: () => toast.success("GRN submitted for review."),
                                 onError: () => toast.error("Failed to submit GRN. Please try again."),

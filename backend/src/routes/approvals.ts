@@ -2,7 +2,14 @@ import { Router, Request, Response } from "express"
 import { getSupabaseAdmin } from "../utils/supabaseAdmin"
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth"
 import { requireOrg, OrgScopedRequest } from "../middleware/org"
-import { isManagerOrAdmin } from "../services/approvalGate"
+import { isManagerOrAdmin, notifyUsers } from "../services/approvalGate"
+
+const ENTITY_LABELS: Record<string, string> = {
+  grn: "GRN",
+  engagement: "Engagement",
+  contract: "Contract",
+  category: "Category",
+}
 
 const router = Router()
 function db(): any { return getSupabaseAdmin() }
@@ -95,7 +102,7 @@ router.post("/review", requireAuth, async (req: Request, res: Response) => {
 
     const { data: existing, error: existingError } = await db()
       .from("approval_requests")
-      .select("id, org_id, status")
+      .select("id, org_id, status, entity_type, entity_id, requested_by")
       .eq("id", id)
       .single()
     if (existingError) throw existingError
@@ -131,6 +138,19 @@ router.post("/review", requireAuth, async (req: Request, res: Response) => {
     // (flagged and worth a closer look).
     if (data.requested_by && data.requested_by === reviewerId) {
       await flagSegregationOfDuties(data)
+    }
+
+    // Let the requester (typically the Associate who created the entity)
+    // know the outcome -- previously only recorded in approval_requests,
+    // never surfaced as a notification.
+    if (data.requested_by) {
+      const label = ENTITY_LABELS[data.entity_type] ?? data.entity_type
+      await notifyUsers([data.requested_by], {
+        type: `${data.entity_type}_decision`,
+        title: `${label} ${status}`,
+        message: notes ? `Your ${label} was ${status}: ${notes}` : `Your ${label} was ${status}.`,
+        moduleReferenceId: data.entity_id,
+      })
     }
 
     return res.json({ data })

@@ -5,6 +5,24 @@ import { requireAuth, AuthenticatedRequest } from "../middleware/auth"
 import { requireOrg, OrgScopedRequest, resolveVendorId } from "../middleware/org"
 import { getDefaultOrgId } from "../utils/org"
 import { writeAudit } from "../services/audit"
+import { sendEmail, inviteHtml } from "../services/email.service"
+import { findOrgRoleHolderIds, notifyUsers } from "../services/approvalGate"
+
+// Replaces the old notify_admins_new_vendor DB trigger (dropped in
+// 049_notification_rbac_cutover.sql), which filtered by the legacy
+// profiles.role and so missed anyone invited into an org's Admin role after
+// that trigger was written.
+async function notifyOrgAdminsNewVendor(orgIds: string[], vendorId: string, companyName: string): Promise<void> {
+  for (const orgId of orgIds) {
+    const recipientIds = await findOrgRoleHolderIds(orgId, ["Admin"])
+    await notifyUsers(recipientIds, {
+      type: "new_vendor",
+      title: "New Vendor Added",
+      message: `A new vendor application has been submitted: ${companyName}`,
+      moduleReferenceId: vendorId,
+    })
+  }
+}
 
 const router = Router()
 function db(): any { return getSupabaseAdmin() }
@@ -632,37 +650,81 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
     // -- it no longer decides the actual org/group relationship.
     const rawCodeEntered = (org_code || group_code || "").trim()
 
-    // Check for existing vendor record for this profile
-    const { data: existing } = await db()
+    // Check for an existing vendor for this profile. Two ways one can exist:
+    // the legacy 1:1 vendors.profile_id (older self-service signups), or via
+    // vendor_users (multi-user vendors -- notably anyone admin-onboarded via
+    // /admin-onboard then invited via /invite-portal-user, whose
+    // vendors.profile_id is NULL, so only resolveVendorId's vendor_users
+    // lookup finds them).
+    const { data: legacyExisting } = await db()
       .from("vendors")
       .select("id")
       .eq("profile_id", profileId)
       .maybeSingle()
+    const existingVendorId = legacyExisting?.id ?? (await resolveVendorId(profileId))
 
-    if (existing) {
+    if (existingVendorId) {
       const { data: existingLinks } = await db()
         .from("organization_vendors")
-        .select("org_id")
-        .eq("vendor_id", existing.id)
+        .select("org_id, status")
+        .eq("vendor_id", existingVendorId)
         .in("org_id", targetOrgIds)
-      const alreadyLinkedOrgIds = new Set((existingLinks ?? []).map((r: any) => r.org_id))
-      const newOrgIds = targetOrgIds.filter((id) => !alreadyLinkedOrgIds.has(id))
+      const linkStatusByOrg = new Map((existingLinks ?? []).map((r: any) => [r.org_id, r.status]))
+      const newOrgIds = targetOrgIds.filter((id) => !linkStatusByOrg.has(id))
+      // Orgs where this vendor was admin-onboarded ('invited') and is now
+      // submitting the wizard for the first time -- advance those to
+      // pending_review. Any other existing status (pending_review, active,
+      // ...) is left as-is; this submission isn't a re-review trigger.
+      const invitedOrgIds = targetOrgIds.filter((id) => linkStatusByOrg.get(id) === "invited")
 
-      if (newOrgIds.length === 0) {
-        // Idempotent: every target org already has a relationship -- treat
-        // as a successful retry rather than erroring.
-        return res.status(200).json({ data: { id: existing.id } })
+      // This IS that vendor's actual onboarding submission (admin-onboard
+      // only ever collected company_name/contact_name/contact_email) -- fill
+      // in the rest of the company/tax/bank fields the wizard just gathered.
+      const { error: fillInError } = await db()
+        .from("vendors")
+        .update({
+          company_name, contact_name, contact_email, contact_phone: contact_phone || null,
+          tax_gst_number, pan_number,
+          bank_name: bank_name || null,
+          bank_account_number: bank_account_number || null,
+          bank_routing_number: bank_routing_number || null,
+        })
+        .eq("id", existingVendorId)
+      if (fillInError) throw fillInError
+
+      if (Array.isArray(category_ids) && category_ids.length > 0) {
+        const { error: categoriesError } = await db().rpc("update_vendor_categories", {
+          p_vendor_id: existingVendorId,
+          p_category_ids: category_ids,
+        })
+        if (categoriesError) throw categoriesError
       }
 
-      // Vendor already exists globally (this profile onboarded elsewhere
-      // before) -- request a relationship with the new org(s) instead of
-      // duplicating the vendor.
-      const { error: linkError } = await db()
-        .from("organization_vendors")
-        .insert(newOrgIds.map((orgId) => ({ org_id: orgId, vendor_id: existing.id, status: "pending_review" })))
-      if (linkError) throw linkError
+      if (invitedOrgIds.length > 0) {
+        const { error: advanceError } = await db()
+          .from("organization_vendors")
+          .update({ status: "pending_review" })
+          .eq("vendor_id", existingVendorId)
+          .in("org_id", invitedOrgIds)
+        if (advanceError) throw advanceError
+      }
 
-      return res.status(201).json({ data: { id: existing.id } })
+      if (newOrgIds.length > 0) {
+        // Vendor already exists globally (onboarded elsewhere before, or
+        // just completed above) -- request a relationship with the new
+        // org(s) instead of duplicating the vendor.
+        const { error: linkError } = await db()
+          .from("organization_vendors")
+          .insert(newOrgIds.map((orgId) => ({ org_id: orgId, vendor_id: existingVendorId, status: "pending_review" })))
+        if (linkError) throw linkError
+      }
+
+      const pendingReviewOrgIds = [...invitedOrgIds, ...newOrgIds]
+      if (pendingReviewOrgIds.length > 0) {
+        await notifyOrgAdminsNewVendor(pendingReviewOrgIds, existingVendorId, company_name)
+      }
+
+      return res.status(201).json({ data: { id: existingVendorId } })
     }
 
     const { data: vendorId, error: vendorErr } = await db().rpc("create_vendor_with_categories", {
@@ -699,6 +761,8 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
       .from("organization_vendors")
       .insert(targetOrgIds.map((orgId) => ({ org_id: orgId, vendor_id: vendorId, status: "pending_review" })))
     if (linkError) throw linkError
+
+    await notifyOrgAdminsNewVendor(targetOrgIds, vendorId, company_name)
 
     return res.status(201).json({ data: { id: vendorId } })
   } catch (err: any) {
@@ -794,9 +858,14 @@ router.post("/admin-onboard", requireAuth, requireOrg, async (req: Request, res:
       .eq("id", vendorId)
     if (updateError) throw updateError
 
+    // 'invited', not 'pending_review' -- this vendor hasn't submitted any
+    // onboarding details yet (admin-onboard only collects a name/contact),
+    // so it shouldn't read as "under review." It advances to pending_review
+    // once the vendor actually submits the /onboarding wizard (see /create
+    // below).
     const { error: linkError } = await db()
       .from("organization_vendors")
-      .insert(targetOrgIds.map((oid) => ({ org_id: oid, vendor_id: vendorId, status: "pending_review" })))
+      .insert(targetOrgIds.map((oid) => ({ org_id: oid, vendor_id: vendorId, status: "invited" })))
     if (linkError) throw linkError
 
     await writeAudit({
@@ -852,7 +921,7 @@ router.post("/invite-portal-user", requireAuth, requireOrg, async (req: Request,
 
     const { data: vendor, error: vendorError } = await db()
       .from("vendors")
-      .select("contact_name, contact_email")
+      .select("contact_name, contact_email, company_name")
       .eq("id", vendor_id)
       .single()
     if (vendorError) throw vendorError
@@ -869,14 +938,23 @@ router.post("/invite-portal-user", requireAuth, requireOrg, async (req: Request,
       if (existingProfile) {
         profileId = existingProfile.id
       } else {
-        const { data: invited, error: inviteError } = await db().auth.admin.inviteUserByEmail(normalizedEmail, {
-          redirectTo: `${process.env.FRONTEND_URL}/accept-invite`,
-          data: { full_name: vendor.contact_name, role: "vendor" },
+        const { data: invited, error: inviteError } = await db().auth.admin.generateLink({
+          type: "invite",
+          email: normalizedEmail,
+          options: {
+            redirectTo: `${process.env.FRONTEND_URL}/accept-invite`,
+            data: { full_name: vendor.contact_name, role: "vendor" },
+          },
         })
         if (inviteError) throw inviteError
         createdNewAuthUser = true
         profileId = invited.user.id
         inviteSent = true
+        await sendEmail({
+          to: normalizedEmail,
+          subject: `You've been invited to join ${vendor.company_name} on CogniVend`,
+          html: inviteHtml({ fullName: vendor.contact_name, entityName: vendor.company_name, entityLabel: "vendor portal admin", inviteLink: invited.properties.action_link }),
+        })
       }
 
       const { data: newVendorUser, error: vuError } = await db()
