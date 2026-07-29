@@ -25,7 +25,6 @@ import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTi
 import {
   ENGAGEMENT_STATUS_LABELS,
   ENGAGEMENT_STATUS_COLORS,
-  CURRENCIES,
 } from "@/lib/constants"
 import { formatCurrency } from "@/lib/utils"
 import type { EngagementStatus } from "@/lib/types"
@@ -330,7 +329,7 @@ export function EngagementList() {
 
       {/* Create Dialog */}
       <Dialog open={creating} onOpenChange={(open) => { if (!open) closeDialog() }}>
-        <DialogContent size="xl">
+        <DialogContent size="4xl">
           <DialogHeader>
             <DialogTitle>New Engagement</DialogTitle>
           </DialogHeader>
@@ -406,12 +405,7 @@ export function EngagementList() {
                 </div>
                 <div className="space-y-1.5">
                   <Label>Currency</Label>
-                  <Select defaultValue="INR" onValueChange={(v) => form.setValue("currency", v)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {CURRENCIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <Input value="INR" readOnly className="bg-muted/40" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">

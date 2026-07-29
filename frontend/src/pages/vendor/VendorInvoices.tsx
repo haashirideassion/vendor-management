@@ -25,7 +25,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
   INVOICE_STATUS_LABELS, INVOICE_STATUS_COLORS,
-  CURRENCIES,
 } from "@/lib/constants"
 import { formatCurrency } from "@/lib/utils"
 import type { InvoiceStatus } from "@/lib/types"
@@ -285,7 +284,7 @@ export function VendorInvoices() {
 
       {/* Submit invoice dialog */}
       <Dialog open={submitting} onOpenChange={(open) => { if (!open) closeDialog() }}>
-        <DialogContent size="lg">
+        <DialogContent size="4xl">
           <DialogHeader><DialogTitle>Submit Invoice</DialogTitle></DialogHeader>
           <DialogBody>
           <form id="submit-invoice-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-2">
@@ -385,10 +384,7 @@ export function VendorInvoices() {
               </div>
               <div className="space-y-1.5">
                 <Label>Currency</Label>
-                <Select defaultValue="INR" onValueChange={(v) => form.setValue("currency", v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{CURRENCIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-                </Select>
+                <Input value="INR" readOnly className="bg-muted/40" />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">

@@ -164,7 +164,7 @@ export function CreateGRNDialog({ open, onOpenChange, defaultPOId, defaultVendor
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="2xl">
+      <DialogContent size="4xl">
         <DialogHeader><DialogTitle>Record Goods Receipt Note</DialogTitle></DialogHeader>
         <DialogBody>
           <form id="create-grn-dialog" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-2">
@@ -225,7 +225,7 @@ export function CreateGRNDialog({ open, onOpenChange, defaultPOId, defaultVendor
                   <div className="col-span-4">Description</div>
                   <div className="col-span-2">Qty Received</div>
                   <div className="col-span-2">Rate</div>
-                  <div className="col-span-1">Tax %</div>
+                  <div className="col-span-2">Tax %</div>
                   <div className="col-span-2">Unit</div>
                   <div className="col-span-1" />
                 </div>
@@ -240,7 +240,7 @@ export function CreateGRNDialog({ open, onOpenChange, defaultPOId, defaultVendor
                     <div className="col-span-2">
                       <Input type="number" min={0} step="any" {...form.register(`line_items.${i}.unit_price`)} placeholder="Rate" className="h-8 text-xs" />
                     </div>
-                    <div className="col-span-1">
+                    <div className="col-span-2">
                       <Input type="number" min={0} step="any" {...form.register(`line_items.${i}.tax_rate`)} placeholder="Tax" className="h-8 text-xs" />
                     </div>
                     <div className="col-span-2">

@@ -19,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Separator } from "@/components/ui/separator"
-import { PO_STATUS_LABELS, PO_STATUS_COLORS, CURRENCIES } from "@/lib/constants"
+import { PO_STATUS_LABELS, PO_STATUS_COLORS } from "@/lib/constants"
 import { formatCurrency } from "@/lib/utils"
 import type { POStatus } from "@/lib/types"
 import { format } from "date-fns"
@@ -35,6 +35,7 @@ const lineItemSchema = z.object({
   description: z.string().min(1, "Required"),
   quantity:    z.coerce.number().positive("Must be > 0"),
   unit_price:  z.coerce.number().min(0, "Must be ≥ 0"),
+  tax_rate:    z.coerce.number().min(0).max(100).default(0),
   unit:        z.string().optional(),
 })
 
@@ -81,7 +82,7 @@ export function PurchaseOrderList() {
     defaultValues: {
       engagement_id: defaultEngagementId,
       currency: "INR",
-      line_items: [{ description: "", quantity: 1, unit_price: 0, unit: "" }],
+      line_items: [{ description: "", quantity: 1, unit_price: 0, tax_rate: 0, unit: "" }],
     },
   })
 
@@ -107,6 +108,7 @@ export function PurchaseOrderList() {
             description: li.description,
             quantity:    li.quantity,
             unit_price:  0,
+            tax_rate:    0,
             unit:        li.unit ?? "",
           })))
         }
@@ -248,7 +250,7 @@ export function PurchaseOrderList() {
 
       {/* Create PO dialog */}
       <Dialog open={creating} onOpenChange={(open) => { if (!open) closeDialog() }}>
-        <DialogContent size="2xl">
+        <DialogContent size="4xl">
           <DialogHeader><DialogTitle>New Purchase Order</DialogTitle></DialogHeader>
           <DialogBody>
           <form id="create-po" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-2">
@@ -286,10 +288,7 @@ export function PurchaseOrderList() {
               </div>
               <div className="space-y-1.5">
                 <Label>Currency</Label>
-                <Select defaultValue="INR" onValueChange={(v) => form.setValue("currency", v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{CURRENCIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-                </Select>
+                <Input value="INR" readOnly className="bg-muted/40" />
               </div>
             </div>
 
@@ -316,7 +315,7 @@ export function PurchaseOrderList() {
               <div className="flex items-center justify-between">
                 <Label className="text-sm font-semibold">Line Items <span className="text-destructive">*</span></Label>
                 <Button type="button" size="sm" variant="outline" className="h-7 text-xs gap-1"
-                  onClick={() => append({ description: "", quantity: 1, unit_price: 0, unit: "" })}>
+                  onClick={() => append({ description: "", quantity: 1, unit_price: 0, tax_rate: 0, unit: "" })}>
                   <SolarDuotoneIcon icon={Add01Icon} size={12} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" />
                   Add Row
                 </Button>
@@ -327,7 +326,7 @@ export function PurchaseOrderList() {
               <div className="space-y-2">
                 {fields.map((field, i) => (
                   <div key={field.id} className="grid grid-cols-12 gap-2 items-start">
-                    <div className="col-span-5">
+                    <div className="col-span-4">
                       <Input {...form.register(`line_items.${i}.description`)} placeholder="Description" className="h-8 text-xs" />
                     </div>
                     <div className="col-span-2">
@@ -335,6 +334,9 @@ export function PurchaseOrderList() {
                     </div>
                     <div className="col-span-2">
                       <Input type="number" min={0} step="any" {...form.register(`line_items.${i}.unit_price`)} placeholder="Rate" className="h-8 text-xs" />
+                    </div>
+                    <div className="col-span-2">
+                      <Input type="number" min={0} max={100} step="any" {...form.register(`line_items.${i}.tax_rate`)} placeholder="Tax" className="h-8 text-xs" />
                     </div>
                     <div className="col-span-2">
                       <Input {...form.register(`line_items.${i}.unit`)} placeholder="Unit" className="h-8 text-xs" />
@@ -349,9 +351,10 @@ export function PurchaseOrderList() {
                   </div>
                 ))}
                 <div className="grid grid-cols-12 gap-2 text-[10px] text-muted-foreground pl-0.5">
-                  <div className="col-span-5">Description</div>
+                  <div className="col-span-4">Description</div>
                   <div className="col-span-2">Qty</div>
                   <div className="col-span-2">Unit Rate</div>
+                  <div className="col-span-2">Tax %</div>
                   <div className="col-span-2">Unit</div>
                 </div>
               </div>

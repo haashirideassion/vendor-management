@@ -35,7 +35,7 @@ export interface CreatePODialogProps {
   onOpenChange:      (o: boolean) => void
   defaultEngagementId?: string
   defaultVendors?:   { id: string; company_name: string }[]
-  defaultLineItems?: { description: string; quantity: number; unit_price: number; tax_rate?: number; unit?: string | null }[]
+  defaultLineItems?: { description: string; quantity: number; unit_price: number | null; tax_rate?: number; unit?: string | null }[]
   currency?:         string
 }
 
@@ -57,7 +57,7 @@ export function CreatePODialog({
       currency,
       notes:       "",
       line_items:  defaultLineItems.length > 0
-        ? defaultLineItems.map((li) => ({ description: li.description, quantity: li.quantity, unit_price: li.unit_price, tax_rate: li.tax_rate ?? 0, unit: li.unit ?? "" }))
+        ? defaultLineItems.map((li) => ({ description: li.description, quantity: li.quantity, unit_price: li.unit_price ?? 0, tax_rate: li.tax_rate ?? 0, unit: li.unit ?? "" }))
         : [{ description: "", quantity: 1, unit_price: 0, tax_rate: 0, unit: "" }],
     },
   })
@@ -72,7 +72,7 @@ export function CreatePODialog({
       currency,
       notes:       "",
       line_items:  defaultLineItems.length > 0
-        ? defaultLineItems.map((li) => ({ description: li.description, quantity: li.quantity, unit_price: li.unit_price, tax_rate: li.tax_rate ?? 0, unit: li.unit ?? "" }))
+        ? defaultLineItems.map((li) => ({ description: li.description, quantity: li.quantity, unit_price: li.unit_price ?? 0, tax_rate: li.tax_rate ?? 0, unit: li.unit ?? "" }))
         : [{ description: "", quantity: 1, unit_price: 0, tax_rate: 0, unit: "" }],
     })
   }, [open])
@@ -97,7 +97,7 @@ export function CreatePODialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) form.reset(); onOpenChange(o) }}>
-      <DialogContent size="2xl">
+      <DialogContent size="4xl">
         <DialogHeader><DialogTitle>Issue Purchase Order</DialogTitle></DialogHeader>
         <DialogBody>
           <form id="create-po-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-2">

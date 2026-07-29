@@ -218,7 +218,7 @@ export interface EngagementLineItem {
   engagement_id: string
   description: string
   quantity: number
-  unit_price: number
+  unit_price: number | null
   unit: string | null
   created_at: string
 }

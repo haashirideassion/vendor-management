@@ -286,7 +286,7 @@ export function EngagementDetail() {
                           <div className="col-span-2 text-right tabular-nums">{li.quantity}</div>
                           <div className="col-span-2 text-right text-muted-foreground">{li.unit ?? "—"}</div>
                           <div className="col-span-3 text-right tabular-nums">
-                            {li.unit_price > 0 ? formatCurrency(li.unit_price, engagement.currency) : "—"}
+                            {li.unit_price && li.unit_price > 0 ? formatCurrency(li.unit_price, engagement.currency) : "—"}
                           </div>
                         </div>
                       ))}

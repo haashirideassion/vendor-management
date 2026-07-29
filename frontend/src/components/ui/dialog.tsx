@@ -48,7 +48,7 @@ function DialogOverlay({
   )
 }
 
-type DialogSize = "sm" | "md" | "lg" | "xl" | "2xl" | "full"
+type DialogSize = "sm" | "md" | "lg" | "xl" | "2xl" | "4xl" | "full"
 
 const dialogSizeClasses: Record<DialogSize, string> = {
   sm:    "sm:max-w-sm",
@@ -56,6 +56,7 @@ const dialogSizeClasses: Record<DialogSize, string> = {
   lg:    "sm:max-w-lg",
   xl:    "sm:max-w-xl",
   "2xl": "sm:max-w-2xl",
+  "4xl": "sm:max-w-4xl",
   full:  "sm:max-w-[95vw]",
 }
 

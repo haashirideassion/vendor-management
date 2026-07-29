@@ -31,6 +31,7 @@ import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
 import type { VendorStatus, InvoiceStatus, EngagementStatus } from "@/lib/types"
 
 const VENDOR_CHART_COLORS: Record<VendorStatus, string> = {
+  invited: "#94a3b8",
   active: "#16a34a",
   pending_review: "#ca8a04",
   action_required: "#ea580c",

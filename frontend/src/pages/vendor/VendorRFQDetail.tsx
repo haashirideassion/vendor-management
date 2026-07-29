@@ -261,7 +261,9 @@ export function VendorRFQDetail() {
                     <span className="col-span-5">{li.description}</span>
                     <span className="col-span-2 text-right tabular-nums">{li.quantity}</span>
                     <span className="col-span-2 text-muted-foreground">{li.unit ?? "—"}</span>
-                    <span className="col-span-3 text-right tabular-nums">{formatCurrency(li.unit_price, rfq.engagement?.currency ?? "INR")}</span>
+                    <span className="col-span-3 text-right tabular-nums">
+                      {li.unit_price != null ? formatCurrency(li.unit_price, rfq.engagement?.currency ?? "INR") : "—"}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -294,7 +296,10 @@ export function VendorRFQDetail() {
                 <div className="space-y-1 pt-1">
                   {quotation.line_items.map((li) => (
                     <div key={li.id} className="flex justify-between text-xs text-muted-foreground border-b pb-1">
-                      <span>{li.description} × {li.quantity}</span>
+                      <span>
+                        {li.description} × {li.quantity} @ {formatCurrency(li.unit_price, rfq.engagement?.currency ?? "INR")}
+                        {li.tax_rate ? ` + ${li.tax_rate}% tax` : ""}
+                      </span>
                       <span className="tabular-nums">{formatCurrency(li.total, rfq.engagement?.currency ?? "INR")}</span>
                     </div>
                   ))}
@@ -338,7 +343,7 @@ export function VendorRFQDetail() {
       </div>
 
       <Dialog open={showQuotationDialog} onOpenChange={(o) => { if (!o) form.reset(); setShowQuotationDialog(o) }}>
-        <DialogContent size="2xl">
+        <DialogContent size="4xl">
           <DialogHeader><DialogTitle>Provide Quotation</DialogTitle></DialogHeader>
           <DialogBody>
             <form id="quotation-form" className="space-y-4 pt-2">
@@ -365,24 +370,24 @@ export function VendorRFQDetail() {
                   </Button>
                 </div>
                 <div className="space-y-2">
-                  <div className="grid grid-cols-12 gap-2 text-xs text-muted-foreground font-medium px-1">
-                    <span className="col-span-3">Description</span>
-                    <span className="col-span-1">Qty</span>
-                    <span className="col-span-2">Rate</span>
-                    <span className="col-span-2">Tax %</span>
-                    <span className="col-span-1">Unit</span>
-                    <span className="col-span-2">Remarks</span>
-                    <span className="col-span-1" />
+                  <div className="grid grid-cols-[repeat(24,minmax(0,1fr))] gap-2 text-xs text-muted-foreground font-medium px-1">
+                    <span className="col-span-6">Description</span>
+                    <span className="col-span-3">Qty</span>
+                    <span className="col-span-3">Rate</span>
+                    <span className="col-span-3">Tax %</span>
+                    <span className="col-span-3">Unit</span>
+                    <span className="col-span-4">Remarks</span>
+                    <span className="col-span-2" />
                   </div>
                   {fields.map((field, i) => (
-                    <div key={field.id} className="grid grid-cols-12 gap-2 items-start">
-                      <div className="col-span-3">
+                    <div key={field.id} className="grid grid-cols-[repeat(24,minmax(0,1fr))] gap-2 items-start">
+                      <div className="col-span-6">
                         <Input {...form.register(`line_items.${i}.description`)} placeholder="Item" className="h-8 text-xs" />
                       </div>
-                      <div className="col-span-1">
+                      <div className="col-span-3">
                         <Input type="number" min={0.01} step="any" {...form.register(`line_items.${i}.quantity`)} placeholder="1" className="h-8 text-xs" />
                       </div>
-                      <div className="col-span-2">
+                      <div className="col-span-3">
                         <Input
                           type="number" min={0} step="any"
                           {...form.register(`line_items.${i}.unit_price`, {
@@ -391,22 +396,22 @@ export function VendorRFQDetail() {
                           placeholder="0" className="h-8 text-xs"
                         />
                       </div>
-                      <div className="col-span-2">
+                      <div className="col-span-3">
                         <Input type="number" min={0} max={100} step="any" {...form.register(`line_items.${i}.tax_rate`)} placeholder="0" className="h-8 text-xs" />
                       </div>
-                      <div className="col-span-1 flex items-center h-8">
+                      <div className="col-span-3 flex items-center h-8">
                         {/* Read-only -- unit is set by the organisation on the engagement's line item, not editable by the vendor. */}
                         <span className="text-xs text-muted-foreground truncate">
                           {rfq?.engagement?.line_items?.[i]?.unit ?? "—"}
                         </span>
                       </div>
-                      <div className="col-span-2">
+                      <div className="col-span-4">
                         <Input {...form.register(`line_items.${i}.remarks`)} placeholder="Optional" className={`h-8 text-xs ${form.formState.errors.line_items?.[i]?.remarks ? "border-destructive" : ""}`} />
                         {form.formState.errors.line_items?.[i]?.remarks && (
                           <p className="text-[10px] text-destructive mt-0.5">{form.formState.errors.line_items[i]!.remarks!.message}</p>
                         )}
                       </div>
-                      <div className="col-span-1 flex justify-center pt-1">
+                      <div className="col-span-2 flex justify-center pt-1">
                         <button type="button" onClick={() => remove(i)} className="text-muted-foreground hover:text-destructive">
                           <SolarDuotoneIcon icon={Delete01Icon} size={14} strokeWidth={1.5} />
                         </button>

@@ -26,7 +26,6 @@ import {
   CONTRACT_STATUS_COLORS,
   CONTRACT_TYPES,
   CONTRACT_STATUSES,
-  CURRENCIES,
 } from "@/lib/constants"
 import { formatCurrency } from "@/lib/utils"
 import type { ContractType, ContractStatus } from "@/lib/types"
@@ -321,12 +320,7 @@ export function ContractList() {
                 </div>
                 <div className="space-y-1.5">
                   <Label>Currency</Label>
-                  <Select defaultValue="INR" onValueChange={(v) => form.setValue("currency", v)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {CURRENCIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <Input value="INR" readOnly className="bg-muted/40" />
                 </div>
               </div>
 
