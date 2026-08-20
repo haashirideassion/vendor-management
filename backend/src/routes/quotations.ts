@@ -1,7 +1,6 @@
 import { Router, Request, Response } from "express"
 import { getSupabaseAdmin } from "../utils/supabaseAdmin"
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth"
-import { getDefaultOrgId } from "../utils/org"
 import { attachTaxComponents, insertTaxComponents, sumTaxComponents, TaxComponentInput } from "../services/taxComponents.service"
 
 const router = Router()
@@ -217,7 +216,18 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
       return res.status(400).json({ error: validationErr.message })
     }
 
-    const orgId = await getDefaultOrgId()
+    // Leftover from this app's pre-multi-org days: this used to call
+    // getDefaultOrgId() (the platform's oldest org, a real single-tenant
+    // assumption) regardless of which org the RFQ actually belonged to --
+    // confirmed live that every quotation was silently misfiled under
+    // whichever org happened to be created first, breaking anything scoped
+    // by quotations.org_id (e.g. /update-status's hasOrgPermission check,
+    // and notifyOrgOfSubmittedQuotation's own pr?.org_id-preferring
+    // workaround above) for every org except that one. The RFQ's own org_id
+    // is the correct source of truth, same as every other entity type here.
+    const { data: rfq, error: rfqOrgError } = await db().from("rfqs").select("org_id").eq("id", rfq_id).single()
+    if (rfqOrgError) throw rfqOrgError
+    const orgId = rfq.org_id
 
     // Only one row per RFQ has is_current=true (migration 070's partial
     // unique index) -- that's the row this "save draft" / "revise" action
