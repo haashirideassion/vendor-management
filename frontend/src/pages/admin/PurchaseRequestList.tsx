@@ -4,7 +4,7 @@ import { useForm, Controller, useFieldArray } from "react-hook-form"
 import type { Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { useEngagements, useCreateEngagement } from "@/hooks/useEngagements"
+import { usePurchaseRequests, useCreatePurchaseRequest } from "@/hooks/usePurchaseRequests"
 import { useCategories } from "@/hooks/useCategories"
 import { useVendorsByCategories } from "@/hooks/useVendors"
 import { usePermissions } from "@/hooks/usePermissions"
@@ -23,18 +23,20 @@ import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
-  ENGAGEMENT_STATUS_LABELS,
-  ENGAGEMENT_STATUS_COLORS,
+  PURCHASE_REQUEST_STATUS_LABELS,
+  PURCHASE_REQUEST_STATUS_COLORS,
+  CURRENCIES,
 } from "@/lib/constants"
 import { formatCurrency } from "@/lib/utils"
-import type { EngagementStatus } from "@/lib/types"
+import type { PurchaseRequestStatus } from "@/lib/types"
 import { format } from "date-fns"
 import { Search01Icon, Cancel01Icon, Add01Icon, EyeIcon, Delete01Icon } from "@/components/shared/SolarIcon"
 import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
 import { FileUploadZone } from "@/components/shared/FileUploadZone"
 import { useUploadAttachments } from "@/hooks/useAttachments"
+import { toast } from "sonner"
 
-const STATUSES: EngagementStatus[] = [
+const STATUSES: PurchaseRequestStatus[] = [
   "draft", "pending_approval", "approved", "in_review", "quotations_received", "rejected", "cancelled", "completed",
 ]
 
@@ -54,15 +56,16 @@ const createSchema = z.object({
   currency:        z.string().default("INR"),
   start_date:      z.string().optional(),
   end_date:        z.string().optional(),
+  response_deadline: z.string().min(1, "Quotation response deadline is required"),
   notes:           z.string().optional(),
   line_items:      z.array(lineItemSchema).optional().default([]),
 })
 type CreateForm = z.infer<typeof createSchema>
 
-function StatusChip({ status }: { status: EngagementStatus }) {
+function StatusChip({ status }: { status: PurchaseRequestStatus }) {
   return (
-    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border ${ENGAGEMENT_STATUS_COLORS[status]}`}>
-      {ENGAGEMENT_STATUS_LABELS[status]}
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border ${PURCHASE_REQUEST_STATUS_COLORS[status]}`}>
+      {PURCHASE_REQUEST_STATUS_LABELS[status]}
     </span>
   )
 }
@@ -104,7 +107,11 @@ function MultiSelect({
           }
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[320px] p-0" align="start">
+      <PopoverContent
+        className="w-[320px] p-0"
+        align="start"
+        onWheel={(e) => e.stopPropagation()}
+      >
         <Command>
           <CommandInput placeholder={searchPlaceholder ?? "Search…"} />
           <CommandList className="max-h-56 overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: "var(--border) transparent" }}>
@@ -126,16 +133,16 @@ function MultiSelect({
   )
 }
 
-export function EngagementList() {
+export function PurchaseRequestList() {
   const [search, setSearch]   = useState("")
-  const [status, setStatus]   = useState<EngagementStatus | "">("")
+  const [status, setStatus]   = useState<PurchaseRequestStatus | "">("")
   const [creating,       setCreating]       = useState(false)
   const [stagedFiles,    setStagedFiles]    = useState<File[]>([])
 
-  const { canCreateEngagement } = usePermissions()
-  const { data: engagements = [], isLoading } = useEngagements({ status: status || undefined, search })
+  const { canCreatePurchaseRequest } = usePermissions()
+  const { data: purchaseRequests = [], isLoading } = usePurchaseRequests({ status: status || undefined, search })
   const { data: categories = [] }  = useCategories(true)
-  const createEngagement   = useCreateEngagement()
+  const createPurchaseRequest = useCreatePurchaseRequest()
   const uploadAttachments  = useUploadAttachments()
 
   const form = useForm<CreateForm>({
@@ -164,7 +171,7 @@ export function EngagementList() {
 
   const hasFilters = search || status
 
-  const { page, setPage, totalPages, totalItems, paginated, reset } = usePagination(engagements, 10)
+  const { page, setPage, totalPages, totalItems, paginated, reset } = usePagination(purchaseRequests, 10)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const resetPage = useCallback(() => reset(), [])
   useEffect(() => { resetPage() }, [search, status, resetPage])
@@ -181,6 +188,7 @@ export function EngagementList() {
       currency:        "INR",
       start_date:      "",
       end_date:        "",
+      response_deadline: "",
       notes:           "",
       line_items:      [],
     })
@@ -188,9 +196,25 @@ export function EngagementList() {
   }
 
   async function onSubmit(data: CreateForm) {
-    let engagementId: string
+    // Client-side backstop for the same rule the backend enforces (a
+    // purchase request's category_ids[0] is the only one actually
+    // persisted, and it alone decides the resulting PO's fulfillment_type --
+    // mixing goods and service categories here would silently drop one
+    // side's confirmation flow). Caught here so the picker gives immediate,
+    // specific feedback instead of a generic "failed to create" toast.
+    const pickedTypes = new Set(
+      data.category_ids
+        .map((id) => categories.find((c) => c.id === id)?.fulfillment_type)
+        .filter(Boolean)
+    )
+    if (pickedTypes.size > 1) {
+      toast.error("Selected categories mix goods and services — please split this into separate purchase requests.")
+      return
+    }
+
+    let purchaseRequestId: string
     try {
-      const engagement = await createEngagement.mutateAsync({
+      const purchaseRequest = await createPurchaseRequest.mutateAsync({
         title:           data.title,
         description:     data.description ?? null,
         category_ids:    data.category_ids,
@@ -199,6 +223,7 @@ export function EngagementList() {
         currency:        data.currency,
         start_date:      data.start_date || null,
         end_date:        data.end_date || null,
+        response_deadline: data.response_deadline,
         notes:           data.notes ?? null,
         line_items:      (data.line_items ?? []).map((li) => ({
           description: li.description,
@@ -207,13 +232,13 @@ export function EngagementList() {
           unit:        li.unit ?? null,
         })),
       })
-      engagementId = engagement.id
+      purchaseRequestId = purchaseRequest.id
     } catch {
       return
     }
     if (stagedFiles.length > 0) {
       try {
-        await uploadAttachments.mutateAsync({ entityType: "engagement", entityId: engagementId, files: stagedFiles })
+        await uploadAttachments.mutateAsync({ entityType: "purchase_request", entityId: purchaseRequestId, files: stagedFiles })
       } catch { /* hook toasts its own error */ }
     }
     closeDialog()
@@ -228,11 +253,11 @@ export function EngagementList() {
             <SolarDuotoneIcon icon={Search01Icon} size={15} strokeWidth={1.5} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
             <Input placeholder="Search by title…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 h-9 text-sm" />
           </div>
-          <Select value={status || "all"} onValueChange={(v) => setStatus(v === "all" ? "" : v as EngagementStatus)}>
+          <Select value={status || "all"} onValueChange={(v) => setStatus(v === "all" ? "" : v as PurchaseRequestStatus)}>
             <SelectTrigger className="w-44 h-9 text-sm"><SelectValue placeholder="All statuses" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All statuses</SelectItem>
-              {STATUSES.map((s) => <SelectItem key={s} value={s}>{ENGAGEMENT_STATUS_LABELS[s]}</SelectItem>)}
+              {STATUSES.map((s) => <SelectItem key={s} value={s}>{PURCHASE_REQUEST_STATUS_LABELS[s]}</SelectItem>)}
             </SelectContent>
           </Select>
           {hasFilters && (
@@ -241,10 +266,10 @@ export function EngagementList() {
               Clear
             </Button>
           )}
-          {canCreateEngagement && (
+          {canCreatePurchaseRequest && (
             <Button size="sm" className="h-8 gap-1.5 text-xs ml-auto" onClick={() => setCreating(true)}>
               <SolarDuotoneIcon icon={Add01Icon} size={14} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" />
-              New Engagement
+              New Purchase Request
             </Button>
           )}
         </div>
@@ -272,10 +297,10 @@ export function EngagementList() {
                     </div>
                   </TableCell>
                 </TableRow>
-              ) : engagements.length === 0 ? (
+              ) : purchaseRequests.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-12">
-                    <p className="text-sm font-medium text-muted-foreground">No engagements found</p>
+                    <p className="text-sm font-medium text-muted-foreground">No purchase requests found</p>
                     {hasFilters && <p className="text-xs text-muted-foreground/70 mt-1">Try adjusting your filters</p>}
                   </TableCell>
                 </TableRow>
@@ -288,7 +313,7 @@ export function EngagementList() {
                     </TableCell>
                     <TableCell>
                       <p className="text-sm">
-                        {(e.engagement_vendors ?? []).map(ev => ev.vendor?.company_name).filter(Boolean).join(", ")
+                        {(e.purchase_request_vendors ?? []).map(prv => prv.vendor?.company_name).filter(Boolean).join(", ")
                           || e.vendor?.company_name || "—"}
                       </p>
                     </TableCell>
@@ -305,7 +330,7 @@ export function EngagementList() {
                     </TableCell>
                     <TableCell>
                       <Button asChild size="sm" variant="ghost" className="h-8 px-2 gap-1.5 text-xs">
-                        <Link to={`/admin/engagements/${e.id}`}>
+                        <Link to={`/admin/purchase-requests/${e.id}`}>
                           <SolarDuotoneIcon icon={EyeIcon} size={14} strokeWidth={1.5} />
                           View
                         </Link>
@@ -323,7 +348,7 @@ export function EngagementList() {
           totalPages={totalPages}
           totalItems={totalItems}
           onPageChange={setPage}
-          itemLabel="engagement"
+          itemLabel="purchase request"
         />
       </div>
 
@@ -331,10 +356,10 @@ export function EngagementList() {
       <Dialog open={creating} onOpenChange={(open) => { if (!open) closeDialog() }}>
         <DialogContent size="4xl">
           <DialogHeader>
-            <DialogTitle>New Engagement</DialogTitle>
+            <DialogTitle>New Purchase Request</DialogTitle>
           </DialogHeader>
           <DialogBody>
-            <form id="create-engagement" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-2">
+            <form id="create-purchase-request" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-2">
               <div className="space-y-1.5">
                 <Label>Title <span className="text-destructive">*</span></Label>
                 <Input {...form.register("title")} placeholder="Website redesign, IT support Q3…" />
@@ -405,7 +430,12 @@ export function EngagementList() {
                 </div>
                 <div className="space-y-1.5">
                   <Label>Currency</Label>
-                  <Input value="INR" readOnly className="bg-muted/40" />
+                  <Select value={form.watch("currency")} onValueChange={(v) => form.setValue("currency", v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {CURRENCIES.map((c) => <SelectItem key={c.code} value={c.code}>{c.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -417,6 +447,13 @@ export function EngagementList() {
                   <Label>End Date</Label>
                   <Input type="date" {...form.register("end_date")} />
                 </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Quotation Response Deadline <span className="text-destructive">*</span></Label>
+                <Input type="datetime-local" {...form.register("response_deadline")} />
+                {form.formState.errors.response_deadline && (
+                  <p className="text-xs text-destructive">{form.formState.errors.response_deadline.message}</p>
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label>Notes</Label>
@@ -514,7 +551,7 @@ export function EngagementList() {
                 <FileUploadZone
                   files={stagedFiles}
                   onChange={setStagedFiles}
-                  disabled={createEngagement.isPending || uploadAttachments.isPending}
+                  disabled={createPurchaseRequest.isPending || uploadAttachments.isPending}
                 />
               </div>
             </form>
@@ -525,14 +562,14 @@ export function EngagementList() {
             </Button>
             <Button
               type="submit"
-              form="create-engagement"
-              disabled={createEngagement.isPending || uploadAttachments.isPending}
+              form="create-purchase-request"
+              disabled={createPurchaseRequest.isPending || uploadAttachments.isPending}
             >
-              {createEngagement.isPending
+              {createPurchaseRequest.isPending
                 ? "Creating…"
                 : uploadAttachments.isPending
                 ? "Uploading…"
-                : "Create Engagement"}
+                : "Create Purchase Request"}
             </Button>
           </DialogFooter>
         </DialogContent>

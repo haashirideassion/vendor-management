@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react"
 import { Link } from "react-router-dom"
-import { useInvoices, useReviewInvoice, useRunThreeWayMatch, useMarkInvoicePaid } from "@/hooks/useInvoices"
+import { useInvoices, useReviewInvoice, useRunThreeWayMatch } from "@/hooks/useInvoices"
+import { RecordPaymentDialog } from "@/components/shared/RecordPaymentDialog"
 import { usePermissions } from "@/hooks/usePermissions"
 import { usePagination } from "@/hooks/usePagination"
 import { AnimatedPage } from "@/components/shared/AnimatedPage"
@@ -21,36 +22,40 @@ import { CheckmarkCircle01Icon, Cancel01Icon, EyeIcon } from "@/components/share
 import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
 import { toast } from "sonner"
 
-const STATUSES: InvoiceStatus[] = ["submitted", "under_review", "matched", "approved", "rejected", "paid"]
+const STATUSES: InvoiceStatus[] = ["submitted", "under_review", "matched", "approved", "partially_paid", "rejected", "paid"]
+
+// "Exception" isn't a real invoice status -- it filters onto the
+// invoice_exceptions queue (migration 073) instead, folded into this same
+// dropdown rather than a separate page since every exception only exists in
+// relation to an invoice anyway.
+const EXCEPTION_FILTER = "exception" as const
+type StatusFilter = InvoiceStatus | typeof EXCEPTION_FILTER | ""
 
 type ReviewDialog = { invoice: Invoice; action: "approve" | "reject" } | null
 
 export function InvoiceList() {
-  const [status, setStatus] = useState<InvoiceStatus | "">("")
+  const [status, setStatus] = useState<StatusFilter>("")
   const [reviewDialog, setReviewDialog] = useState<ReviewDialog>(null)
   const [notes, setNotes] = useState("")
 
   const { canApproveInvoice } = usePermissions()
-  const { data: invoices = [], isLoading } = useInvoices({ status: status || undefined })
+  const { data: invoices = [], isLoading } = useInvoices(
+    status === EXCEPTION_FILTER
+      ? { has_open_exception: true }
+      : { status: status || undefined }
+  )
   const { page, setPage, totalPages, totalItems, paginated, reset } = usePagination(invoices, 10)
 
   useEffect(() => { reset() }, [status])
 
   const reviewInvoice = useReviewInvoice()
   const runMatch = useRunThreeWayMatch()
-  const markPaid = useMarkInvoicePaid()
+  const [payingInvoice, setPayingInvoice] = useState<Invoice | null>(null)
 
   function handleRunMatch(invoiceId: string) {
     runMatch.mutate({ invoiceId }, {
       onSuccess: () => toast.success("3-way match completed."),
       onError: () => toast.error("Match failed. Please try again."),
-    })
-  }
-
-  function handleMarkPaid(id: string) {
-    markPaid.mutate({ id }, {
-      onSuccess: () => toast.success("Invoice marked as paid."),
-      onError: () => toast.error("Failed to mark as paid. Please try again."),
     })
   }
 
@@ -71,11 +76,12 @@ export function InvoiceList() {
       <div className="flex-1 flex flex-col min-h-0 pt-4 gap-4">
         {/* Filters */}
         <div className="shrink-0 flex flex-wrap items-center gap-3 p-4 rounded-xl border bg-card">
-          <Select value={status || "all"} onValueChange={(v) => setStatus(v === "all" ? "" : v as InvoiceStatus)}>
+          <Select value={status || "all"} onValueChange={(v) => setStatus(v === "all" ? "" : v as StatusFilter)}>
             <SelectTrigger className="w-44 h-9 text-sm"><SelectValue placeholder="All statuses" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All statuses</SelectItem>
               {STATUSES.map((s) => <SelectItem key={s} value={s}>{INVOICE_STATUS_LABELS[s]}</SelectItem>)}
+              <SelectItem value={EXCEPTION_FILTER}>Match Exception</SelectItem>
             </SelectContent>
           </Select>
           {status && (
@@ -187,14 +193,13 @@ export function InvoiceList() {
                             </Button>
                           </>
                         )}
-                        {inv.status === "approved" && canApproveInvoice && (
+                        {["approved", "partially_paid"].includes(inv.status) && canApproveInvoice && (
                           <Button
                             size="sm" variant="outline"
                             className="h-7 text-xs"
-                            onClick={() => handleMarkPaid(inv.id)}
-                            disabled={markPaid.isPending}
+                            onClick={() => setPayingInvoice(inv)}
                           >
-                            Mark Paid
+                            Record Payment
                           </Button>
                         )}
                         <Button asChild size="sm" variant="ghost" className="h-7 px-2 gap-1.5 text-xs text-muted-foreground">
@@ -261,6 +266,14 @@ export function InvoiceList() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {payingInvoice && (
+        <RecordPaymentDialog
+          open={!!payingInvoice}
+          onOpenChange={(o) => !o && setPayingInvoice(null)}
+          invoice={payingInvoice}
+        />
+      )}
     </AnimatedPage>
   )
 }

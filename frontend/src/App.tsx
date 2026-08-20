@@ -45,15 +45,17 @@ import { CategoryManagement } from "@/pages/admin/CategoryManagement"
 import { Reports } from "@/pages/admin/Reports"
 
 // Procurement pages
-import { EngagementList } from "@/pages/admin/EngagementList"
-import { EngagementDetail } from "@/pages/admin/EngagementDetail"
+import { PurchaseRequestList } from "@/pages/admin/PurchaseRequestList"
+import { PurchaseRequestDetail } from "@/pages/admin/PurchaseRequestDetail"
 import { PurchaseOrderList } from "@/pages/admin/PurchaseOrderList"
 import { PurchaseOrderDetail } from "@/pages/admin/PurchaseOrderDetail"
 import { GRNList } from "@/pages/admin/GRNList"
 import { GRNDetail } from "@/pages/admin/GRNDetail"
+import { ServiceConfirmationDetail } from "@/pages/admin/ServiceConfirmationDetail"
 import { InvoiceList } from "@/pages/admin/InvoiceList"
 import { InvoiceDetail } from "@/pages/admin/InvoiceDetail"
 import { VendorInvoices } from "@/pages/vendor/VendorInvoices"
+import { VendorPurchaseOrders } from "@/pages/vendor/VendorPurchaseOrders"
 import { ContractList } from "@/pages/admin/ContractList"
 import { ContractDetail } from "@/pages/admin/ContractDetail"
 
@@ -64,6 +66,7 @@ import { GroupDetailPage } from "@/pages/superadmin/GroupDetailPage"
 import { SuperadminUsers } from "@/pages/superadmin/SuperadminUsers"
 import { UserDetailPage } from "@/pages/superadmin/UserDetailPage"
 import { SuperadminVendorVerification } from "@/pages/superadmin/SuperadminVendorVerification"
+import { SuperadminFeatureEntitlements } from "@/pages/superadmin/SuperadminFeatureEntitlements"
 import { VendorVerificationDetailPage } from "@/pages/superadmin/VendorVerificationDetailPage"
 import { SuperadminAuditLog } from "@/pages/superadmin/SuperadminAuditLog"
 import { SuperadminBreakGlass } from "@/pages/superadmin/SuperadminBreakGlass"
@@ -71,10 +74,12 @@ import { SuperadminBreakGlass } from "@/pages/superadmin/SuperadminBreakGlass"
 // Groups + Team
 import { GroupOverview } from "@/pages/admin/GroupOverview"
 import { OrgTeam } from "@/pages/admin/OrgTeam"
+import { OrgMemberDetail } from "@/pages/admin/OrgMemberDetail"
 import { Profile } from "@/pages/admin/Profile"
 
 // Vendor team
 import { VendorTeam } from "@/pages/vendor/VendorTeam"
+import { VendorUserDetail } from "@/pages/vendor/VendorUserDetail"
 
 export default function App() {
   // Capture a `?invite=TOKEN` param (from a vendor invite link, see
@@ -163,9 +168,24 @@ export default function App() {
                     <InvoiceDetail />
                   </VendorStatusGuard>
                 } />
+                <Route path="purchase-orders" element={
+                  <VendorStatusGuard allowedStages={["APPROVED"]}>
+                    <VendorPurchaseOrders />
+                  </VendorStatusGuard>
+                } />
+                <Route path="purchase-orders/:id" element={
+                  <VendorStatusGuard allowedStages={["APPROVED"]}>
+                    <PurchaseOrderDetail />
+                  </VendorStatusGuard>
+                } />
                 <Route path="team" element={
                   <VendorStatusGuard allowedStages={["APPROVED"]}>
                     <VendorTeam />
+                  </VendorStatusGuard>
+                } />
+                <Route path="team/:userId" element={
+                  <VendorStatusGuard allowedStages={["APPROVED"]}>
+                    <VendorUserDetail />
                   </VendorStatusGuard>
                 } />
               </Route>
@@ -178,17 +198,19 @@ export default function App() {
                 <Route path="vendors/:id" element={<VendorDetail />} />
                 <Route path="categories" element={<CategoryManagement />} />
                 <Route path="reports"    element={<Reports />} />
-                <Route path="engagements"    element={<EngagementList />} />
-                <Route path="engagements/:id" element={<EngagementDetail />} />
+                <Route path="purchase-requests"    element={<PurchaseRequestList />} />
+                <Route path="purchase-requests/:id" element={<PurchaseRequestDetail />} />
                 <Route path="purchase-orders"    element={<PurchaseOrderList />} />
                 <Route path="purchase-orders/:id" element={<PurchaseOrderDetail />} />
                 <Route path="grns"        element={<GRNList />} />
                 <Route path="grns/:id"    element={<GRNDetail />} />
+                <Route path="service-confirmations/:id" element={<ServiceConfirmationDetail />} />
                 <Route path="invoices"    element={<InvoiceList />} />
                 <Route path="invoices/:id" element={<InvoiceDetail />} />
                 <Route path="contracts"      element={<ContractList />} />
                 <Route path="contracts/:id"  element={<ContractDetail />} />
                 <Route path="team"          element={<OrgTeam />} />
+                <Route path="team/:memberId" element={<OrgMemberDetail />} />
                 <Route path="profile"       element={<Profile />} />
                 <Route path="org-onboarding" element={<OrgOnboardingPage />} />
                 <Route path="groups/:groupId" element={<GroupOverview />} />
@@ -204,6 +226,7 @@ export default function App() {
                 <Route path="users" element={<SuperadminUsers />} />
                 <Route path="users/:userId" element={<UserDetailPage />} />
                 <Route path="vendor-verification" element={<SuperadminVendorVerification />} />
+                <Route path="feature-entitlements" element={<SuperadminFeatureEntitlements />} />
                 <Route path="vendor-verification/:vendorId" element={<VendorVerificationDetailPage />} />
                 <Route path="audit-log" element={<SuperadminAuditLog />} />
                 <Route path="break-glass" element={<SuperadminBreakGlass />} />

@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom"
 import { useVendor } from "@/hooks/useVendor"
 import { useContracts } from "@/hooks/useContracts"
-import { useEngagements } from "@/hooks/useEngagements"
+import { usePurchaseRequests } from "@/hooks/usePurchaseRequests"
 import { useInvoices } from "@/hooks/useInvoices"
 import { useMyVendorAssignmentStatus } from "@/hooks/useVendorUsers"
 import { AnimatedPage } from "@/components/shared/AnimatedPage"
@@ -28,7 +28,7 @@ export function VendorDashboard() {
   const { data: contracts = [], isLoading: contractsLoading, isFetching: contractsFetching, refetch: refetchContracts } = useContracts(
     vendor?.id ? { vendor_id: vendor.id } : undefined
   )
-  const { data: engagements = [], isLoading: engagementsLoading } = useEngagements()
+  const { data: purchaseRequests = [], isLoading: purchaseRequestsLoading } = usePurchaseRequests()
   const { data: invoices = [], isLoading: invoicesLoading } = useInvoices(
     vendor?.id ? { vendor_id: vendor.id } : undefined
   )
@@ -111,18 +111,18 @@ export function VendorDashboard() {
   const underReviewInvoices = invoices.filter((i) => i.status === "under_review")
   const submittedInvoices = invoices.filter((i) => i.status === "submitted")
 
-  // Engagements summary
-  const activeEngagements = engagements.filter((e) => e.status === "approved")
-  const pendingEngagements = engagements.filter((e) => e.status === "pending_approval")
-  const closedEngagements = engagements.filter((e) => e.status === "completed" || e.status === "cancelled")
-  const recentEngagement = engagements[0] ?? null
+  // Purchase Requests summary
+  const activePurchaseRequests = purchaseRequests.filter((e) => e.status === "approved")
+  const pendingPurchaseRequests = purchaseRequests.filter((e) => e.status === "pending_approval")
+  const closedPurchaseRequests = purchaseRequests.filter((e) => e.status === "completed" || e.status === "cancelled")
+  const recentPurchaseRequest = purchaseRequests[0] ?? null
 
   return (
     <AnimatedPage>
       <div className="p-6 space-y-6">
         {/* Restricted-Associate note. Informational only for now -- the
-            engagements/contracts/invoices queries below aren't yet filtered
-            by assigned client org, only the vendor as a whole. */}
+            purchase requests/contracts/invoices queries below aren't yet
+            filtered by assigned client org, only the vendor as a whole. */}
         {assignmentStatus?.isRestricted && (
           <div className="rounded-lg border bg-muted/50 px-4 py-2 text-xs text-muted-foreground">
             Showing your assigned clients only.
@@ -130,8 +130,9 @@ export function VendorDashboard() {
         )}
 
         {/* Compliance verification status — a client org can list this vendor
-            as active, but it stays ineligible for NEW engagements platform-wide
-            until superadmin verifies it (separate from the org-level status above). */}
+            as active, but it stays ineligible for NEW purchase requests
+            platform-wide until superadmin verifies it (separate from the
+            org-level status above). */}
         {vendor.verification_status !== "verified" && (
           <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50/60 dark:bg-amber-950/20 dark:border-amber-800 px-4 py-3">
             <div className="flex items-center gap-3">
@@ -139,7 +140,7 @@ export function VendorDashboard() {
               <p className="text-sm text-orange-900 dark:text-orange-300">
                 {vendor.verification_status === "rejected"
                   ? "Your compliance verification was rejected. Please contact your client organization for details."
-                  : "Your compliance verification is pending. You won't be eligible for new engagements until it's verified."}
+                  : "Your compliance verification is pending. You won't be eligible for new purchase requests until it's verified."}
               </p>
             </div>
             <VerificationStatusBadge status={vendor.verification_status} className="shrink-0" />
@@ -251,7 +252,7 @@ export function VendorDashboard() {
           </Card>
         </div>
 
-        {/* Summary cards — Contracts + Engagements */}
+        {/* Summary cards — Contracts + Purchase Requests */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {/* Contracts Summary */}
           <Card>
@@ -300,16 +301,16 @@ export function VendorDashboard() {
             </CardContent>
           </Card>
 
-          {/* Engagement Summary */}
+          {/* Purchase Request Summary */}
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
                 <SolarDuotoneIcon icon={Activity01Icon} size={16} strokeWidth={1.5} className="text-primary" />
-                <CardTitle className="text-base">Engagements</CardTitle>
+                <CardTitle className="text-base">Purchase Requests</CardTitle>
               </div>
             </CardHeader>
             <CardContent>
-              {engagementsLoading ? (
+              {purchaseRequestsLoading ? (
                 <div className="space-y-2">
                   {[1, 2, 3, 4].map((i) => (
                     <div key={i} className="h-5 rounded bg-muted animate-pulse" />
@@ -319,20 +320,20 @@ export function VendorDashboard() {
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Active</span>
-                    <span className="font-semibold">{activeEngagements.length}</span>
+                    <span className="font-semibold">{activePurchaseRequests.length}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Pending</span>
-                    <span className="font-semibold">{pendingEngagements.length}</span>
+                    <span className="font-semibold">{pendingPurchaseRequests.length}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Closed</span>
-                    <span className="font-semibold">{closedEngagements.length}</span>
+                    <span className="font-semibold">{closedPurchaseRequests.length}</span>
                   </div>
-                  {recentEngagement && (
+                  {recentPurchaseRequest && (
                     <div className="pt-1 border-t border-border/50 mt-1">
                       <p className="text-xs text-muted-foreground">Latest activity</p>
-                      <p className="text-xs font-medium truncate mt-0.5">{recentEngagement.title}</p>
+                      <p className="text-xs font-medium truncate mt-0.5">{recentPurchaseRequest.title}</p>
                     </div>
                   )}
                 </div>

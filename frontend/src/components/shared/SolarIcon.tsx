@@ -39,6 +39,7 @@ import {
   RefreshCircleBoldDuotone,
   SettingsBoldDuotone,
   ShieldUserBoldDuotone,
+  StarBoldDuotone,
   Sun2BoldDuotone,
   TagBoldDuotone,
   TrashBinTrashBoldDuotone,
@@ -73,7 +74,7 @@ export const solarIcons = {
   sidebarCollapse: DoubleAltArrowLeftBoldDuotone,
   sidebarExpand: DoubleAltArrowRightBoldDuotone,
   edit: PenBoldDuotone,
-  engagements: CaseRoundBoldDuotone,
+  purchaseRequests: CaseRoundBoldDuotone,
   info: InfoCircleBoldDuotone,
   invoices: BillListBoldDuotone,
   link: LinkCircleBoldDuotone,
@@ -87,6 +88,7 @@ export const solarIcons = {
   search: MagniferBoldDuotone,
   settings: SettingsBoldDuotone,
   statusPending: ClockCircleBoldDuotone,
+  star: StarBoldDuotone,
   sun: Sun2BoldDuotone,
   tag: TagBoldDuotone,
   system: MonitorBoldDuotone,
@@ -145,7 +147,7 @@ export const ArrowRight01Icon = iconName("arrowRight")
 export const ArrowUp01Icon = iconName("arrowUp")
 export const BankIcon = iconName("bank")
 export const BarChartIcon = iconName("reports")
-export const Briefcase01Icon = iconName("engagements")
+export const Briefcase01Icon = iconName("purchaseRequests")
 export const Building06Icon = iconName("company")
 export const Cancel01Icon = iconName("close")
 export const ChartBarIncreasingIcon = iconName("analytics")
@@ -177,6 +179,7 @@ export const Search01Icon = iconName("search")
 export const SearchIcon = iconName("search")
 export const Settings01Icon = iconName("settings")
 export const ShieldUserIcon = iconName("admin")
+export const Star01Icon = iconName("star")
 export const Sun01Icon = iconName("sun")
 export const Tag01Icon = iconName("tag")
 export const Tick02Icon = iconName("check")

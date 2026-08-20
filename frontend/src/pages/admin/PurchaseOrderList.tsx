@@ -5,7 +5,7 @@ import type { Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { usePurchaseOrders, useCreatePurchaseOrder } from "@/hooks/usePurchaseOrders"
-import { useEngagements } from "@/hooks/useEngagements"
+import { usePurchaseRequests } from "@/hooks/usePurchaseRequests"
 import { useVendors } from "@/hooks/useVendors"
 import { usePermissions } from "@/hooks/usePermissions"
 import { usePagination } from "@/hooks/usePagination"
@@ -19,9 +19,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Separator } from "@/components/ui/separator"
-import { PO_STATUS_LABELS, PO_STATUS_COLORS } from "@/lib/constants"
+import { PO_STATUS_LABELS, PO_STATUS_COLORS, PO_TYPE_LABELS, PO_TYPE_COLORS, CURRENCIES } from "@/lib/constants"
 import { formatCurrency } from "@/lib/utils"
-import type { POStatus } from "@/lib/types"
+import type { POStatus, POType } from "@/lib/types"
 import { format } from "date-fns"
 import { Cancel01Icon, Add01Icon, EyeIcon, Delete01Icon } from "@/components/shared/SolarIcon"
 import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
@@ -40,7 +40,8 @@ const lineItemSchema = z.object({
 })
 
 const createSchema = z.object({
-  engagement_id:          z.string().optional(),
+  po_type:                z.enum(["standard", "blanket"]).default("standard"),
+  purchase_request_id:    z.string().optional(),
   vendor_id:              z.string().uuid("Select a vendor"),
   total_value:            z.coerce.number().positive("Must be > 0"),
   currency:               z.string().default("INR"),
@@ -48,7 +49,16 @@ const createSchema = z.object({
   delivery_address:       z.string().optional(),
   payment_terms:          z.string().optional(),
   notes:                  z.string().optional(),
-  line_items:             z.array(lineItemSchema).min(1, "Add at least one line item"),
+  valid_from:             z.string().optional(),
+  valid_until:            z.string().optional(),
+  line_items:             z.array(lineItemSchema).optional().default([]),
+}).superRefine((data, ctx) => {
+  // A Blanket PO is a value-only ceiling, not a shopping list -- line items
+  // apply to standard POs (and the Release Orders drawn against a Blanket
+  // PO), not the Blanket PO itself.
+  if (data.po_type === "standard" && data.line_items.length === 0) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Add at least one line item", path: ["line_items"] })
+  }
 })
 type CreateForm = z.infer<typeof createSchema>
 
@@ -60,6 +70,14 @@ function StatusChip({ status }: { status: POStatus }) {
   )
 }
 
+function TypeChip({ type }: { type: POType }) {
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border ${PO_TYPE_COLORS[type]}`}>
+      {PO_TYPE_LABELS[type]}
+    </span>
+  )
+}
+
 export function PurchaseOrderList() {
   const [searchParams]        = useSearchParams()
   const [status, setStatus]   = useState<POStatus | "">("")
@@ -67,9 +85,9 @@ export function PurchaseOrderList() {
   const [stagedFiles, setStagedFiles] = useState<File[]>([])
 
   const { canCreatePO } = usePermissions()
-  const defaultEngagementId = searchParams.get("engagement_id") ?? undefined
+  const defaultPurchaseRequestId = searchParams.get("purchase_request_id") ?? undefined
   const { data: pos = [], isLoading } = usePurchaseOrders({ status: status || undefined })
-  const { data: engagements = [] }    = useEngagements({ status: "approved" })
+  const { data: purchaseRequests = [] } = usePurchaseRequests({ status: "approved" })
   const { data: vendors = [] }        = useVendors({ status: "active" })
   const createPO          = useCreatePurchaseOrder()
   const uploadAttachments = useUploadAttachments()
@@ -80,28 +98,31 @@ export function PurchaseOrderList() {
   const form = useForm<CreateForm>({
     resolver: zodResolver(createSchema) as unknown as Resolver<CreateForm>,
     defaultValues: {
-      engagement_id: defaultEngagementId,
+      po_type: "standard",
+      purchase_request_id: defaultPurchaseRequestId,
       currency: "INR",
       line_items: [{ description: "", quantity: 1, unit_price: 0, tax_rate: 0, unit: "" }],
     },
   })
 
   const { fields, append, remove } = useFieldArray({ control: form.control, name: "line_items" })
+  const watchedPOType = form.watch("po_type")
+  const isBlanket = watchedPOType === "blanket"
 
-  // Auto-fill vendor from engagement
-  function handleEngagementChange(engId: string) {
-    form.setValue("engagement_id", engId)
-    const eng = engagements.find((e) => e.id === engId)
-    if (eng?.vendor_id) form.setValue("vendor_id", eng.vendor_id)
+  // Auto-fill vendor from purchase request
+  function handlePurchaseRequestChange(prId: string) {
+    form.setValue("purchase_request_id", prId)
+    const pr = purchaseRequests.find((e) => e.id === prId)
+    if (pr?.vendor_id) form.setValue("vendor_id", pr.vendor_id)
   }
 
-  const watchedEngagementId = form.watch("engagement_id")
+  const watchedPurchaseRequestId = form.watch("purchase_request_id")
   useEffect(() => {
-    if (!watchedEngagementId || !creating) return
+    if (!watchedPurchaseRequestId || !creating) return
     supabase
-      .from("engagement_line_items")
+      .from("purchase_request_line_items")
       .select("*")
-      .eq("engagement_id", watchedEngagementId)
+      .eq("purchase_request_id", watchedPurchaseRequestId)
       .then(({ data }) => {
         if (data && data.length > 0) {
           form.setValue("line_items", data.map((li) => ({
@@ -113,7 +134,7 @@ export function PurchaseOrderList() {
           })))
         }
       })
-  }, [watchedEngagementId, creating])
+  }, [watchedPurchaseRequestId, creating])
 
   function closeDialog() {
     setCreating(false)
@@ -125,15 +146,18 @@ export function PurchaseOrderList() {
     let poId: string
     try {
       const po = await createPO.mutateAsync({
-        engagement_id:          data.engagement_id || undefined,
+        po_type:                data.po_type,
+        purchase_request_id:    data.po_type === "blanket" ? undefined : (data.purchase_request_id || undefined),
         vendor_id:              data.vendor_id,
         total_value:            data.total_value,
         currency:               data.currency,
-        expected_delivery_date: data.expected_delivery_date || undefined,
-        delivery_address:       data.delivery_address || undefined,
+        expected_delivery_date: data.po_type === "blanket" ? undefined : (data.expected_delivery_date || undefined),
+        delivery_address:       data.po_type === "blanket" ? undefined : (data.delivery_address || undefined),
         payment_terms:          data.payment_terms || undefined,
         notes:                  data.notes || undefined,
-        line_items:             data.line_items.map((item) => ({ ...item, unit: item.unit ?? null })),
+        valid_from:             data.po_type === "blanket" ? (data.valid_from || undefined) : undefined,
+        valid_until:            data.po_type === "blanket" ? (data.valid_until || undefined) : undefined,
+        line_items:             data.po_type === "blanket" ? [] : data.line_items.map((item) => ({ ...item, unit: item.unit ?? null })),
       })
       poId = po.id
     } catch {
@@ -179,8 +203,9 @@ export function PurchaseOrderList() {
             <TableHeader>
               <TableRow className="bg-muted/40 hover:bg-muted/40">
                 <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">PO Number</TableHead>
+                <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Type</TableHead>
                 <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Vendor</TableHead>
-                <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Engagement</TableHead>
+                <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Purchase Request</TableHead>
                 <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Value</TableHead>
                 <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Status</TableHead>
                 <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Issued</TableHead>
@@ -190,7 +215,7 @@ export function PurchaseOrderList() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-12">
+                  <TableCell colSpan={8} className="text-center py-12">
                     <div className="flex flex-col items-center gap-2">
                       <div className="h-5 w-5 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
                       <span className="text-sm text-muted-foreground">Loading…</span>
@@ -199,7 +224,7 @@ export function PurchaseOrderList() {
                 </TableRow>
               ) : pos.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-12">
+                  <TableCell colSpan={8} className="text-center py-12">
                     <p className="text-sm font-medium text-muted-foreground">No purchase orders found</p>
                   </TableCell>
                 </TableRow>
@@ -211,9 +236,14 @@ export function PurchaseOrderList() {
                         {po.po_number ?? "—"}
                       </span>
                     </TableCell>
+                    <TableCell><TypeChip type={po.po_type} /></TableCell>
                     <TableCell><p className="text-sm">{po.vendor?.company_name ?? "—"}</p></TableCell>
                     <TableCell>
-                      <p className="text-sm text-muted-foreground">{po.engagement?.title ?? "—"}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {po.po_type === "release" && po.parent_po
+                          ? `Release of ${po.parent_po.po_number}`
+                          : po.purchase_request?.title ?? "—"}
+                      </p>
                     </TableCell>
                     <TableCell>
                       <span className="text-sm tabular-nums">{formatCurrency(po.total_value, po.currency)}</span>
@@ -254,20 +284,38 @@ export function PurchaseOrderList() {
           <DialogHeader><DialogTitle>New Purchase Order</DialogTitle></DialogHeader>
           <DialogBody>
           <form id="create-po" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-2">
+            <div className="space-y-1.5">
+              <Label>PO Type</Label>
+              <Select value={watchedPOType} onValueChange={(v) => form.setValue("po_type", v as "standard" | "blanket")}>
+                <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="standard">Standard</SelectItem>
+                  <SelectItem value="blanket">Blanket PO</SelectItem>
+                </SelectContent>
+              </Select>
+              {isBlanket && (
+                <p className="text-xs text-muted-foreground">
+                  A standing agreement authorizing this total amount over a validity period. Actual orders are issued later as Release Orders drawn against it.
+                </p>
+              )}
+            </div>
+
             {/* Header fields */}
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Engagement (optional)</Label>
-                <Select
-                  defaultValue={defaultEngagementId}
-                  onValueChange={handleEngagementChange}
-                >
-                  <SelectTrigger><SelectValue placeholder="Select engagement" /></SelectTrigger>
-                  <SelectContent>
-                    {engagements.map((e) => <SelectItem key={e.id} value={e.id}>{e.title}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
+              {!isBlanket && (
+                <div className="space-y-1.5">
+                  <Label>Purchase Request (optional)</Label>
+                  <Select
+                    defaultValue={defaultPurchaseRequestId}
+                    onValueChange={handlePurchaseRequestChange}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Select purchase request" /></SelectTrigger>
+                    <SelectContent>
+                      {purchaseRequests.map((e) => <SelectItem key={e.id} value={e.id}>{e.title}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="space-y-1.5">
                 <Label>Vendor <span className="text-destructive">*</span></Label>
                 <Select onValueChange={(v) => form.setValue("vendor_id", v)}>
@@ -282,16 +330,34 @@ export function PurchaseOrderList() {
 
             <div className="grid grid-cols-3 gap-3">
               <div className="col-span-2 space-y-1.5">
-                <Label>Total Value <span className="text-destructive">*</span></Label>
+                <Label>{isBlanket ? "Authorized Amount" : "Total Value"} <span className="text-destructive">*</span></Label>
                 <Input type="number" min={0} {...form.register("total_value")} placeholder="100000" />
                 {form.formState.errors.total_value && <p className="text-xs text-destructive">{form.formState.errors.total_value.message}</p>}
               </div>
               <div className="space-y-1.5">
                 <Label>Currency</Label>
-                <Input value="INR" readOnly className="bg-muted/40" />
+                <Select value={form.watch("currency")} onValueChange={(v) => form.setValue("currency", v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {CURRENCIES.map((c) => <SelectItem key={c.code} value={c.code}>{c.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
+            {isBlanket ? (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Valid From</Label>
+                  <Input type="date" {...form.register("valid_from")} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Valid Until</Label>
+                  <Input type="date" {...form.register("valid_until")} />
+                </div>
+              </div>
+            ) : (
+            <>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Expected Delivery</Label>
@@ -359,6 +425,8 @@ export function PurchaseOrderList() {
                 </div>
               </div>
             </div>
+            </>
+            )}
 
             <div className="space-y-1.5">
               <Label>Notes</Label>

@@ -82,12 +82,12 @@ export function SuperadminBreakGlass() {
         <div className="space-y-3 text-xs text-muted-foreground">
           <p>
             <span className="font-medium text-foreground">How it works: </span>
-            superadmin picks the exact record (an invoice, PO, engagement, etc.), types a required reason, then
+            superadmin picks the exact record (an invoice, PO, purchase request, etc.), types a required reason, then
             views it — read-only, clearly marked as "viewed via break-glass."
           </p>
           <p>
             <span className="font-medium text-foreground">Why it exists: </span>
-            superadmin's normal access is deliberately limited to org/vendor metadata only — never engagements,
+            superadmin's normal access is deliberately limited to org/vendor metadata only — never purchase requests,
             POs, invoices, contracts. But sometimes there's a real reason to check one specific record (a support
             ticket, a billing dispute). Break-glass is that one-off door, instead of giving superadmin standing
             access to everything all the time.

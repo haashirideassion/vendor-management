@@ -24,6 +24,8 @@ import type { Contract, ContractStatus } from "@/lib/types"
 const STATUS_COLORS: Record<ContractStatus, string> = {
   pending_approval: "bg-yellow-100 text-yellow-800 border-yellow-200",
   draft: "bg-muted text-muted-foreground border-border/60",
+  internal_review: "bg-blue-100 text-blue-800 border-blue-200",
+  pending_final_approval: "bg-purple-100 text-purple-800 border-purple-200",
   active: "bg-green-100 text-green-600 border-green-200",
   expired: "bg-orange-100 text-orange-700 border-orange-200",
   terminated: "bg-red-100 text-red-700 border-red-200",
@@ -32,6 +34,8 @@ const STATUS_COLORS: Record<ContractStatus, string> = {
 const STATUS_LABELS: Record<ContractStatus, string> = {
   pending_approval: "Pending Approval",
   draft: "Draft",
+  internal_review: "Internal Review",
+  pending_final_approval: "Pending Final Approval",
   active: "Active",
   expired: "Expired",
   terminated: "Terminated",

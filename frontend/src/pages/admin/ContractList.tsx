@@ -26,9 +26,12 @@ import {
   CONTRACT_STATUS_COLORS,
   CONTRACT_TYPES,
   CONTRACT_STATUSES,
+  CONTRACT_RISK_TIER_LABELS,
+  CONTRACT_RISK_TIERS,
+  CURRENCIES,
 } from "@/lib/constants"
 import { formatCurrency } from "@/lib/utils"
-import type { ContractType, ContractStatus } from "@/lib/types"
+import type { ContractType, ContractStatus, ContractRiskTier } from "@/lib/types"
 import { format } from "date-fns"
 import { Search01Icon, Cancel01Icon, Add01Icon, EyeIcon } from "@/components/shared/SolarIcon"
 import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
@@ -49,6 +52,7 @@ const createSchema = z.object({
   currency:            z.string().default("INR"),
   auto_renew:          z.boolean().default(false),
   renewal_notice_days: z.coerce.number().int().min(1).default(30),
+  risk_tier:           z.string().optional(),
   notes:               z.string().optional(),
 }).refine(
   (d) => !d.effective_date || !d.expiry_date || d.expiry_date > d.effective_date,
@@ -129,6 +133,7 @@ export function ContractList() {
         currency:            data.currency,
         auto_renew:          data.auto_renew,
         renewal_notice_days: data.renewal_notice_days,
+        risk_tier:           (data.risk_tier as ContractRiskTier) || null,
         notes:               data.notes ?? null,
       })
       contractId = contract.id
@@ -320,7 +325,12 @@ export function ContractList() {
                 </div>
                 <div className="space-y-1.5">
                   <Label>Currency</Label>
-                  <Input value="INR" readOnly className="bg-muted/40" />
+                  <Select value={form.watch("currency")} onValueChange={(v) => form.setValue("currency", v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {CURRENCIES.map((c) => <SelectItem key={c.code} value={c.code}>{c.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
@@ -366,6 +376,21 @@ export function ContractList() {
                   <Label>Notice Period (days)</Label>
                   <Input type="number" min={1} {...form.register("renewal_notice_days")} placeholder="30" />
                 </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Risk Tier</Label>
+                <Select value={form.watch("risk_tier") ?? ""} onValueChange={(v) => form.setValue("risk_tier", v)}>
+                  <SelectTrigger><SelectValue placeholder="Not classified yet" /></SelectTrigger>
+                  <SelectContent>
+                    {CONTRACT_RISK_TIERS.map((t) => (
+                      <SelectItem key={t} value={t}>{CONTRACT_RISK_TIER_LABELS[t]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Determines which stakeholders must sign off during Internal Review. Can be set later too.
+                </p>
               </div>
 
               <div className="flex items-center gap-2">

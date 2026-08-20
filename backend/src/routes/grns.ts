@@ -4,9 +4,23 @@ import { requireAuth, AuthenticatedRequest } from "../middleware/auth"
 import { requireOrg, OrgScopedRequest } from "../middleware/org"
 import { writeAudit, resolveActingAs } from "../services/audit"
 import { gateOnCreate, isManagerOrAdmin, notifyUsers } from "../services/approvalGate"
+import { attachTaxComponents, insertTaxComponents, sumTaxComponents } from "../services/taxComponents.service"
 
 const router = Router()
 function db(): any { return getSupabaseAdmin() }
+
+// Attaches each GRN's line items' tax_components breakdown in place --
+// shared by /list and /get/create's final read.
+async function attachTaxComponentsToGrns(grns: any[]): Promise<any[]> {
+  const allLineItems = grns.flatMap((g) => g.line_items ?? [])
+  if (allLineItems.length === 0) return grns
+  const withComponents = await attachTaxComponents("grn", allLineItems)
+  const byId = new Map(withComponents.map((li) => [li.id, li.tax_components]))
+  for (const g of grns) {
+    g.line_items = (g.line_items ?? []).map((li: any) => ({ ...li, tax_components: byId.get(li.id) ?? [] }))
+  }
+  return grns
+}
 
 // POST /api/grns/list
 router.post("/list", requireAuth, requireOrg, async (req: Request, res: Response) => {
@@ -26,6 +40,7 @@ router.post("/list", requireAuth, requireOrg, async (req: Request, res: Response
 
     const { data, error } = await query
     if (error) throw error
+    await attachTaxComponentsToGrns(data ?? [])
     return res.json(data)
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Unexpected error" })
@@ -47,6 +62,7 @@ router.post("/get", requireAuth, requireOrg, async (req: Request, res: Response)
       .single()
 
     if (error) throw error
+    if (data) await attachTaxComponentsToGrns([data])
     return res.json(data)
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Unexpected error" })
@@ -138,7 +154,7 @@ router.post("/create", requireAuth, requireOrg, async (req: Request, res: Respon
     }
 
     if (line_items.length > 0) {
-      const { error: liError } = await db()
+      const { data: insertedItems, error: liError } = await db()
         .from("grn_line_items")
         .insert(
           line_items.map((item: any) => ({
@@ -147,14 +163,19 @@ router.post("/create", requireAuth, requireOrg, async (req: Request, res: Respon
             description:       item.description,
             quantity_received: item.quantity_received  ?? null,
             unit_price:        item.unit_price         ?? null,
-            tax_rate:          item.tax_rate           ?? 0,
+            tax_rate:          sumTaxComponents(item.tax_components, item.tax_rate ?? 0),
             unit:              item.unit               ?? null,
           }))
         )
+        .select("id")
       if (liError) {
         await db().from("grns").delete().eq("id", grnId)
         throw liError
       }
+
+      await Promise.all(
+        line_items.map((item: any, idx: number) => insertTaxComponents("grn", insertedItems[idx].id, item.tax_components))
+      )
     }
 
     const { data: full, error: getError } = await db()
@@ -164,6 +185,7 @@ router.post("/create", requireAuth, requireOrg, async (req: Request, res: Respon
       .single()
     if (getError) throw getError
 
+    await attachTaxComponentsToGrns([full])
     return res.json(full)
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Unexpected error" })

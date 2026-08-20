@@ -22,6 +22,7 @@ import {
   Refresh01Icon,
   Menu01Icon,
   Alert01Icon,
+  Invoice01Icon,
   Invoice02Icon,
   Briefcase01Icon,
   InformationCircleIcon,
@@ -37,6 +38,7 @@ const allNavItems = [
   { id: "contracts", label: "Contracts", to: "/vendor/contracts", icon: ContractsIcon,            stages: ["APPROVED"] as VendorStage[] },
   { id: "rfqs",      label: "RFQs",      to: "/vendor/rfqs",      icon: Briefcase01Icon,          stages: ["APPROVED"] as VendorStage[] },
   { id: "invoices",  label: "Invoices",  to: "/vendor/invoices",  icon: Invoice02Icon,            stages: ["APPROVED"] as VendorStage[] },
+  { id: "purchase-orders", label: "Purchase Orders", to: "/vendor/purchase-orders", icon: Invoice01Icon, stages: ["APPROVED"] as VendorStage[] },
   { id: "team",      label: "Team",      to: "/vendor/team",      icon: UserGroup02Icon,          stages: ["APPROVED"] as VendorStage[] },
 ]
 
@@ -108,8 +110,12 @@ function SidebarContent({
     <div className="flex flex-col h-full">
       {/* Logo + vendor chip */}
       <div className={cn("px-4 pt-5 pb-4", collapsed && "px-2")}>
-        <div className={cn("flex items-center mb-4", collapsed ? "justify-center" : "justify-between")}>
-          {!collapsed && <AppLogo className="h-10 w-auto max-w-[180px]" />}
+        <div className={cn("flex items-center mb-4", collapsed ? "flex-col gap-2" : "justify-between")}>
+          {collapsed ? (
+            <AppLogo variant="color" className="h-8 w-8" />
+          ) : (
+            <AppLogo className="h-10 w-auto max-w-[180px]" />
+          )}
           {onToggleCollapse && (
             <button
               type="button"

@@ -37,15 +37,16 @@ function notificationMeta(type: Notification["type"]): {
       return { icon: Invoice02Icon, href: (refId) => (refId ? `/admin/invoices/${refId}` : "/admin/invoices") }
     case "new_quotation":
       // No dedicated quotation detail page exists -- quotations are viewed
-      // inside their engagement, so refId (an engagement id) is the correct
-      // "respective view detail screen" here, not the engagement list.
-      return { icon: Briefcase01Icon, href: (refId) => (refId ? `/admin/engagements/${refId}` : "/admin/engagements") }
+      // inside their purchase request, so refId (a purchase request id) is
+      // the correct "respective view detail screen" here, not the purchase
+      // request list.
+      return { icon: Briefcase01Icon, href: (refId) => (refId ? `/admin/purchase-requests/${refId}` : "/admin/purchase-requests") }
     case "grn_pending_approval":
     case "grn_decision":
       return { icon: Briefcase01Icon, href: (refId) => (refId ? `/admin/grns/${refId}` : "/admin/grns") }
-    case "engagement_pending_approval":
-    case "engagement_decision":
-      return { icon: Briefcase01Icon, href: (refId) => (refId ? `/admin/engagements/${refId}` : "/admin/engagements") }
+    case "purchase_request_pending_approval":
+    case "purchase_request_decision":
+      return { icon: Briefcase01Icon, href: (refId) => (refId ? `/admin/purchase-requests/${refId}` : "/admin/purchase-requests") }
     case "contract_pending_approval":
     case "contract_decision":
       return { icon: Briefcase01Icon, href: (refId) => (refId ? `/admin/contracts/${refId}` : "/admin/contracts") }

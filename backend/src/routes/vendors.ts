@@ -7,6 +7,17 @@ import { getDefaultOrgId } from "../utils/org"
 import { writeAudit } from "../services/audit"
 import { sendEmail, inviteHtml } from "../services/email.service"
 import { findOrgRoleHolderIds, notifyUsers } from "../services/approvalGate"
+import { ensureDefaultLegalEntity } from "../services/legalEntity.service"
+import { resolveOrgMemberLegalEntityScope, vendorIdsForLegalEntities } from "../services/legalEntityScope.service"
+
+// Routed through resolve_permission_as -- see the identical comment in
+// invoices.ts for why (adds the Feature Entitlement gate + User Restriction
+// override that a bare has_permission_as call skips).
+async function hasOrgPermission(userId: string, orgId: string, key: string): Promise<boolean> {
+  const client: any = getSupabaseAdmin()
+  const { data } = await client.rpc("resolve_permission_as", { p_user_id: userId, p_scope: "org", p_org_id: orgId, p_vendor_id: null, p_key: key })
+  return data === true
+}
 
 // Replaces the old notify_admins_new_vendor DB trigger (dropped in
 // 049_notification_rbac_cutover.sql), which filtered by the legacy
@@ -27,7 +38,7 @@ async function notifyOrgAdminsNewVendor(orgIds: string[], vendorId: string, comp
 const router = Router()
 function db(): any { return getSupabaseAdmin() }
 
-type OnboardingTargets =
+export type OnboardingTargets =
   | { targetOrgIds: string[]; onboardedViaGroupId: string | null }
   | { error: string }
 
@@ -38,8 +49,11 @@ type OnboardingTargets =
 // admin-onboard's own group-based targetOrgIds expansion), and also returns
 // the group id so the caller can set vendors.onboarded_via_group_id, which
 // keeps this vendor's reach live as the group's membership changes later
-// (035_live_group_vendor_reach.sql).
-async function resolveOnboardingTargets(body: { org_code?: string; group_code?: string }): Promise<OnboardingTargets> {
+// (035_live_group_vendor_reach.sql). Exported for reuse by the Onboarding
+// Authority spec's Super-Admin-assisted onboarding route (superadmin.ts),
+// which needs the exact same org/group-code resolution but isn't itself
+// scoped to a single org via requireOrg the way this file's own routes are.
+export async function resolveOnboardingTargets(body: { org_code?: string; group_code?: string }): Promise<OnboardingTargets> {
   const orgCode = body.org_code?.trim()
   const groupCode = body.group_code?.trim()
   if (!orgCode && !groupCode) {
@@ -146,6 +160,7 @@ router.post("/list", requireAuth, requireOrg, async (req: Request, res: Response
   try {
     const { status, category, search } = req.body
     const { orgId } = req as OrgScopedRequest
+    const actorId = (req as AuthenticatedRequest).user.id
 
     let vendorIds: string[] | null = null
 
@@ -163,10 +178,27 @@ router.post("/list", requireAuth, requireOrg, async (req: Request, res: Response
       }
     }
 
+    // Geographic/Legal-Entity record scope (RBAC/Teams redesign, Phase 7c) --
+    // if this member has been explicitly scoped to specific legal entities,
+    // narrow the vendor set to those before any other filter. Presence of
+    // ANY scope row is itself the restriction signal, same precedence rule
+    // vendor_user_assignments already uses for vendor-side Associates.
+    const { data: orgMember } = await db()
+      .from("organization_members").select("id").eq("org_id", orgId).eq("profile_id", actorId).maybeSingle()
+    if (orgMember) {
+      const legalEntityScope = await resolveOrgMemberLegalEntityScope(orgMember.id)
+      if (legalEntityScope !== null) {
+        const scopedVendorIds = await vendorIdsForLegalEntities(legalEntityScope)
+        if (scopedVendorIds.length === 0) return res.json({ data: [] })
+        vendorIds = vendorIds === null ? scopedVendorIds : vendorIds.filter((id) => scopedVendorIds.includes(id))
+        if (vendorIds.length === 0) return res.json({ data: [] })
+      }
+    }
+
     let query = db()
       .from("vendors")
       .select(
-        "*, organization_vendors!inner(status, vendor_id_code, admin_notes, contract_start_date, contract_anniversary), vendor_categories(*, service_categories(*)), vendor_ratings(score)"
+        "*, organization_vendors!inner(status, vendor_id_code, admin_notes, contract_start_date, contract_anniversary), vendor_categories(*, service_categories(*)), vendor_ratings(overall)"
       )
       .eq("organization_vendors.org_id", orgId)
       .order("created_at", { ascending: false })
@@ -191,7 +223,7 @@ router.post("/list", requireAuth, requireOrg, async (req: Request, res: Response
       const ratings: any[] = v.vendor_ratings ?? []
       const avg_rating =
         ratings.length > 0
-          ? ratings.reduce((sum: number, r: any) => sum + (r.score ?? 0), 0) / ratings.length
+          ? ratings.reduce((sum: number, r: any) => sum + (r.overall ?? 0), 0) / ratings.length
           : null
       return { ...flattenOrgVendor(v), avg_rating }
     })
@@ -224,7 +256,7 @@ router.post("/get", requireAuth, requireOrg, async (req: Request, res: Response)
     const ratings: any[] = data?.vendor_ratings ?? []
     const avg_rating =
       ratings.length > 0
-        ? ratings.reduce((sum: number, r: any) => sum + (r.score ?? 0), 0) / ratings.length
+        ? ratings.reduce((sum: number, r: any) => sum + (r.overall ?? 0), 0) / ratings.length
         : null
 
     const hasPortalUsers = (data?.vendor_users ?? []).length > 0
@@ -280,7 +312,7 @@ router.post("/get-my-vendor", requireAuth, async (req: Request, res: Response) =
     const ratings: any[] = data.vendor_ratings ?? []
     const avg_rating =
       ratings.length > 0
-        ? ratings.reduce((sum: number, r: any) => sum + (r.score ?? 0), 0) / ratings.length
+        ? ratings.reduce((sum: number, r: any) => sum + (r.overall ?? 0), 0) / ratings.length
         : null
 
     // organization_vendors is the source of truth for status going forward
@@ -388,12 +420,8 @@ router.post("/revoke-group-access", requireAuth, requireOrg, async (req: Request
     const userId = (req as AuthenticatedRequest).user.id
     if (!id) return res.status(400).json({ error: "id is required" })
 
-    const { data: canManage } = await db().rpc("has_permission_as", {
-      p_user_id: userId,
-      p_org_id: orgId,
-      p_key: "vendors.manage_status",
-    })
-    if (canManage !== true) {
+    const canManage = await hasOrgPermission(userId, orgId, "vendors.manage_status")
+    if (!canManage) {
       return res.status(403).json({ error: "You are not authorized to revoke this vendor's access" })
     }
 
@@ -493,6 +521,69 @@ router.post("/update-status", requireAuth, requireOrg, async (req: Request, res:
   }
 })
 
+// POST /api/vendors/review-decide — Onboarding Authority spec's dedicated
+// review action, distinct from the generic /update-status above (which
+// remains for non-review transitions like suspend). Unlike /update-status,
+// this REQUIRES a reason for rejected/returned_for_correction, matching the
+// pattern org onboarding's own review flow (superadmin.ts
+// /organizations/onboarding-review) already gets right. Reuses the SAME
+// authorization (can_review_vendor_onboarding_as -- vendors.manage_status
+// or one-off delegation) rather than introducing a parallel permission key
+// for the same gate.
+router.post("/review-decide", requireAuth, requireOrg, async (req: Request, res: Response) => {
+  try {
+    const { id, decision, reason } = req.body as {
+      id?: string; decision?: "approved" | "rejected" | "returned_for_correction"; reason?: string
+    }
+    const { orgId } = req as OrgScopedRequest
+    const userId = (req as AuthenticatedRequest).user.id
+    if (!id || !decision) return res.status(400).json({ error: "id and decision are required" })
+    if ((decision === "rejected" || decision === "returned_for_correction") && !reason?.trim()) {
+      return res.status(400).json({ error: "A reason is required to reject or return an onboarding for correction" })
+    }
+
+    const { data: existingOv, error: existingOvError } = await db()
+      .from("organization_vendors").select("id, status").eq("org_id", orgId).eq("vendor_id", id).single()
+    if (existingOvError) throw existingOvError
+    if (existingOv.status !== "pending_review") {
+      return res.status(400).json({ error: "Only a pending review can be decided" })
+    }
+
+    const { data: canReview } = await db().rpc("can_review_vendor_onboarding_as", {
+      p_user_id: userId, p_organization_vendor_id: existingOv.id,
+    })
+    if (canReview !== true) return res.status(403).json({ error: "You are not authorized to review this vendor" })
+
+    // "Returned for correction" reuses the existing action_required status
+    // (the vendor's own resubmission path already treats this as editable)
+    // rather than introducing a new status value.
+    const newStatus = decision === "approved" ? "active" : decision === "rejected" ? "rejected" : "action_required"
+
+    const { data: ov, error } = await db()
+      .from("organization_vendors")
+      .update({ status: newStatus, admin_notes: reason || null })
+      .eq("id", existingOv.id)
+      .select()
+      .single()
+    if (error) throw error
+
+    await db().rpc("clear_vendor_onboarding_assignment", { p_organization_vendor_id: existingOv.id })
+
+    const { data: riskClassification } = await db().rpc("compute_vendor_risk_classification", { p_vendor_id: id })
+
+    await writeAudit({
+      entityType: "organization_vendor", entityId: existingOv.id, action: `vendor_onboarding_${decision}`,
+      newValue: { decision, reason: reason || null, risk_classification: riskClassification },
+      performedBy: userId, orgId,
+    })
+
+    res.json({ data: { id: existingOv.id, status: ov.status } })
+  } catch (err: any) {
+    console.error("[vendors/review-decide]", err.message)
+    res.status(500).json({ error: err.message || "Failed to decide onboarding review" })
+  }
+})
+
 // POST /api/vendors/reassign-review — one-off delegation of a single
 // pending vendor-onboarding review to another org admin/manager (e.g. the
 // Local Admin is out and hands this one review to a colleague). Does not
@@ -520,12 +611,8 @@ router.post("/reassign-review", requireAuth, requireOrg, async (req: Request, re
       return res.status(400).json({ error: "Only a pending review can be reassigned" })
     }
 
-    const { data: canDelegate } = await db().rpc("has_permission_as", {
-      p_user_id: userId,
-      p_org_id: orgId,
-      p_key: "vendors.manage_status",
-    })
-    if (canDelegate !== true) {
+    const canDelegate = await hasOrgPermission(userId, orgId, "vendors.manage_status")
+    if (!canDelegate) {
       return res.status(403).json({ error: "You are not authorized to reassign this review" })
     }
 
@@ -588,6 +675,21 @@ router.post("/update", requireAuth, async (req: Request, res: Response) => {
       .single()
 
     if (error) throw error
+
+    // Keep the default Legal Entity's tax/bank rows in sync -- this is the
+    // vendor's own self-service edit path, so without this call a PAN/GST/
+    // bank correction made here would silently go stale in the new tables
+    // while the flat vendors columns above stay current.
+    await ensureDefaultLegalEntity({
+      vendorId,
+      legalName: legal_name,
+      registrationNumber: registration_number,
+      panNumber: pan_number,
+      gstNumber: tax_gst_number,
+      bankName: bank_name,
+      bankAccountNumber: bank_account_number,
+      bankRoutingNumber: bank_routing_number,
+    })
 
     res.json({ data })
   } catch (err: any) {
@@ -692,6 +794,16 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
         .eq("id", existingVendorId)
       if (fillInError) throw fillInError
 
+      await ensureDefaultLegalEntity({
+        vendorId: existingVendorId,
+        isSoloUser: !!is_solo_user,
+        panNumber: pan_number,
+        gstNumber: tax_gst_number,
+        bankName: bank_name,
+        bankAccountNumber: bank_account_number,
+        bankRoutingNumber: bank_routing_number,
+      })
+
       if (Array.isArray(category_ids) && category_ids.length > 0) {
         const { error: categoriesError } = await db().rpc("update_vendor_categories", {
           p_vendor_id: existingVendorId,
@@ -756,6 +868,16 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
       })
       .eq("id", vendorId)
     if (soloGroupError) throw soloGroupError
+
+    await ensureDefaultLegalEntity({
+      vendorId,
+      isSoloUser: !!is_solo_user,
+      panNumber: pan_number,
+      gstNumber: tax_gst_number,
+      bankName: bank_name,
+      bankAccountNumber: bank_account_number,
+      bankRoutingNumber: bank_routing_number,
+    })
 
     const { error: linkError } = await db()
       .from("organization_vendors")
@@ -857,6 +979,17 @@ router.post("/admin-onboard", requireAuth, requireOrg, async (req: Request, res:
       })
       .eq("id", vendorId)
     if (updateError) throw updateError
+
+    await ensureDefaultLegalEntity({
+      vendorId,
+      legalName: legal_name,
+      registrationNumber: registration_number,
+      panNumber: pan_number,
+      gstNumber: tax_gst_number,
+      bankName: bank_name,
+      bankAccountNumber: bank_account_number,
+      bankRoutingNumber: bank_routing_number,
+    })
 
     // 'invited', not 'pending_review' -- this vendor hasn't submitted any
     // onboarding details yet (admin-onboard only collects a name/contact),

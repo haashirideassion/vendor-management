@@ -9,7 +9,7 @@ interface VerificationStatusBadgeProps {
 
 // Distinct from StatusBadge (VendorStatus, the operational suspended/active
 // lifecycle) -- this covers the separate superadmin-only legal/compliance
-// verification gate a vendor must clear before it's usable in new engagements.
+// verification gate a vendor must clear before it's usable in new purchase requests.
 export function VerificationStatusBadge({ status, className }: VerificationStatusBadgeProps) {
   return (
     <span

@@ -23,7 +23,7 @@ router.post("/context", requireAuth, async (req: Request, res: Response) => {
     // ── Direct memberships ────────────────────────────────────────────────
     const { data: memberRows, error: memberError } = await db()
       .from("organization_members")
-      .select("id, is_primary, organization:org_id(id, name, slug, org_code, status, role_mode, approval_threshold, requires_onboarding_approval)")
+      .select("id, is_primary, organization:org_id(id, name, slug, org_code, status, role_mode, approval_threshold, base_currency, requires_onboarding_approval)")
       .eq("profile_id", userId)
     if (memberError) throw memberError
 
@@ -106,7 +106,7 @@ router.post("/context", requireAuth, async (req: Request, res: Response) => {
     if (newOrgIds.length > 0) {
       const { data: orgs } = await db()
         .from("organizations")
-        .select("id, name, slug, org_code, status, role_mode, approval_threshold, requires_onboarding_approval")
+        .select("id, name, slug, org_code, status, role_mode, approval_threshold, base_currency, requires_onboarding_approval")
         .in("id", newOrgIds)
         .eq("status", "active")
       groupAdminOrgs = orgs ?? []
@@ -156,6 +156,7 @@ router.post("/context", requireAuth, async (req: Request, res: Response) => {
         permissions: Array.from(permissionKeysByMember.get(row.id) ?? []),
         roleMode: row.organization.role_mode,
         approvalThreshold: row.organization.approval_threshold,
+        baseCurrency: row.organization.base_currency,
         modulesLocked: isModulesLocked(row.organization),
         onboardingSubmitted: isOnboardingSubmitted(row.organization),
         requiresOnboardingApproval: !!row.organization.requires_onboarding_approval,
@@ -172,6 +173,7 @@ router.post("/context", requireAuth, async (req: Request, res: Response) => {
         permissions: groupAdminPermissionKeys,
         roleMode: org.role_mode,
         approvalThreshold: org.approval_threshold,
+        baseCurrency: org.base_currency,
         modulesLocked: isModulesLocked(org),
         onboardingSubmitted: isOnboardingSubmitted(org),
         requiresOnboardingApproval: !!org.requires_onboarding_approval,

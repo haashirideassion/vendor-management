@@ -1,10 +1,9 @@
-import { useCallback, useState } from "react"
-import { useDropzone } from "react-dropzone"
-import { cn } from "@/lib/utils"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
+import { FileUploadZone } from "@/components/shared/FileUploadZone"
 import { DOCUMENT_TYPE_LABELS, ALL_DOCUMENT_TYPES } from "@/lib/constants"
 import type { DocumentType } from "@/lib/types"
 import { useUploadDocument } from "@/hooks/useDocuments"
@@ -25,7 +24,7 @@ export function DocumentUploader({
   selectedDocType,
   onDocTypeChange
 }: DocumentUploaderProps) {
-  const [file, setFile] = useState<File | null>(null)
+  const [files, setFiles] = useState<File[]>([])
   const [internalDocType, setInternalDocType] = useState<DocumentType | "">("")
   const [expiresAt, setExpiresAt] = useState("")
   const upload = useUploadDocument()
@@ -34,38 +33,23 @@ export function DocumentUploader({
   const docType = isControlled ? selectedDocType : internalDocType
   const setDocType = isControlled ? onDocTypeChange! : setInternalDocType
 
-  const onDrop = useCallback((accepted: File[]) => {
-    if (accepted[0]) setFile(accepted[0])
-  }, [])
-
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    accept: {
-      "application/pdf": [".pdf"],
-      "application/msword": [".doc"],
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
-      "application/vnd.ms-excel": [".xls"],
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
-      "application/vnd.ms-powerpoint": [".ppt"],
-      "application/vnd.openxmlformats-officedocument.presentationml.presentation": [".pptx"],
-      "image/*": [".png", ".jpg", ".jpeg"],
-    },
-    maxFiles: 1,
-    maxSize: 10 * 1024 * 1024, // 10 MB
-  })
-
   async function handleUpload() {
-    if (!file || !docType) {
-      toast.error("Please select a file and document type")
+    if (files.length === 0 || !docType) {
+      toast.error("Please select at least one file and a document type")
       return
     }
     try {
-      await upload.mutateAsync({ vendorId, file, documentType: docType, expiresAt: expiresAt || undefined })
-      toast.success("Document uploaded successfully")
-      setFile(null)
+      const result = await upload.mutateAsync({ vendorId, files, documentType: docType, expiresAt: expiresAt || undefined })
+      if (result.uploaded.length > 0) {
+        toast.success(`${result.uploaded.length} document${result.uploaded.length !== 1 ? "s" : ""} uploaded successfully`)
+      }
+      if (result.failed.length > 0) {
+        toast.error(`Failed to upload: ${result.failed.join(", ")}`)
+      }
+      setFiles([])
       setDocType("")
       setExpiresAt("")
-      onUploaded?.()
+      if (result.failed.length === 0) onUploaded?.()
     } catch (e: unknown) {
       toast.error((e as Error).message ?? "Upload failed")
     }
@@ -73,34 +57,7 @@ export function DocumentUploader({
 
   return (
     <div className="flex flex-col gap-3">
-      <div
-        {...getRootProps()}
-        className={cn(
-          "flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 text-center cursor-pointer transition-colors",
-          isDragActive ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
-        )}
-      >
-        <input {...getInputProps()} />
-        {file ? (
-          <div className="flex flex-col items-center gap-1">
-            <p className="text-sm font-medium">{file.name}</p>
-            <p className="text-xs text-muted-foreground">{(file.size / 1024).toFixed(0)} KB</p>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={(e) => { e.stopPropagation(); setFile(null) }}
-            >
-              Remove
-            </Button>
-          </div>
-        ) : (
-          <>
-            <p className="text-sm font-medium">Drag & drop or click to upload</p>
-            <p className="text-xs text-muted-foreground mt-1">PDF, DOC(X), XLS(X), PPT(X), PNG, JPG up to 10 MB</p>
-          </>
-        )}
-      </div>
+      <FileUploadZone files={files} onChange={setFiles} disabled={upload.isPending} />
 
       {!isControlled && (
         <div className="flex flex-col gap-1.5">
@@ -125,8 +82,10 @@ export function DocumentUploader({
         </div>
       )}
 
-      <Button onClick={handleUpload} disabled={!file || !docType || upload.isPending}>
-        {upload.isPending ? "Uploading…" : "Upload document"}
+      <Button onClick={handleUpload} disabled={files.length === 0 || !docType || upload.isPending}>
+        {upload.isPending
+          ? "Uploading…"
+          : `Upload ${files.length > 1 ? `${files.length} documents` : "document"}`}
       </Button>
     </div>
   )

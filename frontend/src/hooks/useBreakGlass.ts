@@ -2,7 +2,7 @@ import { useMutation } from "@tanstack/react-query"
 import { api } from "@/lib/api"
 import { useAuth } from "@/contexts/AuthContext"
 
-export const BREAK_GLASS_ENTITY_TYPES = ["engagement", "purchase_order", "grn", "invoice", "contract", "quotation"] as const
+export const BREAK_GLASS_ENTITY_TYPES = ["purchase_request", "purchase_order", "grn", "invoice", "contract", "quotation"] as const
 export type BreakGlassEntityType = (typeof BREAK_GLASS_ENTITY_TYPES)[number]
 
 export function useBreakGlassView() {

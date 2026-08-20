@@ -6,7 +6,7 @@ import { isManagerOrAdmin, notifyUsers } from "../services/approvalGate"
 
 const ENTITY_LABELS: Record<string, string> = {
   grn: "GRN",
-  engagement: "Engagement",
+  purchase_request: "Purchase Request",
   contract: "Contract",
   category: "Category",
 }

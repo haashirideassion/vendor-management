@@ -17,6 +17,7 @@ import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTi
 import { Separator } from "@/components/ui/separator"
 import { Add01Icon, Delete01Icon } from "@/components/shared/SolarIcon"
 import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
+import { TaxComponentsField } from "@/components/shared/TaxComponentsField"
 import { supabase } from "@/lib/supabase"
 
 const lineItemSchema = z.object({
@@ -25,6 +26,7 @@ const lineItemSchema = z.object({
   quantity_received: z.coerce.number().positive("Must be > 0"),
   unit_price:        z.coerce.number().min(0),
   tax_rate:          z.coerce.number().min(0),
+  tax_components:    z.array(z.object({ name: z.string(), rate: z.coerce.number() })).optional(),
   unit:              z.string().optional(),
 })
 
@@ -77,7 +79,11 @@ async function fetchRemainingLineItems(poId: string): Promise<(POLineItem & { re
 }
 
 export function CreateGRNDialog({ open, onOpenChange, defaultPOId, defaultVendorId, onSuccess }: CreateGRNDialogProps) {
-  const { data: pos = [] } = usePurchaseOrders({ status: "issued" })
+  const { data: allIssuedPOs = [] } = usePurchaseOrders({ status: "issued" })
+  // Only goods POs get a GRN -- a services PO is confirmed via Service
+  // Confirmation instead (see CreateServiceConfirmationDialog). A Blanket PO
+  // is never fulfilled directly either -- only its Release Orders are.
+  const pos = allIssuedPOs.filter((p) => p.fulfillment_type === "goods" && p.po_type !== "blanket")
   const createGRN          = useCreateGRN()
   const uploadAttachments  = useUploadAttachments()
   const [stagedFiles, setStagedFiles] = useState<File[]>([])
@@ -88,7 +94,7 @@ export function CreateGRNDialog({ open, onOpenChange, defaultPOId, defaultVendor
       po_id:         defaultPOId ?? "",
       vendor_id:     defaultVendorId ?? "",
       received_date: new Date().toISOString().slice(0, 10),
-      line_items:    [{ description: "", quantity_received: 1, unit_price: 0, tax_rate: 0, unit: "" }],
+      line_items:    [{ description: "", quantity_received: 1, unit_price: 0, tax_rate: 0, tax_components: [], unit: "" }],
     },
   })
   const { fields, append, remove } = useFieldArray({ control: form.control, name: "line_items" })
@@ -109,9 +115,10 @@ export function CreateGRNDialog({ open, onOpenChange, defaultPOId, defaultVendor
               quantity_received: li.remaining,
               unit_price:        li.unit_price,
               tax_rate:          li.tax_rate,
+              tax_components:    [],
               unit:              li.unit ?? "",
             }))
-          : [{ description: "", quantity_received: 1, unit_price: 0, tax_rate: 0, unit: "" }],
+          : [{ description: "", quantity_received: 1, unit_price: 0, tax_rate: 0, tax_components: [], unit: "" }],
       })
     }
     init()
@@ -130,6 +137,7 @@ export function CreateGRNDialog({ open, onOpenChange, defaultPOId, defaultVendor
         quantity_received: li.remaining,
         unit_price:        li.unit_price,
         tax_rate:          li.tax_rate,
+        tax_components:    [],
         unit:              li.unit ?? "",
       })))
     }
@@ -147,6 +155,7 @@ export function CreateGRNDialog({ open, onOpenChange, defaultPOId, defaultVendor
           ...item,
           unit:            item.unit ?? null,
           po_line_item_id: item.po_line_item_id ?? null,
+          tax_components:  (item.tax_components ?? []).filter((c) => c.name.trim() !== ""),
         })),
       })
       grnId = grn.id
@@ -214,7 +223,7 @@ export function CreateGRNDialog({ open, onOpenChange, defaultPOId, defaultVendor
                   size="sm"
                   variant="outline"
                   className="h-7 text-xs gap-1"
-                  onClick={() => append({ description: "", quantity_received: 1, unit_price: 0, tax_rate: 0, unit: "" })}
+                  onClick={() => append({ description: "", quantity_received: 1, unit_price: 0, tax_rate: 0, tax_components: [], unit: "" })}
                 >
                   <SolarDuotoneIcon icon={Add01Icon} size={12} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" />
                   Add Row
@@ -241,7 +250,12 @@ export function CreateGRNDialog({ open, onOpenChange, defaultPOId, defaultVendor
                       <Input type="number" min={0} step="any" {...form.register(`line_items.${i}.unit_price`)} placeholder="Rate" className="h-8 text-xs" />
                     </div>
                     <div className="col-span-2">
-                      <Input type="number" min={0} step="any" {...form.register(`line_items.${i}.tax_rate`)} placeholder="Tax" className="h-8 text-xs" />
+                      <TaxComponentsField
+                        flatRate={form.watch(`line_items.${i}.tax_rate`) ?? 0}
+                        onFlatRateChange={(rate) => form.setValue(`line_items.${i}.tax_rate`, rate)}
+                        components={form.watch(`line_items.${i}.tax_components`) ?? []}
+                        onComponentsChange={(components) => form.setValue(`line_items.${i}.tax_components`, components)}
+                      />
                     </div>
                     <div className="col-span-2">
                       <Input {...form.register(`line_items.${i}.unit`)} placeholder="Unit" className="h-8 text-xs" />

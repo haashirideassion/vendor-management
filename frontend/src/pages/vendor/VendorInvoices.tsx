@@ -12,7 +12,7 @@ import { AttachmentList } from "@/components/shared/AttachmentList"
 import { useVendor } from "@/hooks/useVendor"
 import { useMyVendorRole } from "@/hooks/useVendorUsers"
 import { useContracts } from "@/hooks/useContracts"
-import { useEngagements } from "@/hooks/useEngagements"
+import { usePurchaseRequests } from "@/hooks/usePurchaseRequests"
 import { useAuth } from "@/contexts/AuthContext"
 import { api } from "@/lib/api"
 import { AnimatedPage } from "@/components/shared/AnimatedPage"
@@ -25,6 +25,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
   INVOICE_STATUS_LABELS, INVOICE_STATUS_COLORS,
+  CURRENCIES,
 } from "@/lib/constants"
 import { formatCurrency } from "@/lib/utils"
 import type { InvoiceStatus } from "@/lib/types"
@@ -33,11 +34,11 @@ import { Add01Icon, File01Icon, EyeIcon } from "@/components/shared/SolarIcon"
 import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
 import { toast } from "sonner"
 
-// Either contract_id OR engagement_id is required; both are optional individually.
+// Either contract_id OR purchase_request_id is required; both are optional individually.
 const submitSchema = z
   .object({
     contract_id:           z.string().optional(),
-    engagement_id:         z.string().optional(),
+    purchase_request_id:   z.string().optional(),
     vendor_invoice_number: z.string().min(1, "Invoice number is required"),
     total_amount:          z.coerce.number().positive("Must be greater than 0"),
     currency:              z.string().default("INR"),
@@ -46,8 +47,8 @@ const submitSchema = z
     notes:                 z.string().optional(),
   })
   .refine(
-    (d) => !!(d.contract_id || d.engagement_id),
-    { message: "Select a Contract or an Engagement", path: ["contract_id"] }
+    (d) => !!(d.contract_id || d.purchase_request_id),
+    { message: "Select a Contract or a Purchase Request", path: ["contract_id"] }
   )
 
 type SubmitForm = z.infer<typeof submitSchema>
@@ -68,30 +69,31 @@ export function VendorInvoices() {
   const submitInvoice     = useSubmitInvoice()
   const uploadAttachments = useUploadAttachments()
 
-  // Fetch vendor's engagements (those they've been invited to via RFQs).
-  // Goes through the backend's /engagements/list (resolveListScope ->
-  // resolveVendorId, vendor_users-based) rather than a direct Supabase
-  // client query -- the latter relies on engagement_vendors' RLS policy,
-  // which still checks the legacy 1:1 vendors.profile_id and so returns
-  // nothing for any multi-user vendor (e.g. admin-onboarded ones, whose
-  // vendors.profile_id is NULL) regardless of which staff member is asking.
-  const { data: vendorEngagements = [], isLoading: engagementsLoading } = useEngagements()
+  // Fetch vendor's purchase requests (those they've been invited to via
+  // RFQs). Goes through the backend's /purchase-requests/list
+  // (resolveListScope -> resolveVendorId, vendor_users-based) rather than a
+  // direct Supabase client query -- the latter relies on
+  // purchase_request_vendors' RLS policy, which still checks the legacy 1:1
+  // vendors.profile_id and so returns nothing for any multi-user vendor
+  // (e.g. admin-onboarded ones, whose vendors.profile_id is NULL)
+  // regardless of which staff member is asking.
+  const { data: vendorPurchaseRequests = [], isLoading: purchaseRequestsLoading } = usePurchaseRequests()
 
   const form = useForm<SubmitForm>({
     resolver: zodResolver(submitSchema) as unknown as Resolver<SubmitForm>,
     defaultValues: { currency: "INR", invoice_date: new Date().toISOString().slice(0, 10) },
   })
 
-  const watchedContractId   = form.watch("contract_id")
-  const watchedEngagementId = form.watch("engagement_id")
+  const watchedContractId        = form.watch("contract_id")
+  const watchedPurchaseRequestId = form.watch("purchase_request_id")
 
   const { data: linkedPO } = useQuery({
-    queryKey: ["linked-po-for-invoice", watchedEngagementId, vendor?.id],
-    enabled: !!watchedEngagementId && !!vendor?.id,
+    queryKey: ["linked-po-for-invoice", watchedPurchaseRequestId, vendor?.id],
+    enabled: !!watchedPurchaseRequestId && !!vendor?.id,
     queryFn: async () => {
       const { data } = await api.post<{ data: { id: string; po_number: string }[] }>(
-        "/api/purchase-orders/vendor-list-by-engagement",
-        { engagement_id: watchedEngagementId },
+        "/api/purchase-orders/vendor-list-by-purchase-request",
+        { purchase_request_id: watchedPurchaseRequestId },
         accessToken
       )
       return data[0] ?? null
@@ -102,7 +104,7 @@ export function VendorInvoices() {
     if (submitting) {
       form.reset({
         contract_id:           "",
-        engagement_id:         "",
+        purchase_request_id:   "",
         vendor_invoice_number: "",
         total_amount:          undefined,
         currency:              "INR",
@@ -126,7 +128,7 @@ export function VendorInvoices() {
     try {
       const invoice = await submitInvoice.mutateAsync({
         contract_id:           data.contract_id || undefined,
-        engagement_id:         data.engagement_id || undefined,
+        purchase_request_id:   data.purchase_request_id || undefined,
         vendor_invoice_number: data.vendor_invoice_number,
         vendor_id:             vendor.id,
         total_amount:          data.total_amount,
@@ -208,8 +210,8 @@ export function VendorInvoices() {
                     <TableCell>
                       {inv.contract?.contract_ref ? (
                         <span className="text-xs text-muted-foreground font-mono">{inv.contract.contract_ref}</span>
-                      ) : inv.engagement?.title ? (
-                        <span className="text-xs text-muted-foreground">{inv.engagement.title}</span>
+                      ) : inv.purchase_request?.title ? (
+                        <span className="text-xs text-muted-foreground">{inv.purchase_request.title}</span>
                       ) : (
                         <span className="text-xs text-muted-foreground">—</span>
                       )}
@@ -289,7 +291,7 @@ export function VendorInvoices() {
           <DialogBody>
           <form id="submit-invoice-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-2">
 
-            {/* ── Contract OR Engagement ── */}
+            {/* ── Contract OR Purchase Request ── */}
             <div className="rounded-lg border divide-y">
               {/* Contract option */}
               <div className="p-3 space-y-1.5">
@@ -299,11 +301,11 @@ export function VendorInvoices() {
                   value={form.watch("contract_id") ?? ""}
                   onValueChange={(v) => {
                     form.setValue("contract_id", v === "__clear__" ? "" : v, { shouldValidate: true })
-                    if (v && v !== "__clear__") form.setValue("engagement_id", "", { shouldValidate: false })
+                    if (v && v !== "__clear__") form.setValue("purchase_request_id", "", { shouldValidate: false })
                   }}
-                  disabled={contractsLoading || !!watchedEngagementId}
+                  disabled={contractsLoading || !!watchedPurchaseRequestId}
                 >
-                  <SelectTrigger className={watchedEngagementId ? "opacity-50" : ""}>
+                  <SelectTrigger className={watchedPurchaseRequestId ? "opacity-50" : ""}>
                     <SelectValue placeholder={contractsLoading ? "Loading contracts…" : "Select a contract"} />
                   </SelectTrigger>
                   <SelectContent>
@@ -328,42 +330,42 @@ export function VendorInvoices() {
                 <span className="px-3 text-xs font-semibold text-muted-foreground bg-muted/30">OR</span>
               </div>
 
-              {/* Engagement option */}
+              {/* Purchase Request option */}
               <div className="p-3 space-y-1.5">
-                <Label className="text-sm font-medium">Related Engagement</Label>
-                <p className="text-xs text-muted-foreground">Select if this invoice is against a specific engagement.</p>
+                <Label className="text-sm font-medium">Related Purchase Request</Label>
+                <p className="text-xs text-muted-foreground">Select if this invoice is against a specific purchase request.</p>
                 <Select
-                  value={form.watch("engagement_id") ?? ""}
+                  value={form.watch("purchase_request_id") ?? ""}
                   onValueChange={(v) => {
-                    form.setValue("engagement_id", v === "__clear__" ? "" : v, { shouldValidate: true })
+                    form.setValue("purchase_request_id", v === "__clear__" ? "" : v, { shouldValidate: true })
                     if (v && v !== "__clear__") form.setValue("contract_id", "", { shouldValidate: false })
                   }}
-                  disabled={engagementsLoading || !!watchedContractId}
+                  disabled={purchaseRequestsLoading || !!watchedContractId}
                 >
                   <SelectTrigger className={watchedContractId ? "opacity-50" : ""}>
-                    <SelectValue placeholder={engagementsLoading ? "Loading engagements…" : "Select an engagement"} />
+                    <SelectValue placeholder={purchaseRequestsLoading ? "Loading purchase requests…" : "Select a purchase request"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {watchedEngagementId && (
+                    {watchedPurchaseRequestId && (
                       <SelectItem value="__clear__">— Clear selection —</SelectItem>
                     )}
-                    {vendorEngagements.length === 0 && !engagementsLoading ? (
-                      <SelectItem value="__none__" disabled>No engagements found</SelectItem>
+                    {vendorPurchaseRequests.length === 0 && !purchaseRequestsLoading ? (
+                      <SelectItem value="__none__" disabled>No purchase requests found</SelectItem>
                     ) : (
-                      vendorEngagements.map((e) => (
+                      vendorPurchaseRequests.map((e) => (
                         <SelectItem key={e.id} value={e.id}>{e.title}</SelectItem>
                       ))
                     )}
                   </SelectContent>
                 </Select>
-                {watchedEngagementId && linkedPO && (
+                {watchedPurchaseRequestId && linkedPO && (
                   <p className="text-xs text-muted-foreground mt-1">Auto-linked PO: {linkedPO.po_number}</p>
                 )}
               </div>
             </div>
 
             {/* Validation error for the OR rule */}
-            {form.formState.errors.contract_id && !watchedContractId && !watchedEngagementId && (
+            {form.formState.errors.contract_id && !watchedContractId && !watchedPurchaseRequestId && (
               <p className="text-xs text-destructive">{form.formState.errors.contract_id.message}</p>
             )}
 
@@ -384,7 +386,13 @@ export function VendorInvoices() {
               </div>
               <div className="space-y-1.5">
                 <Label>Currency</Label>
-                <Input value="INR" readOnly className="bg-muted/40" />
+                <Select value={form.watch("currency")} onValueChange={(v) => form.setValue("currency", v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {CURRENCIES.map((c) => <SelectItem key={c.code} value={c.code}>{c.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Must match the linked PO's currency, if any.</p>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">

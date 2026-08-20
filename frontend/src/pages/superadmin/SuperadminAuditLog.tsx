@@ -19,7 +19,7 @@ const ACTING_AS_LABELS: Record<string, string> = {
 }
 
 const ENTITY_TYPE_LABELS: Record<string, string> = {
-  engagement: "Engagement",
+  purchase_request: "Purchase Request",
   contract: "Contract",
   grn: "GRN",
   invoice: "Invoice",

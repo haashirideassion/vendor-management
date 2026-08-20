@@ -25,14 +25,14 @@ export function useRFQ(id: string | undefined) {
   })
 }
 
-export function useEngagementRFQs(engagementId: string | undefined) {
+export function usePurchaseRequestRFQs(purchaseRequestId: string | undefined) {
   const { accessToken } = useAuth()
 
   return useQuery({
-    queryKey: ["rfqs", "engagement", engagementId],
-    enabled: !!engagementId,
+    queryKey: ["rfqs", "purchase_request", purchaseRequestId],
+    enabled: !!purchaseRequestId,
     queryFn: () =>
-      api.post<RFQ[]>("/api/rfqs/by-engagement", { engagementId }, accessToken),
+      api.post<RFQ[]>("/api/rfqs/by-purchase-request", { purchaseRequestId }, accessToken),
   })
 }
 

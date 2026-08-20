@@ -1,9 +1,13 @@
+import { useState } from "react"
 import { useVendors } from "@/hooks/useVendors"
 import { useProcurementKPIs } from "@/hooks/useAnalytics"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { AnimatedPage } from "@/components/shared/AnimatedPage"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Button } from "@/components/ui/button"
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
 } from "recharts"
@@ -12,7 +16,7 @@ import {
   VENDOR_STATUSES,
   INVOICE_STATUS_LABELS,
   INVOICE_STATUS_COLORS,
-  ENGAGEMENT_STATUS_LABELS,
+  PURCHASE_REQUEST_STATUS_LABELS,
 } from "@/lib/constants"
 import { formatCurrency } from "@/lib/utils"
 import { differenceInDays, format } from "date-fns"
@@ -26,9 +30,12 @@ import {
   Invoice01Icon,
   File01Icon,
   AlertCircleIcon,
+  Star01Icon,
+  BankIcon,
+  DeliveryBox01Icon,
 } from "@/components/shared/SolarIcon"
 import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
-import type { VendorStatus, InvoiceStatus, EngagementStatus } from "@/lib/types"
+import type { VendorStatus, InvoiceStatus, PurchaseRequestStatus } from "@/lib/types"
 
 const VENDOR_CHART_COLORS: Record<VendorStatus, string> = {
   invited: "#94a3b8",
@@ -48,7 +55,7 @@ const INVOICE_CHART_COLORS: Partial<Record<InvoiceStatus, string>> = {
   rejected: "#dc2626",
 }
 
-const ENGAGEMENT_CHART_COLORS: Partial<Record<EngagementStatus, string>> = {
+const PURCHASE_REQUEST_CHART_COLORS: Partial<Record<PurchaseRequestStatus, string>> = {
   draft: "#6b7280",
   pending_approval: "#ca8a04",
   approved: "#2563eb",
@@ -57,11 +64,30 @@ const ENGAGEMENT_CHART_COLORS: Partial<Record<EngagementStatus, string>> = {
   cancelled: "#9ca3af",
 }
 
-function compactNum(v: number): string {
-  if (v >= 10_000_000) return `₹${(v / 10_000_000).toFixed(1)}Cr`
-  if (v >= 100_000) return `₹${(v / 100_000).toFixed(1)}L`
-  if (v >= 1_000) return `₹${(v / 1_000).toFixed(0)}K`
-  return `₹${Math.round(v)}`
+function currencySymbol(currency: string): string {
+  try {
+    const parts = new Intl.NumberFormat("en-US", { style: "currency", currency, currencyDisplay: "narrowSymbol" }).formatToParts(0)
+    return parts.find((p) => p.type === "currency")?.value ?? currency
+  } catch {
+    return currency
+  }
+}
+
+// Lakh/Crore only makes sense for INR -- every other currency (once an org
+// sets a non-INR base_currency, migration 077) falls back to the
+// conventional K/M/B abbreviation instead.
+function compactNum(v: number, currency: string): string {
+  const symbol = currencySymbol(currency)
+  if (currency === "INR") {
+    if (v >= 10_000_000) return `${symbol}${(v / 10_000_000).toFixed(1)}Cr`
+    if (v >= 100_000) return `${symbol}${(v / 100_000).toFixed(1)}L`
+    if (v >= 1_000) return `${symbol}${(v / 1_000).toFixed(0)}K`
+    return `${symbol}${Math.round(v)}`
+  }
+  if (v >= 1_000_000_000) return `${symbol}${(v / 1_000_000_000).toFixed(1)}B`
+  if (v >= 1_000_000) return `${symbol}${(v / 1_000_000).toFixed(1)}M`
+  if (v >= 1_000) return `${symbol}${(v / 1_000).toFixed(1)}K`
+  return `${symbol}${Math.round(v)}`
 }
 
 const TOOLTIP_STYLE = {
@@ -75,7 +101,8 @@ const TOOLTIP_STYLE = {
 
 export function Reports() {
   const { data: vendors = [], isLoading } = useVendors()
-  const { data: analytics } = useProcurementKPIs()
+  const [dateRange, setDateRange] = useState<{ from?: string; to?: string }>({})
+  const { data: analytics } = useProcurementKPIs(dateRange)
 
   const vendorChartData = VENDOR_STATUSES
     .map((s) => ({
@@ -102,6 +129,10 @@ export function Reports() {
   const kpis = analytics?.kpis
   const charts = analytics?.charts
   const expiring = analytics?.contractsExpiringSoon ?? []
+  const ratingsLeaderboard = analytics?.vendorRatingsLeaderboard ?? []
+  const blanketUtilization = analytics?.blanketPOUtilization ?? []
+  const matchExceptions = analytics?.matchExceptions
+  const paymentAging = analytics?.paymentAging
 
   if (isLoading) return (
     <div className="p-6 flex items-center gap-2 text-sm text-muted-foreground">
@@ -230,9 +261,38 @@ export function Reports() {
 
         {/* ── Procurement Analytics ────────────────────────────────────────── */}
         <div className="space-y-6">
-          <div>
-            <h2 className="text-base font-semibold tracking-tight">Procurement</h2>
-            <p className="text-sm text-muted-foreground mt-0.5">Spend, contracts, and engagement pipeline.</p>
+          <div className="flex items-end justify-between gap-4 flex-wrap">
+            <div>
+              <h2 className="text-base font-semibold tracking-tight">Procurement</h2>
+              <p className="text-sm text-muted-foreground mt-0.5">Spend, contracts, and purchase request pipeline.</p>
+            </div>
+            {/* Scopes the period-based figures below (spend/status/exceptions/
+                payments) to a date range -- contract expiry, Blanket PO
+                utilization, and the ratings leaderboard are current-state
+                snapshots and stay unaffected regardless of this filter. */}
+            <div className="flex items-end gap-2">
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">From</Label>
+                <Input
+                  type="date" className="h-8 text-xs w-36"
+                  value={dateRange.from ?? ""}
+                  onChange={(e) => setDateRange((r) => ({ ...r, from: e.target.value || undefined }))}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">To</Label>
+                <Input
+                  type="date" className="h-8 text-xs w-36"
+                  value={dateRange.to ?? ""}
+                  onChange={(e) => setDateRange((r) => ({ ...r, to: e.target.value || undefined }))}
+                />
+              </div>
+              {(dateRange.from || dateRange.to) && (
+                <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setDateRange({})}>
+                  Clear
+                </Button>
+              )}
+            </div>
           </div>
 
           {/* Procurement KPI cards */}
@@ -243,7 +303,7 @@ export function Reports() {
                   <SolarDuotoneIcon icon={Invoice01Icon} size={18} strokeWidth={1.5} className="text-violet-700 dark:text-violet-300" />
                 </div>
                 <p className="text-2xl font-bold tracking-tight text-violet-800 dark:text-violet-100 tabular-nums">
-                  {kpis ? compactNum(kpis.totalPoSpend) : "—"}
+                  {kpis ? compactNum(kpis.totalPoSpend, analytics?.baseCurrency ?? "INR") : "—"}
                 </p>
                 <p className="text-xs text-violet-600 dark:text-violet-400 mt-1 font-medium">Total PO Spend</p>
               </CardContent>
@@ -335,11 +395,11 @@ export function Reports() {
                 <ResponsiveContainer width="100%" height={200}>
                   <BarChart data={charts?.monthlySpend} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
                     <XAxis dataKey="month" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} tickFormatter={compactNum} width={52} />
+                    <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} tickFormatter={(v: number) => compactNum(v, analytics?.baseCurrency ?? "INR")} width={52} />
                     <Tooltip
                       cursor={{ fill: "rgba(0,0,0,0.04)", radius: 4 }}
                       contentStyle={TOOLTIP_STYLE}
-                      formatter={(v: unknown) => [formatCurrency(typeof v === "number" ? v : 0, "INR"), "Spend"]}
+                      formatter={(v: unknown) => [formatCurrency(typeof v === "number" ? v : 0, analytics?.baseCurrency ?? "INR"), "Spend"]}
                     />
                     <Bar dataKey="value" radius={[6, 6, 0, 0]} maxBarSize={48} fill="oklch(0.52 0.105 223.128)" />
                   </BarChart>
@@ -365,12 +425,12 @@ export function Reports() {
                 ) : (
                   <ResponsiveContainer width="100%" height={Math.max(140, (charts.spendByVendor.length * 36) + 16)}>
                     <BarChart data={charts.spendByVendor} layout="vertical" margin={{ top: 0, right: 8, left: 0, bottom: 0 }}>
-                      <XAxis type="number" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} tickFormatter={compactNum} />
+                      <XAxis type="number" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} tickFormatter={(v: number) => compactNum(v, analytics?.baseCurrency ?? "INR")} />
                       <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} width={100} />
                       <Tooltip
                         cursor={{ fill: "rgba(0,0,0,0.04)", radius: 4 }}
                         contentStyle={TOOLTIP_STYLE}
-                        formatter={(v: unknown) => [formatCurrency(typeof v === "number" ? v : 0, "INR"), "Spend"]}
+                        formatter={(v: unknown) => [formatCurrency(typeof v === "number" ? v : 0, analytics?.baseCurrency ?? "INR"), "Spend"]}
                       />
                       <Bar dataKey="value" radius={[0, 6, 6, 0]} maxBarSize={20} fill="#7c3aed" />
                     </BarChart>
@@ -418,21 +478,21 @@ export function Reports() {
             </Card>
           </div>
 
-          {/* Engagement Funnel */}
-          {charts?.engagementFunnel && charts.engagementFunnel.length > 0 && (
+          {/* Purchase Request Funnel */}
+          {charts?.purchaseRequestFunnel && charts.purchaseRequestFunnel.length > 0 && (
             <Card className="shadow-none">
               <CardHeader className="pb-3 border-b">
                 <CardTitle className="text-sm font-semibold flex items-center gap-2">
                   <SolarDuotoneIcon icon={ChartBarIncreasingIcon} size={16} strokeWidth={1.5} className="text-muted-foreground" />
-                  Engagement Pipeline
+                  Purchase Request Pipeline
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-5">
                 <ResponsiveContainer width="100%" height={180}>
-                  <BarChart data={charts.engagementFunnel} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                  <BarChart data={charts.purchaseRequestFunnel} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
                     <XAxis
                       dataKey="status"
-                      tickFormatter={(s) => ENGAGEMENT_STATUS_LABELS[s as EngagementStatus] ?? s}
+                      tickFormatter={(s) => PURCHASE_REQUEST_STATUS_LABELS[s as PurchaseRequestStatus] ?? s}
                       tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
                       axisLine={false}
                       tickLine={false}
@@ -441,15 +501,170 @@ export function Reports() {
                     <Tooltip
                       cursor={{ fill: "rgba(0,0,0,0.04)", radius: 4 }}
                       contentStyle={TOOLTIP_STYLE}
-                      labelFormatter={(s) => ENGAGEMENT_STATUS_LABELS[s as EngagementStatus] ?? s}
+                      labelFormatter={(s) => PURCHASE_REQUEST_STATUS_LABELS[s as PurchaseRequestStatus] ?? s}
                     />
                     <Bar dataKey="count" radius={[6, 6, 0, 0]} maxBarSize={56}>
-                      {charts.engagementFunnel.map((d) => (
-                        <Cell key={d.status} fill={ENGAGEMENT_CHART_COLORS[d.status as EngagementStatus] ?? "#6b7280"} />
+                      {charts.purchaseRequestFunnel.map((d) => (
+                        <Cell key={d.status} fill={PURCHASE_REQUEST_CHART_COLORS[d.status as PurchaseRequestStatus] ?? "#6b7280"} />
                       ))}
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Match Exceptions & Payment Aging */}
+          {(matchExceptions || paymentAging) && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <Card className="shadow-none border-amber-200 dark:border-amber-800 overflow-hidden bg-gradient-to-br from-amber-100 to-amber-200 dark:from-amber-900/60 dark:to-amber-800/40">
+                <CardContent className="pt-5 pb-4 px-5">
+                  <div className="mb-3 p-1.5 w-fit rounded-lg bg-amber-200/60 dark:bg-amber-700/40 shadow-sm">
+                    <SolarDuotoneIcon icon={AlertCircleIcon} size={18} strokeWidth={1.5} className="text-amber-700 dark:text-amber-300" />
+                  </div>
+                  <p className="text-2xl font-bold tracking-tight text-amber-800 dark:text-amber-100 tabular-nums">
+                    {matchExceptions?.openCount ?? "—"}
+                  </p>
+                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 font-medium">Open Match Exceptions</p>
+                </CardContent>
+              </Card>
+              <Card className="shadow-none border-slate-200 dark:border-slate-700 overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-900/60 dark:to-slate-800/40">
+                <CardContent className="pt-5 pb-4 px-5">
+                  <div className="mb-3 p-1.5 w-fit rounded-lg bg-slate-200/60 dark:bg-slate-700/40 shadow-sm">
+                    <SolarDuotoneIcon icon={ChartBarIncreasingIcon} size={18} strokeWidth={1.5} className="text-slate-700 dark:text-slate-300" />
+                  </div>
+                  <p className="text-2xl font-bold tracking-tight text-slate-800 dark:text-slate-100 tabular-nums">
+                    {matchExceptions ? `${matchExceptions.exceptionRatePct.toFixed(1)}%` : "—"}
+                  </p>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 font-medium">Exception Rate</p>
+                </CardContent>
+              </Card>
+              <Card className="shadow-none border-blue-200 dark:border-blue-800 overflow-hidden bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900/60 dark:to-blue-800/40">
+                <CardContent className="pt-5 pb-4 px-5">
+                  <div className="mb-3 p-1.5 w-fit rounded-lg bg-blue-200/60 dark:bg-blue-700/40 shadow-sm">
+                    <SolarDuotoneIcon icon={BankIcon} size={18} strokeWidth={1.5} className="text-blue-700 dark:text-blue-300" />
+                  </div>
+                  <p className="text-2xl font-bold tracking-tight text-blue-800 dark:text-blue-100 tabular-nums">
+                    {paymentAging ? compactNum(paymentAging.outstandingAmount, analytics?.baseCurrency ?? "INR") : "—"}
+                  </p>
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1 font-medium">Outstanding Payments</p>
+                </CardContent>
+              </Card>
+              <Card className="shadow-none border-red-200 dark:border-red-800 overflow-hidden bg-gradient-to-br from-red-100 to-red-200 dark:from-red-900/60 dark:to-red-800/40">
+                <CardContent className="pt-5 pb-4 px-5">
+                  <div className="mb-3 p-1.5 w-fit rounded-lg bg-red-200/60 dark:bg-red-700/40 shadow-sm">
+                    <SolarDuotoneIcon icon={Clock01Icon} size={18} strokeWidth={1.5} className="text-red-700 dark:text-red-300" />
+                  </div>
+                  <p className="text-2xl font-bold tracking-tight text-red-800 dark:text-red-100 tabular-nums">
+                    {paymentAging ? compactNum(paymentAging.overdueAmount, analytics?.baseCurrency ?? "INR") : "—"}
+                  </p>
+                  <p className="text-xs text-red-600 dark:text-red-400 mt-1 font-medium">
+                    Overdue ({paymentAging?.overdueCount ?? 0})
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {paymentAging && paymentAging.agingBuckets.some((b) => b.amount > 0) && (
+            <Card className="shadow-none">
+              <CardHeader className="pb-3 border-b">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <SolarDuotoneIcon icon={BankIcon} size={16} strokeWidth={1.5} className="text-muted-foreground" />
+                  Overdue Invoice Aging
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-5">
+                <ResponsiveContainer width="100%" height={180}>
+                  <BarChart data={paymentAging.agingBuckets} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                    <XAxis dataKey="bucket" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} tickFormatter={(v: number) => compactNum(v, analytics?.baseCurrency ?? "INR")} width={52} />
+                    <Tooltip
+                      cursor={{ fill: "rgba(0,0,0,0.04)", radius: 4 }}
+                      contentStyle={TOOLTIP_STYLE}
+                      formatter={(v: unknown) => [formatCurrency(typeof v === "number" ? v : 0, analytics?.baseCurrency ?? "INR"), "Overdue"]}
+                    />
+                    <Bar dataKey="amount" radius={[6, 6, 0, 0]} maxBarSize={48} fill="#dc2626" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Blanket PO Utilization */}
+          {blanketUtilization.length > 0 && (
+            <Card className="shadow-none">
+              <CardHeader className="pb-3 border-b">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <SolarDuotoneIcon icon={DeliveryBox01Icon} size={16} strokeWidth={1.5} className="text-muted-foreground" />
+                  Blanket PO Utilization
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-3">
+                <div className="flex flex-col divide-y divide-border/60">
+                  {blanketUtilization.map((b) => (
+                    <div key={b.id} className="py-3 space-y-2">
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="min-w-0">
+                          <Link to={`/admin/purchase-orders/${b.id}`} className="text-sm font-medium hover:underline block truncate">
+                            {b.poNumber ?? b.id} — {b.vendorName}
+                          </Link>
+                          {b.validUntil && (
+                            <p className={`text-xs mt-0.5 ${b.daysLeft != null && b.daysLeft <= 14 ? "text-red-600 dark:text-red-400" : "text-muted-foreground"}`}>
+                              {b.daysLeft != null && b.daysLeft < 0
+                                ? "Validity expired"
+                                : `Valid until ${format(new Date(b.validUntil), "dd MMM yyyy")}${b.daysLeft != null ? ` (${b.daysLeft}d left)` : ""}`}
+                            </p>
+                          )}
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-sm font-medium tabular-nums">
+                            {formatCurrency(b.drawn, b.currency)} / {formatCurrency(b.totalValue, b.currency)}
+                          </p>
+                          <p className="text-xs text-muted-foreground tabular-nums">
+                            {formatCurrency(b.remaining, b.currency)} remaining
+                          </p>
+                        </div>
+                      </div>
+                      <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${b.utilizationPct >= 90 ? "bg-red-500" : b.utilizationPct >= 70 ? "bg-orange-500" : "bg-blue-500"}`}
+                          style={{ width: `${Math.min(100, b.utilizationPct)}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Vendor Ratings Leaderboard */}
+          {ratingsLeaderboard.length > 0 && (
+            <Card className="shadow-none">
+              <CardHeader className="pb-3 border-b">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <SolarDuotoneIcon icon={Star01Icon} size={16} strokeWidth={1.5} className="text-muted-foreground" />
+                  Vendor Ratings Leaderboard
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-3">
+                <div className="flex flex-col divide-y divide-border/60">
+                  {ratingsLeaderboard.slice(0, 8).map((v, i) => (
+                    <div key={v.vendorId} className="flex items-center justify-between py-2.5 gap-4">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="text-xs font-semibold text-muted-foreground w-4 shrink-0">{i + 1}</span>
+                        <Link to={`/admin/vendors/${v.vendorId}`} className="text-sm font-medium hover:underline truncate">{v.name}</Link>
+                        <span className="text-xs text-muted-foreground shrink-0">({v.ratingCount} rating{v.ratingCount !== 1 ? "s" : ""})</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <SolarDuotoneIcon icon={Star01Icon} size={14} strokeWidth={1.5} className="text-amber-500" />
+                        <span className="text-sm font-semibold tabular-nums">{v.avgOverall.toFixed(1)}</span>
+                        <span className="text-xs text-muted-foreground">/ 5</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </CardContent>
             </Card>
           )}

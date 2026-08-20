@@ -1,9 +1,11 @@
 import { useState } from "react"
 import { useParams, Link } from "react-router-dom"
-import { useInvoice, useReviewInvoice, useRunThreeWayMatch, useMarkInvoicePaid } from "@/hooks/useInvoices"
+import { useInvoice, useReviewInvoice, useRunThreeWayMatch, useInvoicePayments, useInvoiceExceptions, useResolveInvoiceException } from "@/hooks/useInvoices"
 import { usePermissions } from "@/hooks/usePermissions"
 import { AnimatedPage } from "@/components/shared/AnimatedPage"
 import { AttachmentList } from "@/components/shared/AttachmentList"
+import { RecordPaymentDialog } from "@/components/shared/RecordPaymentDialog"
+import { RateVendorDialog } from "@/components/shared/RateVendorDialog"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
@@ -12,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea"
 import {
   INVOICE_STATUS_LABELS, INVOICE_STATUS_COLORS,
   MATCH_STATUS_LABELS, MATCH_STATUS_COLORS,
+  PAYMENT_METHOD_LABELS,
 } from "@/lib/constants"
 import { formatCurrency } from "@/lib/utils"
 import { format } from "date-fns"
@@ -29,12 +32,27 @@ export function InvoiceDetail() {
 
   const [reviewAction, setReviewAction] = useState<"approve" | "reject" | null>(null)
   const [notes, setNotes] = useState("")
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false)
+  const [exceptionAction, setExceptionAction] = useState<"resolved" | "waived" | null>(null)
+  const [exceptionNotes, setExceptionNotes] = useState("")
+  const [showRateDialog, setShowRateDialog] = useState(false)
 
   const { data: invoice, isLoading } = useInvoice(id!)
+  const { data: payments = [] } = useInvoicePayments(id)
+  const { data: exceptions = [] } = useInvoiceExceptions(id ? { invoiceId: id } : undefined)
+  const openException = exceptions.find((e) => e.status === "open")
   const reviewInvoice = useReviewInvoice()
   const runMatch = useRunThreeWayMatch()
-  const markPaid = useMarkInvoicePaid()
-  const { canApproveInvoice } = usePermissions()
+  const resolveException = useResolveInvoiceException()
+  const { canApproveInvoice, canRateVendors } = usePermissions()
+
+  async function handleResolveException() {
+    if (!exceptionAction || !openException) return
+    try {
+      await resolveException.mutateAsync({ id: openException.id, status: exceptionAction, notes: exceptionNotes.trim() || undefined })
+      setExceptionAction(null); setExceptionNotes("")
+    } catch { /* hook toasts its own error */ }
+  }
 
   async function handleReview() {
     if (!reviewAction || !id) return
@@ -83,7 +101,7 @@ export function InvoiceDetail() {
               <p className="text-sm text-muted-foreground mt-0.5">
                 {invoice.vendor?.company_name}
                 {invoice.contract?.title && ` · ${invoice.contract.title}`}
-                {invoice.engagement?.title && ` · ${invoice.engagement.title}`}
+                {invoice.purchase_request?.title && ` · ${invoice.purchase_request.title}`}
               </p>
             </div>
             <div className="flex flex-col items-end gap-1.5">
@@ -129,18 +147,22 @@ export function InvoiceDetail() {
                 </Button>
               </>
             )}
-            {status === "approved" && (
-              <Button
-                size="sm" variant="outline"
-                onClick={() => markPaid.mutate({ id: invoice.id }, {
-                  onSuccess: () => toast.success("Invoice marked as paid."),
-                  onError: () => toast.error("Failed to mark as paid. Please try again."),
-                })}
-                disabled={markPaid.isPending}
-              >
-                Mark Paid
+            {["approved", "partially_paid"].includes(status) && (
+              <Button size="sm" variant="outline" onClick={() => setShowPaymentDialog(true)}>
+                Record Payment
               </Button>
             )}
+          </div>
+        )}
+
+        {/* Rating is a separate (Admin-tier) permission from invoice review/
+            payment -- shown once the invoice is fully paid, independent of
+            canApproveInvoice. */}
+        {canRateVendors && status === "paid" && (
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" onClick={() => setShowRateDialog(true)}>
+              Rate Vendor
+            </Button>
           </div>
         )}
 
@@ -204,10 +226,10 @@ export function InvoiceDetail() {
                     </Link>
                   </div>
                 )}
-                {invoice.engagement_id && (
+                {invoice.purchase_request_id && (
                   <div>
-                    <p className="text-xs text-muted-foreground mb-0.5">Engagement</p>
-                    <p className="font-medium">{invoice.engagement?.title ?? "—"}</p>
+                    <p className="text-xs text-muted-foreground mb-0.5">Purchase Request</p>
+                    <p className="font-medium">{invoice.purchase_request?.title ?? "—"}</p>
                   </div>
                 )}
                 {status === "paid" && invoice.paid_at && (
@@ -229,22 +251,89 @@ export function InvoiceDetail() {
             </CardContent>
           </Card>
 
-          {/* Review history sidebar */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-semibold">Review</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              {invoice.reviewed_at ? (
-                <div>
-                  <p className="text-xs text-muted-foreground mb-0.5">Reviewed On</p>
-                  <p className="font-medium">{format(new Date(invoice.reviewed_at), "dd MMM yyyy")}</p>
-                </div>
-              ) : (
-                <p className="text-xs text-muted-foreground">Not yet reviewed.</p>
-              )}
-            </CardContent>
-          </Card>
+          {/* Review + Payments sidebar */}
+          <div className="space-y-4">
+            {openException && (
+              <Card className="border-orange-200">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-semibold text-orange-800">Match Exception</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 text-sm">
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-0.5">Expected</p>
+                      <p className="font-medium tabular-nums">{formatCurrency(openException.expected_amount, invoice.currency)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-0.5">Invoiced</p>
+                      <p className="font-medium tabular-nums">{formatCurrency(openException.invoiced_amount, invoice.currency)}</p>
+                    </div>
+                    <div className="col-span-2">
+                      <p className="text-xs text-muted-foreground mb-0.5">Variance</p>
+                      <p className="font-medium tabular-nums text-orange-700">
+                        {formatCurrency(openException.variance, invoice.currency)}
+                        {openException.variance_pct != null && ` (${openException.variance_pct.toFixed(1)}%)`}
+                      </p>
+                    </div>
+                  </div>
+                  {canApproveInvoice && (
+                    <div className="flex gap-2 pt-1">
+                      <Button size="sm" variant="outline" className="flex-1" onClick={() => setExceptionAction("resolved")}>
+                        Mark Resolved
+                      </Button>
+                      <Button size="sm" variant="outline" className="flex-1" onClick={() => setExceptionAction("waived")}>
+                        Waive
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-semibold">Review</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                {invoice.reviewed_at ? (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-0.5">Reviewed On</p>
+                    <p className="font-medium">{format(new Date(invoice.reviewed_at), "dd MMM yyyy")}</p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">Not yet reviewed.</p>
+                )}
+              </CardContent>
+            </Card>
+
+            {(payments.length > 0 || status === "partially_paid") && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-semibold">Payments ({payments.length})</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {payments.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">No payments recorded yet.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {payments.map((p) => (
+                        <div key={p.id} className="rounded-lg border px-2.5 py-2 text-sm">
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium tabular-nums">{formatCurrency(p.amount, invoice.currency)}</span>
+                            <span className="text-xs text-muted-foreground">{format(new Date(p.paid_date), "dd MMM yyyy")}</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {PAYMENT_METHOD_LABELS[p.payment_method]}
+                            {p.reference_number && ` · ${p.reference_number}`}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </div>
         </div>
 
         <AttachmentList
@@ -287,6 +376,50 @@ export function InvoiceDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {showPaymentDialog && (
+        <RecordPaymentDialog
+          open={showPaymentDialog}
+          onOpenChange={setShowPaymentDialog}
+          invoice={invoice}
+        />
+      )}
+
+      <Dialog open={!!exceptionAction} onOpenChange={(o) => { if (!o) { setExceptionAction(null); setExceptionNotes("") } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{exceptionAction === "resolved" ? "Mark Exception Resolved" : "Waive Exception"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 pt-2">
+            <p className="text-sm text-muted-foreground">
+              {exceptionAction === "resolved"
+                ? "Confirms the discrepancy has been addressed (e.g. a correction was made or additional deliveries were verified)."
+                : "Accepts the variance without further action — you can still approve or reject this invoice normally."}
+            </p>
+            <Textarea
+              placeholder="Notes (optional)…"
+              value={exceptionNotes}
+              onChange={(e) => setExceptionNotes(e.target.value)}
+              rows={3}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setExceptionAction(null); setExceptionNotes("") }} disabled={resolveException.isPending}>
+              Cancel
+            </Button>
+            <Button disabled={resolveException.isPending} onClick={handleResolveException}>
+              {resolveException.isPending ? "Saving…" : exceptionAction === "resolved" ? "Mark Resolved" : "Waive"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <RateVendorDialog
+        open={showRateDialog}
+        onOpenChange={setShowRateDialog}
+        vendorId={invoice.vendor_id}
+        vendorName={invoice.vendor?.company_name}
+      />
     </AnimatedPage>
   )
 }

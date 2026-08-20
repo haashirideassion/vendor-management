@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { api } from "@/lib/api"
 import { useAuth } from "@/contexts/AuthContext"
-import type { GRN, GRNLineItem, GRNStatus } from "@/lib/types"
+import type { GRN, GRNLineItem, GRNStatus, TaxComponentInput } from "@/lib/types"
 
 // ─── Filters ──────────────────────────────────────────────────────────────────
 
@@ -41,7 +41,7 @@ export interface CreateGRNInput {
   vendor_id: string
   received_date: string
   notes?: string
-  line_items: Omit<GRNLineItem, "id" | "grn_id" | "created_at">[]
+  line_items: (Omit<GRNLineItem, "id" | "grn_id" | "created_at" | "tax_components"> & { tax_components?: TaxComponentInput[] })[]
 }
 
 export function useCreateGRN() {

@@ -2,15 +2,17 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { api } from "@/lib/api"
 import { useAuth } from "@/contexts/AuthContext"
-import type { PurchaseOrder, POLineItem, POStatus } from "@/lib/types"
+import type { PurchaseOrder, POLineItem, POStatus, POType, TaxComponentInput } from "@/lib/types"
 
 // ─── Filters ──────────────────────────────────────────────────────────────────
 
 export interface POFilters {
   status?: POStatus
   vendor_id?: string
-  engagement_id?: string
+  purchase_request_id?: string
   contract_id?: string
+  po_type?: POType
+  parent_po_id?: string
 }
 
 // ─── Queries ──────────────────────────────────────────────────────────────────
@@ -26,8 +28,10 @@ export function usePurchaseOrders(filters?: POFilters) {
         {
           status: filters?.status,
           vendor_id: filters?.vendor_id,
-          engagement_id: filters?.engagement_id,
+          purchase_request_id: filters?.purchase_request_id,
           contract_id: filters?.contract_id,
+          po_type: filters?.po_type,
+          parent_po_id: filters?.parent_po_id,
         },
         accessToken
       )
@@ -56,7 +60,7 @@ export function usePurchaseOrder(id: string) {
 // ─── Mutations ────────────────────────────────────────────────────────────────
 
 export interface CreatePOInput {
-  engagement_id?: string
+  purchase_request_id?: string
   vendor_id: string
   total_value: number
   currency?: string
@@ -65,11 +69,15 @@ export interface CreatePOInput {
   delivery_address?: string
   payment_terms?: string
   notes?: string
-  line_items: Omit<POLineItem, "id" | "po_id" | "created_at">[]
+  line_items: (Omit<POLineItem, "id" | "po_id" | "created_at" | "tax_components"> & { tax_components?: TaxComponentInput[] })[]
   // Suppresses this hook's own toast -- for callers issuing several POs at
-  // once (e.g. EngagementDetail's "Issue PO" bulk action) that show a single
-  // combined summary toast instead of one per PO.
+  // once (e.g. PurchaseRequestDetail's "Issue PO" bulk action) that show a
+  // single combined summary toast instead of one per PO.
   silent?: boolean
+  po_type?: POType
+  parent_po_id?: string
+  valid_from?: string
+  valid_until?: string
 }
 
 export function useCreatePurchaseOrder() {

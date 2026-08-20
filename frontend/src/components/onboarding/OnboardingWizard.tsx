@@ -22,6 +22,33 @@ export interface LocalDocument {
   fileName: string
 }
 
+// One additional (non-default) Legal Entity, collected client-side during
+// onboarding the same way everything else in `data` is -- the vendor
+// doesn't exist yet until final submit, so these can't be created via
+// /api/legal-entities/create until AFTER /api/vendors/create returns.
+// Deliberately one tax registration + one bank account per entity here --
+// a vendor with genuinely complex needs (multiple GSTINs per entity, etc.)
+// adds those later via the post-onboarding Legal Entity management screens
+// (the same /api/legal-entities/* routes), keeping the wizard itself lean.
+export interface AdditionalLegalEntityDraft {
+  registered_country: string
+  legal_name?: string
+  registration_number?: string
+  entity_type: "individual" | "company"
+  tax_registration_type?: string
+  tax_country?: string
+  tax_state?: string
+  tax_value?: string
+  bank_country?: string
+  bank_currency?: string
+  bank_name?: string
+  bank_account_number?: string
+  bank_ifsc?: string
+  bank_swift_bic?: string
+  bank_iban?: string
+  bank_beneficiary_name?: string
+}
+
 export interface OnboardingData {
   // Step 1
   company_name: string
@@ -37,6 +64,11 @@ export interface OnboardingData {
   bank_name: string
   bank_account_number: string
   bank_routing_number: string
+  // Confirmed design: never shows "Legal Entity" for a single-entity
+  // vendor -- this toggle (default off) is the only thing that reveals the
+  // repeatable multi-entity list, which stays empty/hidden otherwise.
+  has_multiple_legal_entities?: boolean
+  additional_legal_entities?: AdditionalLegalEntityDraft[]
   // Step 3
   contract_title?: string
   contract_type?: string
@@ -156,6 +188,58 @@ export function OnboardingWizard() {
         },
         accessToken
       )
+
+      // 1b. Additional Legal Entities (the MNC "operates through more than
+      // one legal entity" case) -- only reachable now that the vendor (and
+      // its vendor_users row, created atomically by create_vendor_with_
+      // categories) exists, since /api/legal-entities/create resolves the
+      // vendor from the caller's own auth token, not a body param. Created
+      // sequentially, not rolled back on partial failure the way the
+      // vendor-creation step is below -- a failed additional entity here
+      // is a recoverable follow-up action via the vendor's own Legal
+      // Entity management screen, not grounds to cancel the whole
+      // onboarding that already succeeded.
+      if (final.has_multiple_legal_entities && final.additional_legal_entities?.length) {
+        for (const entity of final.additional_legal_entities) {
+          if (!entity.registered_country?.trim()) continue
+          try {
+            await api.post(
+              "/api/legal-entities/create",
+              {
+                registeredCountry: entity.registered_country,
+                legalName: entity.legal_name || null,
+                registrationNumber: entity.registration_number || null,
+                entityType: entity.entity_type,
+                operatingCountries: [entity.registered_country],
+                taxRegistrations: entity.tax_registration_type && entity.tax_value
+                  ? [{
+                      registrationType: entity.tax_registration_type,
+                      country: entity.tax_country || entity.registered_country,
+                      state: entity.tax_state || undefined,
+                      registrationValue: entity.tax_value,
+                    }]
+                  : [],
+                bankAccounts: entity.bank_account_number
+                  ? [{
+                      country: entity.bank_country || entity.registered_country,
+                      currency: entity.bank_currency || undefined,
+                      bankName: entity.bank_name || undefined,
+                      accountNumber: entity.bank_account_number,
+                      ifsc: entity.bank_ifsc || undefined,
+                      swiftBic: entity.bank_swift_bic || undefined,
+                      iban: entity.bank_iban || undefined,
+                      beneficiaryName: entity.bank_beneficiary_name || undefined,
+                      isPrimary: true,
+                    }]
+                  : [],
+              },
+              accessToken
+            )
+          } catch {
+            toast.error(`Saved, but "${entity.legal_name || entity.registered_country}" needs to be re-added from your vendor profile.`)
+          }
+        }
+      }
 
       // 2. Upload documents via backend using service role key — avoids JWT mismatch with Supabase storage
       try {

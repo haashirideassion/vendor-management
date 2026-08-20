@@ -1,9 +1,25 @@
 import { Router, Request, Response } from "express"
 import { getSupabaseAdmin } from "../utils/supabaseAdmin"
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth"
+import { requireOrg, OrgScopedRequest } from "../middleware/org"
 
 const router = Router()
 function db(): any { return getSupabaseAdmin() }
+
+async function isOrgAdmin(profileId: string, orgId: string): Promise<boolean> {
+  const { data: member } = await db()
+    .from("organization_members")
+    .select("id")
+    .eq("org_id", orgId)
+    .eq("profile_id", profileId)
+    .maybeSingle()
+  if (!member) return false
+  const { data: roleRows } = await db()
+    .from("org_member_roles")
+    .select("role:role_id(name)")
+    .eq("org_member_id", member.id)
+  return (roleRows ?? []).some((r: any) => r.role.name === "Admin")
+}
 
 // POST /api/organizations/my — orgs the caller is a member of, with their
 // resolved role names, permission keys, and org config. Vendors aren't
@@ -22,7 +38,7 @@ router.post("/my", requireAuth, async (req: Request, res: Response) => {
 
     const { data, error } = await db()
       .from("organization_members")
-      .select("id, is_primary, organization:org_id(id, name, slug, status, role_mode, approval_threshold)")
+      .select("id, is_primary, organization:org_id(id, name, slug, status, role_mode, approval_threshold, base_currency)")
       .eq("profile_id", userId)
 
     if (error) throw error
@@ -78,6 +94,7 @@ router.post("/my", requireAuth, async (req: Request, res: Response) => {
       permissions: Array.from(permissionKeysByMember.get(row.id) ?? []),
       roleMode: row.organization.role_mode,
       approvalThreshold: row.organization.approval_threshold,
+      baseCurrency: row.organization.base_currency,
     }))
 
     res.json({ data: orgs })
@@ -137,6 +154,38 @@ router.post("/lookup-code", requireAuth, async (req: Request, res: Response) => 
   } catch (err: any) {
     console.error("[organizations/lookup-code]", err.message)
     res.status(500).json({ error: "Failed to look up organisation code" })
+  }
+})
+
+// POST /api/organizations/set-base-currency — {currency}. Admin-only. This
+// is the currency approval_policies.threshold_amount is denominated in, and
+// what every money-bearing entity's amount_in_base_currency is converted
+// into at creation time (migration 077) -- changing it does NOT
+// retroactively recompute already-existing rows' conversions.
+router.post("/set-base-currency", requireAuth, requireOrg, async (req: Request, res: Response) => {
+  try {
+    const { currency } = req.body as { currency?: string }
+    const { orgId } = req as OrgScopedRequest
+    const actorId = (req as AuthenticatedRequest).user.id
+    if (!currency || typeof currency !== "string" || currency.length !== 3) {
+      return res.status(400).json({ error: "A valid 3-letter ISO currency code is required" })
+    }
+    if (!(await isOrgAdmin(actorId, orgId))) {
+      return res.status(403).json({ error: "Only an organization Admin can change the base currency" })
+    }
+
+    const { data, error } = await db()
+      .from("organizations")
+      .update({ base_currency: currency.toUpperCase() })
+      .eq("id", orgId)
+      .select("base_currency")
+      .single()
+    if (error) throw error
+
+    res.json({ data })
+  } catch (err: any) {
+    console.error("[organizations/set-base-currency]", err.message)
+    res.status(500).json({ error: "Failed to update base currency" })
   }
 })
 

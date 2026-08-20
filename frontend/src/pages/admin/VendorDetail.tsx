@@ -2,15 +2,18 @@ import { useState } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import { useVendorById, useUpdateVendorStatus, useInvitePortalUser } from "@/hooks/useVendors"
 import { useVerifyDocument, useDocumentSignedUrl } from "@/hooks/useDocuments"
-import { useUpsertRating, useVendorRatings } from "@/hooks/useRatings"
+import { useCreateRating, useVendorRatings } from "@/hooks/useRatings"
+import { useAuth } from "@/contexts/AuthContext"
 import { useAuditLog } from "@/hooks/useAuditLog"
 import { useCategories } from "@/hooks/useCategories"
 import { useOrgScopedVendorUsers } from "@/hooks/useVendorUsers"
+import { usePermissions } from "@/hooks/usePermissions"
 import { supabase } from "@/lib/supabase"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { VerificationStatusBadge } from "@/components/shared/VerificationStatusBadge"
 import { RatingStars } from "@/components/shared/RatingStars"
+import { RatingDimensionsForm, EMPTY_RATING_SCORES } from "@/components/shared/RatingDimensionsForm"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { AnimatedPage } from "@/components/shared/AnimatedPage"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -24,8 +27,8 @@ import { Separator } from "@/components/ui/separator"
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle
 } from "@/components/ui/dialog"
-import { DOCUMENT_TYPE_LABELS, VENDOR_STATUS_LABELS } from "@/lib/constants"
-import type { VendorStatus } from "@/lib/types"
+import { DOCUMENT_TYPE_LABELS, VENDOR_STATUS_LABELS, RATING_DIMENSIONS, RATING_DIMENSION_LABELS } from "@/lib/constants"
+import type { VendorStatus, RatingDimension } from "@/lib/types"
 import { format, formatDistanceToNow } from "date-fns"
 import {
   Building06Icon,
@@ -74,8 +77,10 @@ export function VendorDetail() {
   const updateStatus = useUpdateVendorStatus()
   const invitePortalUser = useInvitePortalUser()
   const verifyDoc = useVerifyDocument()
-  const upsertRating = useUpsertRating()
+  const createRating = useCreateRating()
   const { data: ratings = [] } = useVendorRatings(id)
+  const { user } = useAuth()
+  const myRating = ratings.find((r) => r.rated_by === user?.id) ?? null
   const { data: auditLog = [] } = useAuditLog(id)
   const { data: categories = [] } = useCategories()
   const { data: orgScopedVendorUsers = [], isLoading: teamLoading } = useOrgScopedVendorUsers(id)
@@ -91,8 +96,9 @@ export function VendorDetail() {
   }
 
   // Rating
-  const [ratingScore, setRatingScore] = useState(0)
+  const [ratingScores, setRatingScores] = useState<Record<RatingDimension, number>>(EMPTY_RATING_SCORES)
   const [ratingComment, setRatingComment] = useState("")
+  const { canRateVendors } = usePermissions()
 
   // Category assignment
   const [categoryId, setCategoryId] = useState("")
@@ -131,12 +137,15 @@ export function VendorDetail() {
     } catch (e: unknown) { toast.error((e as Error).message) }
   }
 
+  const allDimensionsScored = RATING_DIMENSIONS.every((dim) => ratingScores[dim] > 0)
+
   async function handleRate() {
-    if (!ratingScore || !id) return
+    if (!allDimensionsScored || !id) return
     try {
-      await upsertRating.mutateAsync({ vendorId: id, score: ratingScore, comment: ratingComment || undefined })
+      await createRating.mutateAsync({ vendorId: id, scores: ratingScores, comment: ratingComment || undefined })
       toast.success("Rating submitted")
-      setRatingScore(0); setRatingComment("")
+      setRatingScores(EMPTY_RATING_SCORES)
+      setRatingComment("")
     } catch (e: unknown) { toast.error((e as Error).message) }
   }
 
@@ -168,7 +177,7 @@ export function VendorDetail() {
   const assignedCategoryIds = new Set(vendor.vendor_categories?.map((vc) => vc.category_id) ?? [])
   const availableCategories = categories.filter((c) => !assignedCategoryIds.has(c.id) && c.is_active)
   const actions = ACTIONS_BY_STATUS[vendor.status] ?? []
-  const avgRating = ratings.length ? ratings.reduce((s, r) => s + r.score, 0) / ratings.length : 0
+  const avgRating = ratings.length ? ratings.reduce((s, r) => s + r.overall, 0) / ratings.length : 0
   const docs = vendor.vendor_documents ?? []
   const verifiedCount = docs.filter((d) => d.verified).length
 
@@ -207,8 +216,8 @@ export function VendorDetail() {
           <div className="px-6 py-2.5 border-b bg-amber-50/60 dark:bg-amber-950/20 flex items-center gap-2 text-sm text-amber-700 dark:text-amber-400">
             <SolarDuotoneIcon icon={Alert01Icon} size={15} strokeWidth={1.5} className="shrink-0" />
             {vendor.verification_status === "rejected"
-              ? "This vendor's compliance verification was rejected — it can't be used for new engagements until superadmin re-verifies it."
-              : "This vendor is awaiting superadmin compliance verification — it can't be used for new engagements until verified."}
+              ? "This vendor's compliance verification was rejected — it can't be used for new purchase requests until superadmin re-verifies it."
+              : "This vendor is awaiting superadmin compliance verification — it can't be used for new purchase requests until verified."}
           </div>
         )}
 
@@ -479,38 +488,54 @@ export function VendorDetail() {
             {/* ── Rating & History ── */}
             <TabsContent value="rating" className="space-y-4 mt-0">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Submit rating */}
-                <Card className="shadow-none">
-                  <CardHeader className="pb-3 border-b">
-                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                      <SolarDuotoneIcon icon={BarChartIcon} size={15} strokeWidth={1.5} className="text-muted-foreground" />
-                      Submit Rating
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-4 space-y-3">
-                    <div>
-                      <Label className="text-xs text-muted-foreground mb-1.5 block">Score</Label>
-                      <RatingStars value={ratingScore} onChange={setRatingScore} size="lg" />
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground mb-1.5 block">Comment (optional)</Label>
-                      <Textarea
-                        placeholder="Add a comment about this vendor…"
-                        value={ratingComment}
-                        onChange={(e) => setRatingComment(e.target.value)}
-                        rows={3}
-                      />
-                    </div>
-                    <Button
-                      size="sm"
-                      onClick={handleRate}
-                      disabled={!ratingScore || upsertRating.isPending}
-                      className="w-full"
-                    >
-                      {upsertRating.isPending ? "Submitting…" : "Submit rating"}
-                    </Button>
-                  </CardContent>
-                </Card>
+                {/* Submit rating -- Admin-tier only (vendors.rate); previously
+                    rendered for any internal user who could reach this page,
+                    with no client-side gate at all. */}
+                {canRateVendors && (
+                  <Card className="shadow-none">
+                    <CardHeader className="pb-3 border-b">
+                      <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                        <SolarDuotoneIcon icon={BarChartIcon} size={15} strokeWidth={1.5} className="text-muted-foreground" />
+                        {myRating ? "Your Rating" : "Submit Rating"}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="pt-4 space-y-3">
+                      {myRating ? (
+                        <>
+                          <p className="text-xs text-muted-foreground">
+                            You've already rated this vendor. Ratings can't be changed once submitted.
+                          </p>
+                          {RATING_DIMENSIONS.map((dim) => (
+                            <div key={dim} className="flex items-center justify-between gap-3">
+                              <span className="text-xs text-muted-foreground">{RATING_DIMENSION_LABELS[dim]}</span>
+                              <RatingStars value={myRating[dim]} size="md" />
+                            </div>
+                          ))}
+                          {myRating.comment && (
+                            <p className="text-sm text-muted-foreground border-t pt-3 mt-3">{myRating.comment}</p>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <RatingDimensionsForm
+                            scores={ratingScores}
+                            onScoreChange={(dim, v) => setRatingScores((prev) => ({ ...prev, [dim]: v }))}
+                            comment={ratingComment}
+                            onCommentChange={setRatingComment}
+                          />
+                          <Button
+                            size="sm"
+                            onClick={handleRate}
+                            disabled={!allDimensionsScored || createRating.isPending}
+                            className="w-full"
+                          >
+                            {createRating.isPending ? "Submitting…" : "Submit rating"}
+                          </Button>
+                        </>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
 
                 {/* Rating summary */}
                 {ratings.length > 0 && (
@@ -527,21 +552,19 @@ export function VendorDetail() {
                         <div>
                           <RatingStars value={Math.round(avgRating)} size="md" />
                           <p className="text-xs text-muted-foreground mt-0.5">
-                            {ratings.length} rating{ratings.length !== 1 ? "s" : ""}
+                            {ratings.length} rating{ratings.length !== 1 ? "s" : ""} · Overall (avg of 5 dimensions)
                           </p>
                         </div>
                       </div>
-                      {[5, 4, 3, 2, 1].map((star) => {
-                        const count = ratings.filter((r) => r.score === star).length
-                        const pct = ratings.length ? (count / ratings.length) * 100 : 0
+                      {RATING_DIMENSIONS.map((dim) => {
+                        const dimAvg = ratings.reduce((s, r) => s + r[dim], 0) / ratings.length
                         return (
-                          <div key={star} className="flex items-center gap-2 text-xs">
-                            <span className="w-3 text-right tabular-nums">{star}</span>
-                            <span className="text-yellow-400">★</span>
+                          <div key={dim} className="flex items-center gap-2 text-xs">
+                            <span className="w-36 shrink-0 text-muted-foreground">{RATING_DIMENSION_LABELS[dim]}</span>
                             <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                              <div className="h-full bg-yellow-400 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                              <div className="h-full bg-yellow-400 rounded-full transition-all" style={{ width: `${(dimAvg / 5) * 100}%` }} />
                             </div>
-                            <span className="w-4 text-muted-foreground tabular-nums">{count}</span>
+                            <span className="w-6 text-right tabular-nums">{dimAvg.toFixed(1)}</span>
                           </div>
                         )
                       })}
@@ -564,12 +587,20 @@ export function VendorDetail() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <RatingStars value={r.score} size="sm" />
+                            <RatingStars value={Math.round(r.overall)} size="sm" />
+                            <span className="text-xs font-medium tabular-nums">{r.overall.toFixed(1)}</span>
                             <span className="text-xs text-muted-foreground">
-                              {formatDistanceToNow(new Date(r.created_at), { addSuffix: true })}
+                              {formatDistanceToNow(new Date(r.updated_at ?? r.created_at), { addSuffix: true })}
                             </span>
                           </div>
-                          {r.comment && <p className="text-sm mt-1 text-muted-foreground">{r.comment}</p>}
+                          <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+                            {RATING_DIMENSIONS.map((dim) => (
+                              <span key={dim} className="text-[11px] text-muted-foreground">
+                                {RATING_DIMENSION_LABELS[dim]}: <span className="font-medium text-foreground">{r[dim]}</span>
+                              </span>
+                            ))}
+                          </div>
+                          {r.comment && <p className="text-sm mt-1.5 text-muted-foreground">{r.comment}</p>}
                         </div>
                       </div>
                     ))}
@@ -624,7 +655,7 @@ export function VendorDetail() {
                     Team members with access to your organization
                   </CardTitle>
                   <p className="text-xs text-muted-foreground pt-1">
-                    Read-only — this vendor's own Admin/Manager assign which of their staff can see your organization's engagements.
+                    Read-only — this vendor's own Admin/Manager assign which of their staff can see your organization's purchase requests.
                   </p>
                 </CardHeader>
                 <CardContent className="pt-4">

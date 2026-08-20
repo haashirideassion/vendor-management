@@ -2,26 +2,26 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { api } from "@/lib/api"
 import { useAuth } from "@/contexts/AuthContext"
-import type { Engagement, EngagementLineItem, EngagementStatus } from "@/lib/types"
+import type { PurchaseRequest, PurchaseRequestLineItem, PurchaseRequestStatus } from "@/lib/types"
 
 // ─── Filters ──────────────────────────────────────────────────────────────────
 
-export interface EngagementFilters {
-  status?: EngagementStatus
+export interface PurchaseRequestFilters {
+  status?: PurchaseRequestStatus
   vendor_id?: string
   search?: string
 }
 
 // ─── Queries ──────────────────────────────────────────────────────────────────
 
-export function useEngagements(filters?: EngagementFilters) {
+export function usePurchaseRequests(filters?: PurchaseRequestFilters) {
   const { accessToken } = useAuth()
 
   return useQuery({
-    queryKey: ["engagements", filters],
+    queryKey: ["purchase_requests", filters],
     queryFn: async () => {
-      const { data } = await api.post<{ data: Engagement[] }>(
-        "/api/engagements/list",
+      const { data } = await api.post<{ data: PurchaseRequest[] }>(
+        "/api/purchase-requests/list",
         {
           status:    filters?.status,
           vendor_id: filters?.vendor_id,
@@ -35,14 +35,14 @@ export function useEngagements(filters?: EngagementFilters) {
   })
 }
 
-export function useEngagement(id: string) {
+export function usePurchaseRequest(id: string) {
   const { accessToken } = useAuth()
 
   return useQuery({
-    queryKey: ["engagements", id],
+    queryKey: ["purchase_requests", id],
     queryFn: async () => {
-      const { data } = await api.post<{ data: Engagement }>(
-        "/api/engagements/get",
+      const { data } = await api.post<{ data: PurchaseRequest }>(
+        "/api/purchase-requests/get",
         { id },
         accessToken
       )
@@ -54,7 +54,7 @@ export function useEngagement(id: string) {
 
 // ─── Mutations ────────────────────────────────────────────────────────────────
 
-export interface CreateEngagementInput {
+export interface CreatePurchaseRequestInput {
   title: string
   description?: string | null
   vendor_ids: string[]
@@ -64,34 +64,37 @@ export interface CreateEngagementInput {
   start_date?: string | null
   end_date?: string | null
   notes?: string | null
-  line_items?: Omit<EngagementLineItem, "id" | "engagement_id" | "created_at">[]
+  line_items?: Omit<PurchaseRequestLineItem, "id" | "purchase_request_id" | "created_at">[]
+  // Required by the backend once vendor_ids is non-empty -- an RFQ is
+  // created per invited vendor and quotation deadline is no longer optional.
+  response_deadline?: string | null
 }
 
-export function useCreateEngagement() {
+export function useCreatePurchaseRequest() {
   const queryClient = useQueryClient()
   const { user, accessToken } = useAuth()
 
   return useMutation({
-    mutationFn: async (input: CreateEngagementInput) => {
+    mutationFn: async (input: CreatePurchaseRequestInput) => {
       if (!user) throw new Error("Not authenticated")
 
-      const { data } = await api.post<{ data: Engagement }>(
-        "/api/engagements/create",
+      const { data } = await api.post<{ data: PurchaseRequest }>(
+        "/api/purchase-requests/create",
         { ...input, created_by: user.id },
         accessToken
       )
       return data
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["engagements"] })
+      queryClient.invalidateQueries({ queryKey: ["purchase_requests"] })
       queryClient.invalidateQueries({ queryKey: ["rfqs"] })
-      toast.success("Engagement created")
+      toast.success("Purchase request created")
     },
-    onError: () => toast.error("Failed to create engagement"),
+    onError: () => toast.error("Failed to create purchase request"),
   })
 }
 
-export function useUpdateEngagementStatus() {
+export function useUpdatePurchaseRequestStatus() {
   const queryClient = useQueryClient()
   const { user, accessToken } = useAuth()
 
@@ -102,11 +105,11 @@ export function useUpdateEngagementStatus() {
       notes,
     }: {
       id: string
-      status: EngagementStatus
+      status: PurchaseRequestStatus
       notes?: string
     }) => {
-      const { data } = await api.post<{ data: Engagement }>(
-        "/api/engagements/update-status",
+      const { data } = await api.post<{ data: PurchaseRequest }>(
+        "/api/purchase-requests/update-status",
         {
           id,
           status,
@@ -118,36 +121,36 @@ export function useUpdateEngagementStatus() {
       return data
     },
     onSuccess: (_, { id }) => {
-      queryClient.invalidateQueries({ queryKey: ["engagements"] })
-      queryClient.invalidateQueries({ queryKey: ["engagements", id] })
+      queryClient.invalidateQueries({ queryKey: ["purchase_requests"] })
+      queryClient.invalidateQueries({ queryKey: ["purchase_requests", id] })
     },
-    onError: () => toast.error("Failed to update engagement status"),
+    onError: () => toast.error("Failed to update purchase request status"),
   })
 }
 
-type UpdateEngagementInput = Partial<Pick<Engagement,
+type UpdatePurchaseRequestInput = Partial<Pick<PurchaseRequest,
   "title" | "description" | "vendor_id" | "category_id" |
   "estimated_value" | "currency" | "start_date" | "end_date" | "notes"
 >>
 
-export function useUpdateEngagement() {
+export function useUpdatePurchaseRequest() {
   const queryClient = useQueryClient()
   const { accessToken } = useAuth()
 
   return useMutation({
-    mutationFn: async ({ id, ...input }: UpdateEngagementInput & { id: string }) => {
-      const { data } = await api.post<{ data: Engagement }>(
-        "/api/engagements/update",
+    mutationFn: async ({ id, ...input }: UpdatePurchaseRequestInput & { id: string }) => {
+      const { data } = await api.post<{ data: PurchaseRequest }>(
+        "/api/purchase-requests/update",
         { id, ...input },
         accessToken
       )
       return data
     },
     onSuccess: (_, { id }) => {
-      queryClient.invalidateQueries({ queryKey: ["engagements"] })
-      queryClient.invalidateQueries({ queryKey: ["engagements", id] })
-      toast.success("Engagement updated")
+      queryClient.invalidateQueries({ queryKey: ["purchase_requests"] })
+      queryClient.invalidateQueries({ queryKey: ["purchase_requests", id] })
+      toast.success("Purchase request updated")
     },
-    onError: () => toast.error("Failed to update engagement"),
+    onError: () => toast.error("Failed to update purchase request"),
   })
 }

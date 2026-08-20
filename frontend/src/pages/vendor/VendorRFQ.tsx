@@ -23,7 +23,7 @@ export function VendorRFQ() {
             <TableHeader>
               <TableRow className="bg-muted/40 hover:bg-muted/40">
                 <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">RFQ #</TableHead>
-                <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Engagement</TableHead>
+                <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Purchase Request</TableHead>
                 <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Received</TableHead>
                 <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Status</TableHead>
                 <TableHead className="w-20" />
@@ -54,7 +54,7 @@ export function VendorRFQ() {
                       </span>
                     </TableCell>
                     <TableCell>
-                      <p className="text-sm font-medium">{rfq.engagement?.title ?? "—"}</p>
+                      <p className="text-sm font-medium">{rfq.purchase_request?.title ?? "—"}</p>
                     </TableCell>
                     <TableCell>
                       <span className="text-xs text-muted-foreground tabular-nums">

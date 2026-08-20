@@ -4,12 +4,14 @@ import { requireAuth, AuthenticatedRequest } from "../middleware/auth"
 import { requireOrg, OrgScopedRequest, resolveListScope } from "../middleware/org"
 import { writeAudit, resolveActingAs } from "../services/audit"
 import { gateOnCreate, isManagerOrAdmin } from "../services/approvalGate"
+import { resolveExchangeRateToBase } from "../services/exchangeRates.service"
 
 const router = Router()
 function db(): any { return getSupabaseAdmin() }
 
-// POST /api/engagements/list — shared between internal staff and vendors
-// (vendor dashboard/detail pages fetch their own engagements this way too).
+// POST /api/purchase-requests/list — shared between internal staff and
+// vendors (vendor dashboard/detail pages fetch their own purchase requests
+// this way too).
 router.post("/list", requireAuth, async (req: Request, res: Response) => {
   try {
     const { status, vendor_id, search } = req.body
@@ -18,18 +20,18 @@ router.post("/list", requireAuth, async (req: Request, res: Response) => {
     if ("error" in scope) return res.status(scope.error.status).json({ error: scope.error.message })
 
     let query = db()
-      .from("engagements")
+      .from("purchase_requests")
       .select(
-        "*, vendor:vendor_id(company_name, contact_name), category:category_id(name), creator:created_by(full_name, email), line_items:engagement_line_items(*), engagement_vendors(vendor:vendor_id(id, company_name))"
+        "*, vendor:vendor_id(company_name, contact_name), category:category_id(name), creator:created_by(full_name, email), line_items:purchase_request_line_items(*), purchase_request_vendors(vendor:vendor_id(id, company_name))"
       )
       .order("created_at", { ascending: false })
 
     if (scope.mode === "vendor") {
       const { data: invited } = await db()
-        .from("engagement_vendors")
-        .select("engagement_id")
+        .from("purchase_request_vendors")
+        .select("purchase_request_id")
         .eq("vendor_id", scope.vendorId)
-      const invitedIds = (invited ?? []).map((r: any) => r.engagement_id)
+      const invitedIds = (invited ?? []).map((r: any) => r.purchase_request_id)
       query = invitedIds.length > 0
         ? query.or(`vendor_id.eq.${scope.vendorId},id.in.(${invitedIds.join(",")})`)
         : query.eq("vendor_id", scope.vendorId)
@@ -52,14 +54,15 @@ router.post("/list", requireAuth, async (req: Request, res: Response) => {
 
     res.json({ data })
   } catch (err: any) {
-    console.error("[engagements/list]", err.message)
-    res.status(500).json({ error: "Failed to list engagements" })
+    console.error("[purchase-requests/list]", err.message)
+    res.status(500).json({ error: "Failed to list purchase requests" })
   }
 })
 
-// POST /api/engagements/get — shared between internal staff and vendors,
-// same scoping rule as /list: internal users see their org's engagements,
-// vendors only see engagements they own or were invited to.
+// POST /api/purchase-requests/get — shared between internal staff and
+// vendors, same scoping rule as /list: internal users see their org's
+// purchase requests, vendors only see purchase requests they own or were
+// invited to.
 router.post("/get", requireAuth, async (req: Request, res: Response) => {
   try {
     const { id } = req.body
@@ -69,9 +72,9 @@ router.post("/get", requireAuth, async (req: Request, res: Response) => {
     if ("error" in scope) return res.status(scope.error.status).json({ error: scope.error.message })
 
     const { data, error } = await db()
-      .from("engagements")
+      .from("purchase_requests")
       .select(
-        "*, vendor:vendor_id(company_name, contact_name), category:category_id(name), creator:created_by(full_name, email), line_items:engagement_line_items(*), engagement_vendors(vendor:vendor_id(id, company_name))"
+        "*, vendor:vendor_id(company_name, contact_name), category:category_id(name), creator:created_by(full_name, email), line_items:purchase_request_line_items(*), purchase_request_vendors(vendor:vendor_id(id, company_name))"
       )
       .eq("id", id)
       .single()
@@ -79,22 +82,22 @@ router.post("/get", requireAuth, async (req: Request, res: Response) => {
     if (error) throw error
 
     if (scope.mode === "org" && data.org_id !== scope.orgId) {
-      return res.status(404).json({ error: "Engagement not found" })
+      return res.status(404).json({ error: "Purchase request not found" })
     }
     if (scope.mode === "vendor") {
       const isOwner = data.vendor_id === scope.vendorId
-      const isInvited = (data.engagement_vendors ?? []).some((ev: any) => ev.vendor?.id === scope.vendorId)
-      if (!isOwner && !isInvited) return res.status(404).json({ error: "Engagement not found" })
+      const isInvited = (data.purchase_request_vendors ?? []).some((prv: any) => prv.vendor?.id === scope.vendorId)
+      if (!isOwner && !isInvited) return res.status(404).json({ error: "Purchase request not found" })
     }
 
     res.json({ data })
   } catch (err: any) {
-    console.error("[engagements/get]", err.message)
-    res.status(500).json({ error: "Failed to get engagement" })
+    console.error("[purchase-requests/get]", err.message)
+    res.status(500).json({ error: "Failed to get purchase request" })
   }
 })
 
-// POST /api/engagements/create
+// POST /api/purchase-requests/create
 router.post("/create", requireAuth, requireOrg, async (req: Request, res: Response) => {
   try {
     const {
@@ -109,6 +112,7 @@ router.post("/create", requireAuth, requireOrg, async (req: Request, res: Respon
       notes,
       line_items,
       created_by,
+      response_deadline,
     } = req.body
     const { orgId } = req as OrgScopedRequest
 
@@ -118,10 +122,44 @@ router.post("/create", requireAuth, requireOrg, async (req: Request, res: Respon
       })
     }
 
+    // A quotation response deadline is only meaningful once there's an RFQ
+    // to respond to (RFQs are created below, one per invited vendor) --
+    // required from here on for any purchase request that actually invites
+    // vendors; existing RFQs predating this field simply have none.
+    if (vendor_ids.length > 0 && !response_deadline) {
+      return res.status(400).json({ error: "response_deadline is required when inviting vendors" })
+    }
+
+    // Only category_ids[0] is ever actually persisted as this purchase
+    // request's category (see create_purchase_request_full's p_category_id
+    // below) -- the resulting PO's fulfillment_type (migration 072) is
+    // derived from that one category alone, which then decides a SINGLE
+    // delivery-confirmation action (GRN vs. Service Confirmation) for the
+    // whole PO. Mixing a goods category with a service category here would
+    // silently drop the "goods" half's own confirmation flow, so it's
+    // rejected outright rather than letting the picker imply support that
+    // doesn't exist.
+    if (category_ids.length > 1) {
+      const { data: pickedCategories, error: categoriesError } = await db()
+        .from("service_categories")
+        .select("fulfillment_type")
+        .in("id", category_ids)
+      if (categoriesError) throw categoriesError
+
+      const fulfillmentTypes = new Set((pickedCategories ?? []).map((c: any) => c.fulfillment_type))
+      if (fulfillmentTypes.size > 1) {
+        return res.status(400).json({
+          error: "Selected categories mix goods and services — a purchase request can only use categories of one fulfillment type. Please split this into separate purchase requests.",
+          code: "MIXED_FULFILLMENT_TYPE",
+        })
+      }
+    }
+
     // The by-categories picker already excludes non-verified vendors, but
     // vendor_ids comes straight from the request body -- re-check server-side
     // so a stale client selection or a direct API call can't attach a vendor
-    // that hasn't cleared superadmin compliance verification to a new engagement.
+    // that hasn't cleared superadmin compliance verification to a new
+    // purchase request.
     if (vendor_ids.length > 0) {
       const { data: eligible, error: eligibleError } = await db()
         .from("vendors")
@@ -136,14 +174,25 @@ router.post("/create", requireAuth, requireOrg, async (req: Request, res: Respon
       const ineligible = vendor_ids.filter((id: string) => !eligibleIds.has(id))
       if (ineligible.length > 0) {
         return res.status(400).json({
-          error: "One or more selected vendors are not verified or active for this organization and cannot be added to a new engagement",
+          error: "One or more selected vendors are not verified or active for this organization and cannot be added to a new purchase request",
           code: "VENDOR_NOT_VERIFIED",
           details: { vendorIds: ineligible },
         })
       }
     }
 
-    const { data: engId, error: rpcError } = await db().rpc("create_engagement_full", {
+    // Snapshotted at creation time (not re-derived later) so historical
+    // reporting stays accurate even as rates move -- same rate is reused
+    // below for the approval-gate threshold comparison rather than fetched
+    // twice.
+    let exchangeRateToBase: number
+    try {
+      exchangeRateToBase = await resolveExchangeRateToBase(orgId, currency)
+    } catch (fxErr: any) {
+      return res.status(502).json({ error: fxErr.message || "Unable to fetch exchange rate. Please try again." })
+    }
+
+    const { data: prId, error: rpcError } = await db().rpc("create_purchase_request_full", {
       p_title:           title,
       p_description:     description     || null,
       p_category_id:     category_ids[0] || null,
@@ -160,43 +209,48 @@ router.post("/create", requireAuth, requireOrg, async (req: Request, res: Respon
         unit_price:  item.unit_price ?? null,
       })),
       p_org_id: orgId,
+      p_response_deadline: response_deadline || null,
+      p_exchange_rate_to_base: exchangeRateToBase,
     })
     if (rpcError) throw rpcError
 
     // Associate-only creators need Manager/Admin sign-off before the
-    // engagement is real to the rest of the org; Manager/Admin/solo-mode
+    // purchase request is real to the rest of the org; Manager/Admin/solo-mode
     // creators skip straight to approved (shared gate, services/approvalGate.ts --
-    // same rule already built for vendor-side quotations).
+    // same rule already built for vendor-side quotations). amount is
+    // converted to the org's base currency first -- approval_policies.
+    // threshold_amount is denominated in base currency, not whatever
+    // currency this specific purchase request happens to be in.
     const actorId = (req as AuthenticatedRequest).user.id
     const { gated } = await gateOnCreate({
-      entityType: "engagement",
-      entityId: engId,
+      entityType: "purchase_request",
+      entityId: prId,
       requestedBy: actorId,
       orgId,
-      amount: estimated_value || null,
-      entityLabel: "Engagement",
+      amount: estimated_value ? estimated_value * exchangeRateToBase : null,
+      entityLabel: "Purchase Request",
       entityTitle: title,
-      notifType: "engagement_pending_approval",
+      notifType: "purchase_request_pending_approval",
     })
 
-    const engagementUpdate: Record<string, unknown> = gated
+    const purchaseRequestUpdate: Record<string, unknown> = gated
       ? { status: "pending_approval" }
       : { status: "approved", approved_by: actorId, approved_at: new Date().toISOString() }
-    const { error: statusError } = await db().from("engagements").update(engagementUpdate).eq("id", engId)
+    const { error: statusError } = await db().from("purchase_requests").update(purchaseRequestUpdate).eq("id", prId)
     if (statusError) throw statusError
 
-    // Fetch full engagement for response
+    // Fetch full purchase request for response
     const { data: full, error: getError } = await db()
-      .from("engagements")
-      .select("*, category:category_id(name), creator:created_by(full_name, email), line_items:engagement_line_items(*), engagement_vendors(vendor:vendor_id(id, company_name))")
-      .eq("id", engId)
+      .from("purchase_requests")
+      .select("*, category:category_id(name), creator:created_by(full_name, email), line_items:purchase_request_line_items(*), purchase_request_vendors(vendor:vendor_id(id, company_name))")
+      .eq("id", prId)
       .single()
     if (getError) throw getError
 
     await writeAudit({
-      entityType: "engagement",
-      entityId: engId,
-      action: "engagement_created",
+      entityType: "purchase_request",
+      entityId: prId,
+      action: "purchase_request_created",
       newValue: { status: full.status },
       performedBy: created_by,
       orgId,
@@ -205,23 +259,23 @@ router.post("/create", requireAuth, requireOrg, async (req: Request, res: Respon
 
     res.json({ data: full })
   } catch (err: any) {
-    console.error("[engagements/create]", err?.message ?? err)
-    res.status(500).json({ error: err?.message ?? "Failed to create engagement" })
+    console.error("[purchase-requests/create]", err?.message ?? err)
+    res.status(500).json({ error: err?.message ?? "Failed to create purchase request" })
   }
 })
 
-// POST /api/engagements/update-status
+// POST /api/purchase-requests/update-status
 router.post("/update-status", requireAuth, async (req: Request, res: Response) => {
   try {
     const { id, status, notes, approved_by } = req.body
     if (!id || !status) return res.status(400).json({ error: "id and status are required" })
 
     // No requireOrg on this route (it's an entity-id-scoped action, not an
-    // X-Org-Id-scoped one) -- fetch the engagement's own org_id and prior
-    // status directly, replacing what the removed engagement_audit trigger
-    // used to see via OLD/NEW.
+    // X-Org-Id-scoped one) -- fetch the purchase request's own org_id and
+    // prior status directly, replacing what the removed purchase_request_audit
+    // trigger used to see via OLD/NEW.
     const { data: existing, error: getError } = await db()
-      .from("engagements")
+      .from("purchase_requests")
       .select("status, org_id")
       .eq("id", id)
       .single()
@@ -234,7 +288,7 @@ router.post("/update-status", requireAuth, async (req: Request, res: Response) =
     if (existing.status === "pending_approval" && ["approved", "rejected"].includes(status)) {
       const actorId = (req as AuthenticatedRequest).user.id
       if (!(await isManagerOrAdmin(actorId, existing.org_id))) {
-        return res.status(403).json({ error: "You are not authorized to approve or reject this engagement" })
+        return res.status(403).json({ error: "You are not authorized to approve or reject this purchase request" })
       }
     }
 
@@ -245,7 +299,7 @@ router.post("/update-status", requireAuth, async (req: Request, res: Response) =
     }
 
     const { data, error } = await db()
-      .from("engagements")
+      .from("purchase_requests")
       .update(updates)
       .eq("id", id)
       .select()
@@ -256,7 +310,7 @@ router.post("/update-status", requireAuth, async (req: Request, res: Response) =
     if (existing.status !== status) {
       const userId = (req as AuthenticatedRequest).user.id
       await writeAudit({
-        entityType: "engagement",
+        entityType: "purchase_request",
         entityId: id,
         action: "status_changed",
         oldValue: { status: existing.status },
@@ -269,19 +323,19 @@ router.post("/update-status", requireAuth, async (req: Request, res: Response) =
 
     res.json({ data })
   } catch (err: any) {
-    console.error("[engagements/update-status]", err.message)
-    res.status(500).json({ error: "Failed to update engagement status" })
+    console.error("[purchase-requests/update-status]", err.message)
+    res.status(500).json({ error: "Failed to update purchase request status" })
   }
 })
 
-// POST /api/engagements/update
+// POST /api/purchase-requests/update
 router.post("/update", requireAuth, async (req: Request, res: Response) => {
   try {
     const { id, ...fields } = req.body
     if (!id) return res.status(400).json({ error: "id is required" })
 
     const { data, error } = await db()
-      .from("engagements")
+      .from("purchase_requests")
       .update(fields)
       .eq("id", id)
       .select()
@@ -291,8 +345,8 @@ router.post("/update", requireAuth, async (req: Request, res: Response) => {
 
     res.json({ data })
   } catch (err: any) {
-    console.error("[engagements/update]", err.message)
-    res.status(500).json({ error: "Failed to update engagement" })
+    console.error("[purchase-requests/update]", err.message)
+    res.status(500).json({ error: "Failed to update purchase request" })
   }
 })
 

@@ -40,9 +40,9 @@ const navEntries: NavEntry[] = [
   { type: "link", label: "Categories", to: "/admin/categories", icon: Tag01Icon },
   { type: "link", label: "Reports", to: "/admin/reports", icon: BarChartIcon },
   { type: "group", label: "Procurement" },
-  { type: "link", label: "Engagements", to: "/admin/engagements", icon: Briefcase01Icon },
+  { type: "link", label: "Purchase Requests", to: "/admin/purchase-requests", icon: Briefcase01Icon },
   { type: "link", label: "Purchase Orders", to: "/admin/purchase-orders", icon: Invoice01Icon },
-  { type: "link", label: "GRNs", to: "/admin/grns", icon: DeliveryBox01Icon },
+  { type: "link", label: "GRNs & Confirmations", to: "/admin/grns", icon: DeliveryBox01Icon },
   { type: "link", label: "Invoices", to: "/admin/invoices", icon: Invoice02Icon },
   { type: "group", label: "Legal" },
   { type: "link", label: "Contracts", to: "/admin/contracts", icon: File01Icon },
@@ -95,8 +95,12 @@ function SidebarContent({
   return (
     <div className="flex flex-col h-full">
       {/* Logo */}
-      <div className={cn("flex items-center px-4 pt-5 pb-5", collapsed ? "justify-center px-2" : "justify-between")}>
-        {!collapsed && <AppLogo className="h-10 w-auto max-w-[180px]" />}
+      <div className={cn("flex items-center px-4 pt-5 pb-5", collapsed ? "flex-col gap-2 px-2" : "justify-between")}>
+        {collapsed ? (
+          <AppLogo variant="color" className="h-8 w-8" />
+        ) : (
+          <AppLogo className="h-10 w-auto max-w-[180px]" />
+        )}
         {onToggleCollapse && (
           <button
             type="button"

@@ -1,17 +1,22 @@
 import { useState } from "react"
+import { Link } from "react-router-dom"
 import {
-  useVendorUsers, useVendorClientOrgs, useAssignableVendorRoles, useVendorUserAssignments,
-  useInviteVendorUser, useUpdateVendorUserRoles, useSetVendorUserAssignments, useMyVendorRole, type VendorUser,
+  useVendorUsers, useAssignableVendorRoles,
+  useInviteVendorUser, useVendorTeams, useCreateVendorTeam, useMyVendorRole,
+  useVendorAssignablePermissions, useCreateCustomVendorRole, useDeleteCustomVendorRole,
+  type VendorUser,
 } from "@/hooks/useVendorUsers"
 import { AnimatedPage } from "@/components/shared/AnimatedPage"
+import { TeamRoleAssignmentEditor, assignmentRowsToPayload, type AssignmentRow } from "@/components/shared/TeamRoleAssignmentEditor"
+import { CustomRoleManagerDialog } from "@/components/shared/CustomRoleManagerDialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Checkbox } from "@/components/ui/checkbox"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogBody } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { EyeIcon } from "@/components/shared/SolarIcon"
+import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
 import { toast } from "sonner"
 
 const STATUS_COLORS: Record<string, string> = {
@@ -20,43 +25,55 @@ const STATUS_COLORS: Record<string, string> = {
   suspended: "bg-orange-100 text-orange-800 border-orange-200",
 }
 
-// Staff + client-assignment management. Admin-only action (vendor_users.manage
-// is Admin-only in the RBAC seed) -- gated here on the viewer's own resolved
-// role via useMyVendorRole() so Manager/Associate/Finance don't see actions
-// the backend would reject anyway, in addition to the existing server-side
-// vendor_users.manage check on the actual mutations.
+function renderTeams(user: VendorUser) {
+  const parts = [
+    ...user.teamAssignments.map((a) => `${a.teamName}: ${a.roleName}`),
+    ...user.directRoleNames.map((r) => `${r} (no team)`),
+  ]
+  return parts.length > 0 ? parts.join(", ") : "—"
+}
+
+// A single "Manage" link per row instead of a wall of per-row action
+// buttons (Edit roles/Client access/Restrictions/Temporary Access/Suspend/
+// Resend/Revoke) -- those all live on VendorUserDetail.tsx now. This page
+// keeps only the vendor-wide settings (Teams/Roles/Invite) and the staff
+// list itself.
 export function VendorTeam() {
   const { data: users = [], isLoading } = useVendorUsers()
-  const { data: clientOrgs = [] } = useVendorClientOrgs()
   const { data: assignableData } = useAssignableVendorRoles()
+  const { data: teams = [] } = useVendorTeams()
   const { data: myRoleNames = [] } = useMyVendorRole()
   const isViewerAdmin = myRoleNames.includes("Admin")
   const inviteUser = useInviteVendorUser()
-  const updateRoles = useUpdateVendorUserRoles()
+  const createTeam = useCreateVendorTeam()
+  const { data: assignablePermissions = [] } = useVendorAssignablePermissions()
+  const createCustomRole = useCreateCustomVendorRole()
+  const deleteCustomRole = useDeleteCustomVendorRole()
 
   const [inviting, setInviting] = useState(false)
   const [email, setEmail] = useState("")
   const [fullName, setFullName] = useState("")
-  // Exactly one role per vendor staff member -- the three vendor-scope
-  // bundles (Admin/Manager/Associate) are distinct functional buckets, not
-  // meant to be combined on one person (018_rbac_seed.sql), so selection is
-  // single-choice (radio), not multi-select.
-  const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null)
-  const [editingUser, setEditingUser] = useState<VendorUser | null>(null)
-  const [editRoleId, setEditRoleId] = useState<string | null>(null)
-  const [assigningUser, setAssigningUser] = useState<VendorUser | null>(null)
+  const [assignmentRows, setAssignmentRows] = useState<AssignmentRow[]>([{ teamId: null, roleId: null }])
+  const [managingTeams, setManagingTeams] = useState(false)
+  const [newTeamName, setNewTeamName] = useState("")
+  const [managingRoles, setManagingRoles] = useState(false)
 
   const roles = assignableData?.roles ?? []
 
   function resetInviteForm() {
-    setEmail(""); setFullName(""); setSelectedRoleId(null)
+    setEmail(""); setFullName(""); setAssignmentRows([{ teamId: null, roleId: null }])
   }
 
   async function handleInvite() {
     if (!email.trim() || !fullName.trim()) return toast.error("Email and name are required")
-    if (!selectedRoleId) return toast.error("Select a role")
+    const assignments = assignmentRowsToPayload(assignmentRows)
+    if (assignments.length === 0) return toast.error("Select at least one role")
     try {
-      const result = await inviteUser.mutateAsync({ email: email.trim(), fullName: fullName.trim(), roleIds: [selectedRoleId] })
+      const result = await inviteUser.mutateAsync({
+        email: email.trim(), fullName: fullName.trim(),
+        roleIds: [...new Set(assignments.map((a) => a.roleId))],
+        assignments,
+      })
       toast.success(result.inviteSent ? `Invite sent to ${result.email}` : `${result.email} added to your team`)
       setInviting(false)
       resetInviteForm()
@@ -65,28 +82,41 @@ export function VendorTeam() {
     }
   }
 
-  function openEditRoles(user: VendorUser) {
-    setEditingUser(user)
-    setEditRoleId(roles.find((r) => user.roleNames.includes(r.name))?.id ?? null)
-  }
-
-  async function handleSaveRoles() {
-    if (!editingUser || !editRoleId) return toast.error("Select a role")
+  async function handleCreateTeam() {
+    if (!newTeamName.trim()) return toast.error("Team name is required")
     try {
-      await updateRoles.mutateAsync({ vendorUserId: editingUser.id, roleIds: [editRoleId] })
-      toast.success("Roles updated")
-      setEditingUser(null)
+      await createTeam.mutateAsync({ name: newTeamName.trim() })
+      toast.success("Team created")
+      setNewTeamName("")
     } catch (e: unknown) {
-      toast.error((e as Error).message ?? "Failed to update roles")
+      toast.error((e as Error).message ?? "Failed to create team")
     }
   }
 
-  const isAssociate = (u: VendorUser) => u.roleNames.includes("Associate") && !u.roleNames.some((r) => r === "Admin" || r === "Manager")
+  async function handleCreateCustomRole(input: { name: string; description?: string; permissionIds: string[] }) {
+    try {
+      await createCustomRole.mutateAsync(input)
+      toast.success("Custom role created")
+    } catch (e: unknown) {
+      toast.error((e as Error).message ?? "Failed to create custom role")
+    }
+  }
+
+  async function handleDeleteCustomRole(roleId: string) {
+    try {
+      await deleteCustomRole.mutateAsync({ roleId })
+      toast.success("Custom role deleted")
+    } catch (e: unknown) {
+      toast.error((e as Error).message ?? "Failed to delete custom role")
+    }
+  }
 
   return (
     <AnimatedPage className="space-y-6">
       {isViewerAdmin && (
-        <div className="flex items-center justify-end">
+        <div className="flex items-center justify-end gap-2">
+          <Button variant="outline" onClick={() => setManagingTeams(true)}>Manage Teams</Button>
+          <Button variant="outline" onClick={() => setManagingRoles(true)}>Manage Roles</Button>
           <Button onClick={() => setInviting(true)}>Invite Staff</Button>
         </div>
       )}
@@ -99,15 +129,16 @@ export function VendorTeam() {
               <TableHead>Email</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Roles</TableHead>
-              <TableHead></TableHead>
+              <TableHead>Teams</TableHead>
+              <TableHead className="w-20" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading && (
-              <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">Loading…</TableCell></TableRow>
+              <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">Loading…</TableCell></TableRow>
             )}
             {!isLoading && users.length === 0 && (
-              <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">No staff yet.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">No staff yet.</TableCell></TableRow>
             )}
             {users.map((u) => (
               <TableRow key={u.id}>
@@ -115,15 +146,14 @@ export function VendorTeam() {
                 <TableCell className="text-muted-foreground">{u.profile?.email}</TableCell>
                 <TableCell><Badge variant="outline" className={STATUS_COLORS[u.status]}>{u.status}</Badge></TableCell>
                 <TableCell>{u.roleNames.join(", ") || "—"}</TableCell>
-                <TableCell className="flex gap-2 justify-end">
-                  {isViewerAdmin && (
-                    <>
-                      <Button size="sm" variant="outline" onClick={() => openEditRoles(u)}>Edit roles</Button>
-                      {isAssociate(u) && (
-                        <Button size="sm" variant="outline" onClick={() => setAssigningUser(u)}>Client access</Button>
-                      )}
-                    </>
-                  )}
+                <TableCell className="text-muted-foreground text-sm">{renderTeams(u)}</TableCell>
+                <TableCell>
+                  <Button asChild size="sm" variant="ghost" className="h-8 px-2 gap-1.5 text-xs">
+                    <Link to={`/vendor/team/${u.id}`}>
+                      <SolarDuotoneIcon icon={EyeIcon} size={14} strokeWidth={1.5} />
+                      Manage
+                    </Link>
+                  </Button>
                 </TableCell>
               </TableRow>
             ))}
@@ -143,20 +173,7 @@ export function VendorTeam() {
               <Label>Email</Label>
               <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="jane@vendor.com" />
             </div>
-            <div className="space-y-1.5">
-              <Label>Role</Label>
-              <RadioGroup value={selectedRoleId ?? ""} onValueChange={setSelectedRoleId} className="space-y-2">
-                {roles.map((role) => (
-                  <label key={role.id} className="flex items-start gap-2 text-sm">
-                    <RadioGroupItem value={role.id} className="mt-0.5" />
-                    <span>
-                      <span className="font-medium">{role.name}</span>
-                      {role.description && <span className="block text-xs text-muted-foreground">{role.description}</span>}
-                    </span>
-                  </label>
-                ))}
-              </RadioGroup>
-            </div>
+            <TeamRoleAssignmentEditor rows={assignmentRows} onChange={setAssignmentRows} teams={teams} roles={roles} />
           </DialogBody>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setInviting(false); resetInviteForm() }}>Cancel</Button>
@@ -167,96 +184,42 @@ export function VendorTeam() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!editingUser} onOpenChange={(o) => !o && setEditingUser(null)}>
+      <Dialog open={managingTeams} onOpenChange={setManagingTeams}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Edit Roles — {editingUser?.profile?.full_name}</DialogTitle></DialogHeader>
-          <DialogBody>
-            <RadioGroup value={editRoleId ?? ""} onValueChange={setEditRoleId} className="space-y-2">
-              {roles.map((role) => (
-                <label key={role.id} className="flex items-start gap-2 text-sm">
-                  <RadioGroupItem value={role.id} className="mt-0.5" />
-                  <span>
-                    <span className="font-medium">{role.name}</span>
-                    {role.description && <span className="block text-xs text-muted-foreground">{role.description}</span>}
-                  </span>
-                </label>
+          <DialogHeader><DialogTitle>Manage Teams</DialogTitle></DialogHeader>
+          <DialogBody className="space-y-4">
+            <div className="flex gap-2">
+              <Input
+                value={newTeamName}
+                onChange={(e) => setNewTeamName(e.target.value)}
+                placeholder="New team name (e.g. Finance)"
+                onKeyDown={(e) => { if (e.key === "Enter") handleCreateTeam() }}
+              />
+              <Button onClick={handleCreateTeam} disabled={createTeam.isPending}>Create</Button>
+            </div>
+            <div className="space-y-1">
+              {teams.length === 0 && <p className="text-sm text-muted-foreground">No teams yet.</p>}
+              {teams.map((t) => (
+                <div key={t.id} className="text-sm rounded-md border px-3 py-2">{t.name}</div>
               ))}
-            </RadioGroup>
+            </div>
           </DialogBody>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingUser(null)}>Cancel</Button>
-            <Button onClick={handleSaveRoles} disabled={updateRoles.isPending}>
-              {updateRoles.isPending ? "Saving…" : "Save"}
-            </Button>
+            <Button variant="outline" onClick={() => setManagingTeams(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {assigningUser && (
-        <ClientAssignmentDialog user={assigningUser} clientOrgs={clientOrgs} onClose={() => setAssigningUser(null)} />
-      )}
+      <CustomRoleManagerDialog
+        open={managingRoles}
+        onClose={() => setManagingRoles(false)}
+        roles={roles}
+        permissions={assignablePermissions}
+        onCreate={handleCreateCustomRole}
+        onDelete={handleDeleteCustomRole}
+        isCreating={createCustomRole.isPending}
+        isDeleting={deleteCustomRole.isPending}
+      />
     </AnimatedPage>
-  )
-}
-
-function ClientAssignmentDialog({
-  user, clientOrgs, onClose,
-}: {
-  user: VendorUser
-  clientOrgs: { id: string; name: string; slug: string; status: string }[]
-  onClose: () => void
-}) {
-  const { data: currentAssignments = [], isLoading } = useVendorUserAssignments(user.id)
-  const setAssignments = useSetVendorUserAssignments()
-  const [selected, setSelected] = useState<string[] | null>(null)
-
-  const effectiveSelected = selected ?? currentAssignments
-
-  async function handleSave() {
-    try {
-      await setAssignments.mutateAsync({ userId: user.id, organizationIds: effectiveSelected })
-      toast.success("Client assignments updated")
-      onClose()
-    } catch (e: unknown) {
-      toast.error((e as Error).message ?? "Failed to update assignments")
-    }
-  }
-
-  return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
-        <DialogHeader><DialogTitle>Client Access — {user.profile?.full_name}</DialogTitle></DialogHeader>
-        <DialogBody className="space-y-2">
-          {isLoading ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
-          ) : (
-            <>
-              <p className="text-xs text-muted-foreground">
-                No orgs selected means this Associate sees nothing until explicitly assigned.
-              </p>
-              {clientOrgs.map((org) => (
-                <label key={org.id} className="flex items-center gap-2 text-sm">
-                  <Checkbox
-                    checked={effectiveSelected.includes(org.id)}
-                    onCheckedChange={(checked) =>
-                      setSelected((checked === true
-                        ? [...effectiveSelected, org.id]
-                        : effectiveSelected.filter((id) => id !== org.id)))
-                    }
-                  />
-                  {org.name}
-                </label>
-              ))}
-            </>
-          )}
-        </DialogBody>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleSave} disabled={setAssignments.isPending}>
-            {setAssignments.isPending ? "Saving…" : "Save"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   )
 }

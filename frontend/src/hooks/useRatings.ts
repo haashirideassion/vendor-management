@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { api } from "@/lib/api"
-import type { VendorRating } from "@/lib/types"
+import type { VendorRating, RatingDimension } from "@/lib/types"
 import { useAuth } from "@/contexts/AuthContext"
 
 export function useVendorRatings(vendorId: string | undefined) {
@@ -20,23 +20,36 @@ export function useVendorRatings(vendorId: string | undefined) {
   })
 }
 
-export function useUpsertRating() {
+// A rater gets exactly one rating per vendor, ever (backend enforces this on
+// /create) -- derived client-side from the same list rather than a separate
+// endpoint, so callers (RateVendorDialog) can tell up front whether to show
+// the form or "you've already rated this vendor."
+export function useMyVendorRating(vendorId: string | undefined) {
+  const { user } = useAuth()
+  const { data: ratings, ...rest } = useVendorRatings(vendorId)
+  const myRating = ratings?.find((r) => r.rated_by === user?.id) ?? null
+  return { myRating, ...rest }
+}
+
+export type RatingDimensionScores = Record<RatingDimension, number>
+
+export function useCreateRating() {
   const qc = useQueryClient()
-  const { user, accessToken } = useAuth()
+  const { accessToken } = useAuth()
 
   return useMutation({
     mutationFn: async ({
       vendorId,
-      score,
+      scores,
       comment,
     }: {
       vendorId: string
-      score: number
+      scores: RatingDimensionScores
       comment?: string
     }) => {
       const { data } = await api.post<{ data: VendorRating }>(
-        "/api/ratings/upsert",
-        { vendor_id: vendorId, rated_by: user!.id, score, comment },
+        "/api/ratings/create",
+        { vendor_id: vendorId, ...scores, comment },
         accessToken
       )
       return data as VendorRating

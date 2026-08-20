@@ -6,6 +6,9 @@ import { ServiceError, mergeGroups, removeOrgFromGroup, dissolveGroup } from "..
 import { writeAudit } from "../services/audit"
 import { generateUniqueOrgCode, generateUniqueGroupCode } from "../utils/codeGenerator"
 import { sendEmail, inviteHtml } from "../services/email.service"
+import { ensureDefaultLegalEntity } from "../services/legalEntity.service"
+import { resolveOnboardingTargets } from "./vendors"
+import { findOrgRoleHolderIds, notifyUsers } from "../services/approvalGate"
 
 const router = Router()
 function db(): any { return getSupabaseAdmin() }
@@ -471,7 +474,7 @@ router.post("/vendors/verification-status", requireAuth, requireSuperAdmin, asyn
 router.post("/break-glass/view", requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
   try {
     const { entityType, entityId, reason } = req.body
-    const ALLOWED = ["engagement", "purchase_order", "grn", "invoice", "contract", "quotation"]
+    const ALLOWED = ["purchase_request", "purchase_order", "grn", "invoice", "contract", "quotation"]
     if (!entityType || !ALLOWED.includes(entityType) || !entityId || !reason?.trim()) {
       return res.status(400).json({ error: "entityType (one of: " + ALLOWED.join(", ") + "), entityId, and a non-empty reason are required" })
     }
@@ -1217,6 +1220,285 @@ router.post("/users/revoke-platform-admin", requireAuth, requireSuperAdmin, asyn
   } catch (err: any) {
     console.error("[superadmin/users/revoke-platform-admin]", err.message)
     res.status(500).json({ error: err.message || "Failed to revoke platform admin" })
+  }
+})
+
+// ─── Feature Entitlements (RBAC/Teams Redesign, Phase 2 UI) ───────────────
+// Platform-level, Super-Admin-only screen: which product modules a given
+// org or vendor tenant has at all. Absence of a feature_entitlements row
+// means entitled (061_feature_entitlements.sql) -- "set enabled=true" is
+// therefore just "remove any existing disabling row," not an insert.
+
+// POST /api/superadmin/vendors/list-all — every vendor (id + name only),
+// for the tenant picker. Distinct from vendors/verification-queue, which is
+// scoped to pending-verification vendors specifically.
+router.post("/vendors/list-all", requireAuth, requireSuperAdmin, async (_req: Request, res: Response) => {
+  try {
+    const { data, error } = await db().from("vendors").select("id, company_name").order("company_name")
+    if (error) throw error
+    res.json({ data })
+  } catch (err: any) {
+    console.error("[superadmin/vendors/list-all]", err.message)
+    res.status(500).json({ error: "Failed to list vendors" })
+  }
+})
+
+// POST /api/superadmin/feature-entitlements/tenant-state — {scope, orgId?, vendorId?}
+// Merges the feature_modules catalog with any existing override rows for
+// this tenant so the UI always shows every module, defaulted to enabled.
+router.post("/feature-entitlements/tenant-state", requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
+  try {
+    const { scope, orgId, vendorId } = req.body as { scope?: "org" | "vendor"; orgId?: string; vendorId?: string }
+    if (scope !== "org" && scope !== "vendor") return res.status(400).json({ error: "scope must be 'org' or 'vendor'" })
+    if (scope === "org" && !orgId) return res.status(400).json({ error: "orgId is required for scope=org" })
+    if (scope === "vendor" && !vendorId) return res.status(400).json({ error: "vendorId is required for scope=vendor" })
+
+    const { data: modules, error: modError } = await db()
+      .from("feature_modules").select("code, label, description").eq("active", true).order("label")
+    if (modError) throw modError
+
+    const tenantCol = scope === "org" ? "org_id" : "vendor_id"
+    const tenantId = scope === "org" ? orgId : vendorId
+    const { data: overrides, error: overrideError } = await db()
+      .from("feature_entitlements")
+      .select("id, module_code, enabled, set_by, set_at, notes")
+      .eq("scope", scope)
+      .eq(tenantCol, tenantId)
+    if (overrideError) throw overrideError
+
+    const overrideByModule = new Map<string, any>((overrides ?? []).map((o: any) => [o.module_code, o]))
+    const data = (modules ?? []).map((m: any) => {
+      const override: any = overrideByModule.get(m.code)
+      return {
+        moduleCode: m.code,
+        label: m.label,
+        description: m.description,
+        enabled: override ? override.enabled : true,
+        entitlementId: override?.id ?? null,
+        setBy: override?.set_by ?? null,
+        setAt: override?.set_at ?? null,
+        notes: override?.notes ?? null,
+      }
+    })
+    res.json({ data })
+  } catch (err: any) {
+    console.error("[superadmin/feature-entitlements/tenant-state]", err.message)
+    res.status(500).json({ error: "Failed to load feature entitlements" })
+  }
+})
+
+// POST /api/superadmin/feature-entitlements/set — {scope, orgId?, vendorId?, moduleCode, enabled, reason?}
+router.post("/feature-entitlements/set", requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
+  try {
+    const { scope, orgId, vendorId, moduleCode, enabled, reason } = req.body as {
+      scope?: "org" | "vendor"; orgId?: string; vendorId?: string; moduleCode?: string; enabled?: boolean; reason?: string
+    }
+    const actorId = (req as AuthenticatedRequest).user.id
+    if (scope !== "org" && scope !== "vendor") return res.status(400).json({ error: "scope must be 'org' or 'vendor'" })
+    if (scope === "org" && !orgId) return res.status(400).json({ error: "orgId is required for scope=org" })
+    if (scope === "vendor" && !vendorId) return res.status(400).json({ error: "vendorId is required for scope=vendor" })
+    if (!moduleCode) return res.status(400).json({ error: "moduleCode is required" })
+    if (typeof enabled !== "boolean") return res.status(400).json({ error: "enabled must be true or false" })
+
+    const tenantCol = scope === "org" ? "org_id" : "vendor_id"
+    const tenantId = scope === "org" ? orgId : vendorId
+
+    if (enabled) {
+      // Back to default (entitled) -- delete the disabling row, if any.
+      const { error } = await db().from("feature_entitlements").delete().eq("scope", scope).eq(tenantCol, tenantId).eq("module_code", moduleCode)
+      if (error) throw error
+    } else {
+      const { data: existing } = await db()
+        .from("feature_entitlements").select("id").eq("scope", scope).eq(tenantCol, tenantId).eq("module_code", moduleCode).maybeSingle()
+      if (existing) {
+        const { error } = await db().from("feature_entitlements")
+          .update({ enabled: false, set_by: actorId, set_at: new Date().toISOString(), notes: reason || null })
+          .eq("id", existing.id)
+        if (error) throw error
+      } else {
+        const { error } = await db().from("feature_entitlements").insert({
+          scope, [tenantCol]: tenantId, module_code: moduleCode, enabled: false, set_by: actorId, notes: reason || null,
+        })
+        if (error) throw error
+      }
+    }
+
+    await writeAudit({
+      entityType: "feature_entitlement",
+      entityId: tenantId!,
+      action: enabled ? "feature_entitlement_enabled" : "feature_entitlement_disabled",
+      newValue: { scope, moduleCode, enabled, reason: reason || null },
+      performedBy: actorId,
+      orgId: scope === "org" ? orgId! : null,
+    })
+
+    res.json({ data: { scope, moduleCode, enabled } })
+  } catch (err: any) {
+    console.error("[superadmin/feature-entitlements/set]", err.message)
+    res.status(500).json({ error: err.message || "Failed to update feature entitlement" })
+  }
+})
+
+// ─── Onboarding Authority: Super-Admin-assisted vendor onboarding ─────────
+// CONFIRMED design: Super Admin completes onboarding on behalf of a small
+// business with no staff available, and Submit+Approve MAY collapse into
+// one action -- but ONLY when risk_classification = 'low' (domestic
+// individual/sole-proprietor). This does NOT bypass mandatory compliance:
+// the required T&C-equivalent document must still be present, and a
+// non-low-risk vendor still lands in pending_review requiring a genuinely
+// separate reviewer, even though Super Admin did the data entry. This is
+// the one capability that was entirely missing before this route existed --
+// there was no way for Super Admin to onboard a vendor at all.
+//
+// Every action here is logged as explicitly "assisted" (Super Admin acting
+// on behalf of the vendor, never impersonation -- the actor's own identity
+// is what's recorded performing the action, not a switched session).
+const ONBOARDING_REQUIRED_DOCUMENT_TYPE = "tc_agreement"
+const ONBOARDING_DOC_MIME_TYPES: Record<string, string> = {
+  pdf: "application/pdf", jpg: "image/jpeg", jpeg: "image/jpeg",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+}
+
+router.post("/vendors/onboard-and-activate", requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
+  const actorId = (req as AuthenticatedRequest).user.id
+  try {
+    const {
+      company_name, legal_name, contact_name, contact_email, contact_phone,
+      tax_gst_number, pan_number, registration_number,
+      bank_name, bank_account_number, bank_routing_number,
+      category_ids, is_solo_user, org_code, group_code,
+      documents,
+    } = req.body as {
+      company_name?: string; legal_name?: string; contact_name?: string; contact_email?: string; contact_phone?: string
+      tax_gst_number?: string; pan_number?: string; registration_number?: string
+      bank_name?: string; bank_account_number?: string; bank_routing_number?: string
+      category_ids?: string[]; is_solo_user?: boolean; org_code?: string; group_code?: string
+      documents?: { document_type: string; file_name: string; file_data: string }[]
+    }
+
+    if (!company_name?.trim() || !contact_name?.trim() || !contact_email?.trim()) {
+      return res.status(400).json({ error: "company_name, contact_name, and contact_email are required" })
+    }
+
+    const resolved = await resolveOnboardingTargets({ org_code, group_code })
+    if ("error" in resolved) return res.status(400).json({ error: resolved.error })
+    const { targetOrgIds, onboardedViaGroupId } = resolved
+
+    // profile_id: null -- same as admin-onboard, this vendor has no login
+    // yet. Never linked to the Super Admin's own profile (that would
+    // incorrectly make Super Admin "the vendor's own user").
+    const { data: vendorId, error: vendorErr } = await db().rpc("create_vendor_with_categories", {
+      p_profile_id: null,
+      p_company_name: company_name.trim(),
+      p_contact_name: contact_name.trim(),
+      p_contact_email: contact_email.trim(),
+      p_contact_phone: contact_phone || null,
+      p_tax_gst_number: tax_gst_number || null,
+      p_bank_name: bank_name || null,
+      p_bank_account_number: bank_account_number || null,
+      p_bank_routing_number: bank_routing_number || null,
+      p_category_ids: Array.isArray(category_ids) && category_ids.length > 0 ? category_ids : null,
+    })
+    if (vendorErr) throw vendorErr
+
+    const { error: fillInError } = await db().from("vendors").update({
+      legal_name: legal_name || null,
+      pan_number: pan_number || null,
+      registration_number: registration_number || null,
+      is_solo_user: !!is_solo_user,
+      onboarded_via_group_id: onboardedViaGroupId,
+    }).eq("id", vendorId)
+    if (fillInError) throw fillInError
+
+    await ensureDefaultLegalEntity({
+      vendorId, isSoloUser: !!is_solo_user, legalName: legal_name, registrationNumber: registration_number,
+      panNumber: pan_number, gstNumber: tax_gst_number,
+      bankName: bank_name, bankAccountNumber: bank_account_number, bankRoutingNumber: bank_routing_number,
+    })
+
+    // Documents -- inserted directly here (not via /api/vendors/upload-
+    // document) because that route resolves the vendor from the caller's
+    // OWN vendor_users membership in some contexts and was never designed
+    // for a platform-level actor uploading on behalf of a vendor that has
+    // no login at all yet.
+    let hasRequiredDocument = false
+    for (const doc of documents ?? []) {
+      if (!doc.file_data || !doc.file_name || !doc.document_type) continue
+      const buffer = Buffer.from(doc.file_data, "base64")
+      if (buffer.length > 15 * 1024 * 1024) continue // 15MB limit, same as upload-document
+      const ext = (doc.file_name.split(".").pop() ?? "").toLowerCase()
+      const mimeType = ONBOARDING_DOC_MIME_TYPES[ext]
+      if (!mimeType) continue
+      const storagePath = `vendor-documents/${vendorId}/${doc.document_type}_${Date.now()}.${ext}`
+      const { error: uploadError } = await db().storage.from("vendor-documents").upload(storagePath, buffer, { contentType: mimeType })
+      if (uploadError) continue
+      const { error: docInsertError } = await db().from("vendor_documents").insert({
+        vendor_id: vendorId, document_type: doc.document_type, file_name: doc.file_name, storage_path: storagePath,
+      })
+      if (docInsertError) continue
+      if (doc.document_type === ONBOARDING_REQUIRED_DOCUMENT_TYPE) hasRequiredDocument = true
+    }
+
+    const { data: riskClassification } = await db().rpc("compute_vendor_risk_classification", { p_vendor_id: vendorId })
+
+    // The collapse: only when risk is low AND the mandatory document is
+    // present. Missing the required document blocks activation regardless
+    // of risk -- this is never bypassed by Super Admin's involvement.
+    const collapsed = riskClassification === "low" && hasRequiredDocument
+
+    // Always insert as pending_review first, same as every other vendor-
+    // creation path (/create, /admin-onboard) -- never insert directly as
+    // 'active'. The vendor_id_code assignment trigger only fires on UPDATE,
+    // not INSERT (undocumented anywhere except a comment in
+    // 007_multi_org_backfill.sql); inserting straight to 'active' would
+    // silently skip vendor-code assignment, since no existing code path had
+    // ever done that before this route. The collapse case immediately
+    // follows with a real UPDATE to 'active', which correctly fires it.
+    const { error: linkError } = await db().from("organization_vendors").insert(
+      targetOrgIds.map((orgId: string) => ({ org_id: orgId, vendor_id: vendorId, status: "pending_review" }))
+    )
+    if (linkError) throw linkError
+
+    if (collapsed) {
+      const { error: activateError } = await db()
+        .from("organization_vendors").update({ status: "active" }).eq("vendor_id", vendorId).in("org_id", targetOrgIds)
+      if (activateError) throw activateError
+    }
+    const initialStatus = collapsed ? "active" : "pending_review"
+
+    for (const orgId of targetOrgIds) {
+      const recipientIds = await findOrgRoleHolderIds(orgId, ["Admin"])
+      await notifyUsers(recipientIds, {
+        type: "new_vendor",
+        title: collapsed ? "New Vendor Activated (Super Admin Assisted)" : "New Vendor Added",
+        message: collapsed
+          ? `${company_name} was onboarded and activated by a platform administrator on this vendor's behalf.`
+          : `A new vendor application has been submitted: ${company_name}`,
+        moduleReferenceId: vendorId,
+      })
+    }
+
+    await writeAudit({
+      entityType: "vendor",
+      entityId: vendorId,
+      action: collapsed ? "vendor_super_admin_assisted_activation" : "vendor_super_admin_assisted_onboarding",
+      newValue: {
+        company_name, org_ids: targetOrgIds, risk_classification: riskClassification,
+        has_required_document: hasRequiredDocument, collapsed,
+        note: collapsed
+          ? "assisted, Submit+Approve collapsed, risk=low"
+          : `assisted, not collapsed (risk=${riskClassification}${hasRequiredDocument ? "" : ", missing required document"})`,
+      },
+      performedBy: actorId,
+      orgId: null,
+    })
+
+    res.status(201).json({
+      data: { vendorId, orgIds: targetOrgIds, status: initialStatus, riskClassification, collapsed, hasRequiredDocument },
+    })
+  } catch (err: any) {
+    console.error("[superadmin/vendors/onboard-and-activate]", err.message)
+    res.status(500).json({ error: err.message || "Failed to onboard vendor" })
   }
 })
 

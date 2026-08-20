@@ -110,7 +110,7 @@ export async function resolveVendorAllowedOrgIds(userId: string, vendorId: strin
   // VendorTeam.tsx only ever shows for Associates) -- Finance (added in
   // 040_finance_role.sql, after this function was written) needs the same
   // full read visibility as Admin/Manager to see which contracts/
-  // engagements it can raise or approve invoices against.
+  // purchase requests it can raise or approve invoices against.
   if (roleNames.has("Admin") || roleNames.has("Manager") || roleNames.has("Finance")) return null // unrestricted
 
   return [] // Associate (or no recognized role) with no explicit assignments -- sees nothing yet
@@ -121,7 +121,7 @@ export type ListScope =
   | { mode: "org"; orgId: string; access: OrgAccess }
   | { error: { status: number; message: string } }
 
-// For endpoints shared between internal staff and vendors (e.g. engagements,
+// For endpoints shared between internal staff and vendors (e.g. purchase requests,
 // invoices, contracts /list): vendors are scoped to their own vendor row,
 // internal users are scoped to X-Org-Id + organization_members/group access.
 // Vendors are NOT rows in organization_members, so requireOrg cannot sit in

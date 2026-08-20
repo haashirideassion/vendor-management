@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Switch } from "@/components/ui/switch"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import {
@@ -18,7 +19,7 @@ import {
 } from "@/components/shared/SolarIcon"
 import { PaginationBar } from "@/components/shared/PaginationBar"
 import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
-import type { ServiceCategory } from "@/lib/types"
+import type { ServiceCategory, FulfillmentType } from "@/lib/types"
 import { format } from "date-fns"
 import { toast } from "sonner"
 import { api } from "@/lib/api"
@@ -30,6 +31,7 @@ interface CategoryForm {
   name: string
   description: string
   is_active: boolean
+  fulfillment_type: FulfillmentType
 }
 
 function CategoryTable({
@@ -120,6 +122,9 @@ function CategoryTable({
                         />
                       </div>
                       <span className="text-sm font-medium">{cat.name}</span>
+                      <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium border shrink-0 ${cat.fulfillment_type === "goods" ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-purple-50 text-purple-700 border-purple-200"}`}>
+                        {cat.fulfillment_type === "goods" ? "Goods" : "Service"}
+                      </span>
                     </div>
                   </TableCell>
                   <TableCell className="hidden sm:table-cell">
@@ -202,7 +207,7 @@ export function CategoryManagement() {
   const [editTarget, setEditTarget] = useState<ServiceCategory | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const [toggling, setToggling]     = useState<string | null>(null)
-  const [form, setForm]             = useState<CategoryForm>({ name: "", description: "", is_active: true })
+  const [form, setForm]             = useState<CategoryForm>({ name: "", description: "", is_active: true, fulfillment_type: "service" })
   const [rejectTarget, setRejectTarget] = useState<ServiceCategory | null>(null)
   const [rejectNotes, setRejectNotes]   = useState("")
 
@@ -253,13 +258,13 @@ export function CategoryManagement() {
 
   function openCreate() {
     setEditTarget(null)
-    setForm({ name: "", description: "", is_active: true })
+    setForm({ name: "", description: "", is_active: true, fulfillment_type: "service" })
     setSheetOpen(true)
   }
 
   function openEdit(cat: ServiceCategory) {
     setEditTarget(cat)
-    setForm({ name: cat.name, description: cat.description ?? "", is_active: cat.is_active })
+    setForm({ name: cat.name, description: cat.description ?? "", is_active: cat.is_active, fulfillment_type: cat.fulfillment_type })
     setSheetOpen(true)
   }
 
@@ -270,7 +275,7 @@ export function CategoryManagement() {
         await updateCategory.mutateAsync({ id: editTarget.id, ...form })
         toast.success("Category updated")
       } else {
-        await createCategory.mutateAsync({ name: form.name, description: form.description || undefined })
+        await createCategory.mutateAsync({ name: form.name, description: form.description || undefined, fulfillment_type: form.fulfillment_type })
         toast.success("Category created")
       }
       setSheetOpen(false)
@@ -421,6 +426,20 @@ export function CategoryManagement() {
                 onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
                 rows={3}
               />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>Fulfillment Type</Label>
+              <Select
+                value={form.fulfillment_type}
+                onValueChange={(v) => setForm((f) => ({ ...f, fulfillment_type: v as FulfillmentType }))}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="service">Service — confirmed via Service Confirmation</SelectItem>
+                  <SelectItem value="goods">Goods — confirmed via GRN</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">Decides which delivery-confirmation flow applies to purchase orders under this category.</p>
             </div>
             {editTarget && (
               <div className="flex items-center justify-between rounded-lg border p-3 bg-muted/30">

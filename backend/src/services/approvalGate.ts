@@ -20,12 +20,52 @@ async function orgMemberRoleNames(userId: string, orgId: string): Promise<string
 
 // True if this org member's ONLY role is Associate (no Manager/Admin/
 // Finance) -- the "needs a Manager/Admin approval step before it reaches
-// the rest of the org" signal used across Engagements/Contracts/GRNs/
+// the rest of the org" signal used across Purchase Requests/Contracts/GRNs/
 // Categories, mirroring the same "Associate action needs approval" rule
 // already built for vendor-side quotations (quotations.ts).
 export async function isAssociateOnly(userId: string, orgId: string): Promise<boolean> {
   const roleNames = await orgMemberRoleNames(userId, orgId)
   return roleNames.length > 0 && roleNames.every((n) => n === "Associate")
+}
+
+// Procurement Lifecycle Enhancement, Phase 1: amount-tiered approval,
+// layered ON TOP of the existing role gate above rather than replacing it.
+//
+// Associate-only stays an unconditional hard floor -- exactly today's
+// behavior, threshold-independent. For every other role (Manager/Admin/
+// custom), self-approval is unconditional UNLESS the org has explicitly
+// configured a threshold (069_approval_thresholds.sql) for EVERY role this
+// member holds; if even one of their roles has no configured policy row,
+// that role's "unlimited" default wins and the member can self-approve
+// through it, same as today. Only when all of the member's roles have an
+// explicit threshold AND the amount exceeds the highest of them does this
+// return gated=true.
+export async function resolveApprovalGate(userId: string, orgId: string, amount?: number | null): Promise<boolean> {
+  const { data: member } = await db()
+    .from("organization_members").select("id").eq("org_id", orgId).eq("profile_id", userId).maybeSingle()
+  if (!member) return true
+
+  const { data: roleRows } = await db()
+    .from("org_member_roles").select("role_id, role:role_id(name)").eq("org_member_id", member.id)
+  const roleIds = (roleRows ?? []).map((r: any) => r.role_id)
+  const roleNames = (roleRows ?? []).map((r: any) => r.role.name)
+  if (roleNames.length === 0) return true
+  if (roleNames.every((n: string) => n === "Associate")) return true
+
+  if (amount === null || amount === undefined) return false
+
+  const { data: policies } = await db()
+    .from("approval_policies").select("role_id, threshold_amount").eq("org_id", orgId).in("role_id", roleIds)
+  if (!policies || policies.length === 0) return false // nothing configured -- unchanged behavior
+
+  const configuredRoleIds = new Set(policies.map((p: any) => p.role_id))
+  const hasUnconfiguredRole = roleIds.some((id: string) => !configuredRoleIds.has(id))
+  if (hasUnconfiguredRole) return false // that role's implicit "unlimited" wins
+
+  if (policies.some((p: any) => p.threshold_amount === null)) return false // an explicit "unlimited" role wins
+
+  const maxThreshold = Math.max(...policies.map((p: any) => Number(p.threshold_amount)))
+  return amount > maxThreshold
 }
 
 // The gate for WHO may approve/reject a pending entity -- Manager or Admin
@@ -127,7 +167,7 @@ async function notifyApprovers(orgId: string, opts: {
 // the caller applies that to the entity row itself, since the normal
 // starting status differs per entity type.
 export async function gateOnCreate(opts: {
-  entityType: "engagement" | "contract" | "grn" | "category"
+  entityType: "purchase_request" | "contract" | "grn" | "category" | "service_confirmation"
   entityId: string
   requestedBy: string
   orgId: string
@@ -137,7 +177,7 @@ export async function gateOnCreate(opts: {
   entityTitle: string
   notifType: string
 }): Promise<{ gated: boolean }> {
-  const gated = await isAssociateOnly(opts.requestedBy, opts.orgId)
+  const gated = await resolveApprovalGate(opts.requestedBy, opts.orgId, opts.amount)
   const nowIso = new Date().toISOString()
 
   const { error } = await db().from("approval_requests").insert({

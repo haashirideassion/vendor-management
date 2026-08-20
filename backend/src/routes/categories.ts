@@ -56,16 +56,22 @@ router.post("/vendor-counts", requireAuth, async (req: Request, res: Response) =
 // platform-wide taxonomy (no org_id on the row itself), but the creating
 // user is always acting from some org (X-Org-Id) -- that org's Managers/
 // Admins are who get gated on and notified, same shared rule as
-// Engagements/Contracts/GRNs.
+// Purchase Requests/Contracts/GRNs.
 router.post("/create", requireAuth, requireOrg, async (req: Request, res: Response) => {
   try {
-    const { name, description } = req.body
+    const { name, description, fulfillment_type } = req.body
     if (!name) return res.status(400).json({ error: "name is required" })
+    if (fulfillment_type && !["goods", "service"].includes(fulfillment_type)) {
+      return res.status(400).json({ error: "fulfillment_type must be 'goods' or 'service'" })
+    }
     const { orgId } = req as OrgScopedRequest
 
     const { data: inserted, error } = await db()
       .from("service_categories")
-      .insert({ name, description: description ?? null, is_active: false, status: "pending_approval" })
+      .insert({
+        name, description: description ?? null, is_active: false, status: "pending_approval",
+        fulfillment_type: fulfillment_type ?? "service",
+      })
       .select("id")
       .single()
     if (error) throw error

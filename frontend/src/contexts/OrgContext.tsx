@@ -14,6 +14,7 @@ export interface OrgMembership {
   permissions: string[]
   roleMode: "tiered" | "solo"
   approvalThreshold: number
+  baseCurrency: string
   /** True for a self-registered org whose onboarding submission isn't
    *  approved yet -- every module except Org Onboarding/Profile is off-limits. */
   modulesLocked: boolean

@@ -40,16 +40,16 @@ router.post("/vendor-list", requireAuth, async (req: Request, res: Response) => 
     const vendorId = await resolveVendorId(userId)
     if (!vendorId) return res.json([])
 
-    // !inner so the engagement.status filter below actually applies (a plain
-    // embedded select can't be filtered on in PostgREST) -- an RFQ's
-    // engagement is a NOT NULL FK, so this never drops a legitimate row.
-    // Vendors only see RFQs for engagements that have cleared internal
+    // !inner so the purchase_request.status filter below actually applies (a
+    // plain embedded select can't be filtered on in PostgREST) -- an RFQ's
+    // purchase request is a NOT NULL FK, so this never drops a legitimate row.
+    // Vendors only see RFQs for purchase requests that have cleared internal
     // approval, not ones still in draft/pending_approval.
     let query = db()
       .from("rfqs")
-      .select("*, engagement:engagement_id!inner(*, line_items:engagement_line_items(*)), vendor:vendor_id(company_name)")
+      .select("*, purchase_request:purchase_request_id!inner(*, line_items:purchase_request_line_items(*)), vendor:vendor_id(company_name)")
       .eq("vendor_id", vendorId)
-      .eq("engagement.status", "approved")
+      .eq("purchase_request.status", "approved")
       .order("created_at", { ascending: false })
 
     const allowedOrgIds = await resolveVendorAllowedOrgIds(userId, vendorId)
@@ -71,7 +71,7 @@ router.post("/get", requireAuth, async (req: Request, res: Response) => {
 
     const { data, error } = await db()
       .from("rfqs")
-      .select("*, engagement:engagement_id(*, line_items:engagement_line_items(*)), vendor:vendor_id(company_name)")
+      .select("*, purchase_request:purchase_request_id(*, line_items:purchase_request_line_items(*)), vendor:vendor_id(company_name)")
       .eq("id", id)
       .single()
 
@@ -79,10 +79,10 @@ router.post("/get", requireAuth, async (req: Request, res: Response) => {
     if (!(await checkRfqAccess(req, data))) {
       return res.status(403).json({ error: "Not authorized to view this RFQ" })
     }
-    // Vendors can't view an RFQ for an engagement still awaiting internal
-    // approval -- internal staff (already scoped by checkRfqAccess above)
-    // have no such restriction.
-    if ((req as AuthenticatedRequest).user.role === "vendor" && data.engagement?.status !== "approved") {
+    // Vendors can't view an RFQ for a purchase request still awaiting
+    // internal approval -- internal staff (already scoped by checkRfqAccess
+    // above) have no such restriction.
+    if ((req as AuthenticatedRequest).user.role === "vendor" && data.purchase_request?.status !== "approved") {
       return res.status(403).json({ error: "Not authorized to view this RFQ" })
     }
     return res.json(data)
@@ -91,23 +91,23 @@ router.post("/get", requireAuth, async (req: Request, res: Response) => {
   }
 })
 
-// POST /api/rfqs/by-engagement
-router.post("/by-engagement", requireAuth, async (req: Request, res: Response) => {
+// POST /api/rfqs/by-purchase-request
+router.post("/by-purchase-request", requireAuth, async (req: Request, res: Response) => {
   try {
-    const { engagementId } = req.body
-    if (!engagementId) return res.status(400).json({ error: "Missing engagementId" })
+    const { purchaseRequestId } = req.body
+    if (!purchaseRequestId) return res.status(400).json({ error: "Missing purchaseRequestId" })
     const { id: userId, role } = (req as AuthenticatedRequest).user
 
     let query = db()
       .from("rfqs")
-      .select("*, engagement:engagement_id!inner(*, line_items:engagement_line_items(*)), vendor:vendor_id(company_name)")
-      .eq("engagement_id", engagementId)
+      .select("*, purchase_request:purchase_request_id!inner(*, line_items:purchase_request_line_items(*)), vendor:vendor_id(company_name)")
+      .eq("purchase_request_id", purchaseRequestId)
       .order("created_at", { ascending: false })
 
     if (role === "vendor") {
       const vendorId = await resolveVendorId(userId)
       if (!vendorId) return res.json([])
-      query = query.eq("vendor_id", vendorId).eq("engagement.status", "approved")
+      query = query.eq("vendor_id", vendorId).eq("purchase_request.status", "approved")
       const allowedOrgIds = await resolveVendorAllowedOrgIds(userId, vendorId)
       if (allowedOrgIds !== null) query = query.in("org_id", allowedOrgIds)
     } else {
@@ -134,14 +134,14 @@ router.post("/update-status", requireAuth, async (req: Request, res: Response) =
 
     const { data: existing, error: fetchError } = await db()
       .from("rfqs")
-      .select("org_id, vendor_id, engagement:engagement_id(status)")
+      .select("org_id, vendor_id, purchase_request:purchase_request_id(status)")
       .eq("id", id)
       .single()
     if (fetchError) throw fetchError
     if (!(await checkRfqAccess(req, existing))) {
       return res.status(403).json({ error: "Not authorized to update this RFQ" })
     }
-    if ((req as AuthenticatedRequest).user.role === "vendor" && (existing as any).engagement?.status !== "approved") {
+    if ((req as AuthenticatedRequest).user.role === "vendor" && (existing as any).purchase_request?.status !== "approved") {
       return res.status(403).json({ error: "Not authorized to update this RFQ" })
     }
 

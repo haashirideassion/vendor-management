@@ -8,12 +8,18 @@ import vendorsRoutes from "./routes/vendors"
 import purchaseOrdersRoutes from "./routes/purchaseOrders"
 import invoicesRoutes from "./routes/invoices"
 import contractsRoutes from "./routes/contracts"
-import engagementsRoutes from "./routes/engagements"
+import contractReviewsRoutes from "./routes/contractReviews"
+import contractClausesRoutes from "./routes/contractClauses"
+import contractApprovalsRoutes from "./routes/contractApprovals"
+import contractRenewalsRoutes from "./routes/contractRenewals"
+import cronRoutes from "./routes/cron"
+import purchaseRequestsRoutes from "./routes/purchaseRequests"
 import rfqsRoutes from "./routes/rfqs"
 import quotationsRoutes from "./routes/quotations"
 import notificationsRoutes from "./routes/notifications"
 import attachmentsRoutes from "./routes/attachments"
 import grnsRoutes from "./routes/grns"
+import serviceConfirmationsRoutes from "./routes/serviceConfirmations"
 import approvalsRoutes from "./routes/approvals"
 import categoriesRoutes from "./routes/categories"
 import ratingsRoutes from "./routes/ratings"
@@ -28,6 +34,7 @@ import vendorUsersRoutes from "./routes/vendorUsers"
 import groupsRoutes from "./routes/groups"
 import orgOnboardingRoutes from "./routes/orgOnboarding"
 import vendorInviteLinksRoutes from "./routes/vendorInviteLinks"
+import legalEntitiesRoutes from "./routes/legalEntities"
 
 const app = express()
 const PORT = process.env.PORT ?? 5000
@@ -66,12 +73,18 @@ app.use("/api/vendors", vendorsRoutes)
 app.use("/api/purchase-orders", purchaseOrdersRoutes)
 app.use("/api/invoices", invoicesRoutes)
 app.use("/api/contracts", contractsRoutes)
-app.use("/api/engagements", engagementsRoutes)
+app.use("/api/contract-reviews", contractReviewsRoutes)
+app.use("/api/contract-clauses", contractClausesRoutes)
+app.use("/api/contract-approvals", contractApprovalsRoutes)
+app.use("/api/contract-renewals", contractRenewalsRoutes)
+app.use("/api/cron", cronRoutes)
+app.use("/api/purchase-requests", purchaseRequestsRoutes)
 app.use("/api/rfqs", rfqsRoutes)
 app.use("/api/quotations", quotationsRoutes)
 app.use("/api/notifications", notificationsRoutes)
 app.use("/api/attachments", attachmentsRoutes)
 app.use("/api/grns", grnsRoutes)
+app.use("/api/service-confirmations", serviceConfirmationsRoutes)
 app.use("/api/approvals", approvalsRoutes)
 app.use("/api/categories", categoriesRoutes)
 app.use("/api/ratings", ratingsRoutes)
@@ -86,6 +99,7 @@ app.use("/api/vendor-users", vendorUsersRoutes)
 app.use("/api/groups", groupsRoutes)
 app.use("/api/org-onboarding", orgOnboardingRoutes)
 app.use("/api/vendor-invite-links", vendorInviteLinksRoutes)
+app.use("/api/legal-entities", legalEntitiesRoutes)
 
 if (process.env.NODE_ENV !== "production" && process.env.NODE_ENV !== "test") {
   app.listen(PORT, () => {

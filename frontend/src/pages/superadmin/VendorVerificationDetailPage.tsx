@@ -234,7 +234,7 @@ export function VendorVerificationDetailPage() {
               </DialogTitle>
               <DialogDescription>
                 {pendingAction === "approve" && `This will mark ${vendor.companyLegalName} as verified.`}
-                {pendingAction === "suspend" && `This will suspend ${vendor.companyLegalName}'s verification -- it can't be used for new engagements until re-verified.`}
+                {pendingAction === "suspend" && `This will suspend ${vendor.companyLegalName}'s verification -- it can't be used for new purchase requests until re-verified.`}
                 {pendingAction === "reject" && `This will reject ${vendor.companyLegalName}'s verification.`}
               </DialogDescription>
             </DialogHeader>

@@ -19,6 +19,7 @@ import {
   Menu01Icon,
   SidebarCollapseIcon,
   SidebarExpandIcon,
+  Settings01Icon,
 } from "@/components/shared/SolarIcon"
 
 // Groups has no nav entry of its own (it's a tab of the Organizations page),
@@ -28,6 +29,7 @@ const navItems = [
   { label: "Organizations", to: "/admin/superadmin/organizations", extraMatch: "/admin/superadmin/groups", icon: Building06Icon },
   { label: "Users", to: "/admin/superadmin/users", icon: UserCircleIcon },
   { label: "Vendor Verification", to: "/admin/superadmin/vendor-verification", icon: CheckmarkCircle01Icon },
+  { label: "Feature Entitlements", to: "/admin/superadmin/feature-entitlements", icon: Settings01Icon },
   { label: "Audit Log", to: "/admin/superadmin/audit-log", icon: AuditLogIcon },
   { label: "Break-glass Access", to: "/admin/superadmin/break-glass", icon: Alert01Icon },
 ]
@@ -47,8 +49,12 @@ function SidebarContent({
   return (
     <div className="flex flex-col h-full">
       <div className={cn("flex flex-col gap-1.5 px-4 pt-5 pb-5", collapsed ? "items-center px-2" : "items-start")}>
-        <div className={cn("flex w-full items-center", collapsed ? "justify-center" : "justify-between")}>
-          {!collapsed && <AppLogo className="h-10 w-auto max-w-[180px]" />}
+        <div className={cn("flex w-full items-center", collapsed ? "flex-col gap-2" : "justify-between")}>
+          {collapsed ? (
+            <AppLogo variant="color" className="h-8 w-8" />
+          ) : (
+            <AppLogo className="h-10 w-auto max-w-[180px]" />
+          )}
           {onToggleCollapse && (
             <button
               type="button"

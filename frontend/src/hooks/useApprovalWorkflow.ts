@@ -6,7 +6,7 @@ import type { ApprovalEntityType, ApprovalRequest } from "@/lib/types"
 
 // ─── Queries ──────────────────────────────────────────────────────────────────
 
-/** Fetch all approval requests for a specific entity (e.g. a single PO or engagement) */
+/** Fetch all approval requests for a specific entity (e.g. a single PO or purchase request) */
 export function useApprovalRequests(entityType: ApprovalEntityType, entityId: string) {
   const { accessToken } = useAuth()
 

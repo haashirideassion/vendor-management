@@ -82,9 +82,9 @@ export const VENDOR_STATUSES: VendorStatus[] = [
 
 // ─── Procurement status labels & colors ───────────────────────────────────────
 
-import type { EngagementStatus, POStatus, GRNStatus, InvoiceStatus, MatchStatus, RFQStatus, QuotationStatus } from "./types"
+import type { PurchaseRequestStatus, POStatus, POType, GRNStatus, ServiceConfirmationStatus, InvoiceStatus, MatchStatus, RFQStatus, QuotationStatus, PaymentMethod, RatingDimension } from "./types"
 
-export const ENGAGEMENT_STATUS_LABELS: Record<EngagementStatus, string> = {
+export const PURCHASE_REQUEST_STATUS_LABELS: Record<PurchaseRequestStatus, string> = {
   draft:                "Draft",
   pending_approval:     "Pending Approval",
   approved:             "Approved",
@@ -95,7 +95,7 @@ export const ENGAGEMENT_STATUS_LABELS: Record<EngagementStatus, string> = {
   completed:            "Completed",
 }
 
-export const ENGAGEMENT_STATUS_COLORS: Record<EngagementStatus, string> = {
+export const PURCHASE_REQUEST_STATUS_COLORS: Record<PurchaseRequestStatus, string> = {
   draft:               "bg-gray-100 text-gray-700 border-gray-200",
   pending_approval:    "bg-yellow-100 text-yellow-800 border-yellow-200",
   approved:            "bg-blue-100 text-blue-800 border-blue-200",
@@ -124,6 +124,18 @@ export const PO_STATUS_COLORS: Record<POStatus, string> = {
   closed:             "bg-gray-100 text-gray-500 border-gray-200",
 }
 
+export const PO_TYPE_LABELS: Record<POType, string> = {
+  standard: "Standard",
+  blanket:  "Blanket PO",
+  release:  "Release Order",
+}
+
+export const PO_TYPE_COLORS: Record<POType, string> = {
+  standard: "bg-gray-100 text-gray-700 border-gray-200",
+  blanket:  "bg-purple-100 text-purple-800 border-purple-200",
+  release:  "bg-blue-100 text-blue-800 border-blue-200",
+}
+
 export const GRN_STATUS_LABELS: Record<GRNStatus, string> = {
   pending_approval: "Pending Approval",
   draft:     "Draft",
@@ -140,6 +152,22 @@ export const GRN_STATUS_COLORS: Record<GRNStatus, string> = {
   rejected:  "bg-red-100 text-red-700 border-red-200",
 }
 
+export const SERVICE_CONFIRMATION_STATUS_LABELS: Record<ServiceConfirmationStatus, string> = {
+  pending_approval: "Pending Approval",
+  draft:     "Draft",
+  submitted: "Submitted",
+  verified:  "Verified",
+  rejected:  "Rejected",
+}
+
+export const SERVICE_CONFIRMATION_STATUS_COLORS: Record<ServiceConfirmationStatus, string> = {
+  pending_approval: "bg-yellow-100 text-yellow-800 border-yellow-200",
+  draft:     "bg-gray-100 text-gray-700 border-gray-200",
+  submitted: "bg-yellow-100 text-yellow-800 border-yellow-200",
+  verified:  "bg-green-100 text-green-800 border-green-200",
+  rejected:  "bg-red-100 text-red-700 border-red-200",
+}
+
 export const INVOICE_STATUS_LABELS: Record<InvoiceStatus, string> = {
   submitted:    "Submitted",
   under_review: "Under Review",
@@ -147,6 +175,7 @@ export const INVOICE_STATUS_LABELS: Record<InvoiceStatus, string> = {
   approved:     "Approved",
   rejected:     "Rejected",
   paid:         "Paid",
+  partially_paid: "Partially Paid",
 }
 
 export const INVOICE_STATUS_COLORS: Record<InvoiceStatus, string> = {
@@ -156,6 +185,28 @@ export const INVOICE_STATUS_COLORS: Record<InvoiceStatus, string> = {
   approved:     "bg-green-100 text-green-800 border-green-200",
   rejected:     "bg-red-100 text-red-700 border-red-200",
   paid:         "bg-purple-100 text-purple-800 border-purple-200",
+  partially_paid: "bg-orange-100 text-orange-800 border-orange-200",
+}
+
+export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  bank_transfer: "Bank Transfer",
+  cheque: "Cheque",
+  cash: "Cash",
+  card: "Card",
+  upi: "UPI",
+  other: "Other",
+}
+
+export const RATING_DIMENSIONS: RatingDimension[] = [
+  "quality", "timeliness", "communication", "cost_competitiveness", "compliance",
+]
+
+export const RATING_DIMENSION_LABELS: Record<RatingDimension, string> = {
+  quality: "Quality",
+  timeliness: "Timeliness",
+  communication: "Communication",
+  cost_competitiveness: "Cost Competitiveness",
+  compliance: "Compliance",
 }
 
 export const MATCH_STATUS_LABELS: Record<MatchStatus, string> = {
@@ -170,7 +221,22 @@ export const MATCH_STATUS_COLORS: Record<MatchStatus, string> = {
   pending:  "bg-gray-100 text-gray-600 border-gray-200",
 }
 
-export const CURRENCIES = ["INR", "USD", "EUR", "GBP", "AED"] as const
+// Currencies selectable anywhere a transaction picks its own currency
+// (purchase request/PO/contract/invoice). Conversion to an org's base currency
+// (migration 077) is handled server-side via a live FX rate lookup --
+// this list just needs to cover what an org might actually transact in.
+export const CURRENCIES = [
+  { code: "INR", label: "INR — Indian Rupee" },
+  { code: "USD", label: "USD — US Dollar" },
+  { code: "EUR", label: "EUR — Euro" },
+  { code: "GBP", label: "GBP — British Pound" },
+  { code: "JPY", label: "JPY — Japanese Yen" },
+  { code: "AUD", label: "AUD — Australian Dollar" },
+  { code: "CAD", label: "CAD — Canadian Dollar" },
+  { code: "SGD", label: "SGD — Singapore Dollar" },
+  { code: "AED", label: "AED — UAE Dirham" },
+  { code: "CNY", label: "CNY — Chinese Yuan" },
+] as const
 
 export const RFQ_STATUS_LABELS: Record<RFQStatus, string> = {
   pending:   "Pending",
@@ -204,7 +270,7 @@ export const QUOTATION_STATUS_COLORS: Record<QuotationStatus, string> = {
 
 // ─── Contract labels & colors ─────────────────────────────────────────────────
 
-import type { ContractType, ContractStatus } from "./types"
+import type { ContractType, ContractStatus, ContractRiskTier, ContractReviewerRole, ContractReviewStatus, ContractClauseCategory, ContractClauseStatus, ContractApprovalRole, ContractApprovalStatus } from "./types"
 
 export const CONTRACT_TYPE_LABELS: Record<ContractType, string> = {
   msa:   "Master Service Agreement",
@@ -228,23 +294,127 @@ export const CONTRACT_TYPE_COLORS: Record<ContractType, string> = {
 }
 
 export const CONTRACT_STATUS_LABELS: Record<ContractStatus, string> = {
-  pending_approval: "Pending Approval",
-  draft:      "Draft",
-  active:     "Active",
-  expired:    "Expired",
-  terminated: "Terminated",
+  pending_approval:       "Pending Approval",
+  draft:                  "Draft",
+  internal_review:        "Internal Review",
+  pending_final_approval: "Pending Final Approval",
+  active:                 "Active",
+  expired:                "Expired",
+  terminated:             "Terminated",
 }
 
 export const CONTRACT_STATUS_COLORS: Record<ContractStatus, string> = {
-  pending_approval: "bg-yellow-100 text-yellow-800 border-yellow-200",
-  draft:      "bg-gray-100 text-gray-700 border-gray-200",
-  active:     "bg-green-100 text-green-800 border-green-200",
-  expired:    "bg-orange-100 text-orange-700 border-orange-200",
-  terminated: "bg-red-100 text-red-700 border-red-200",
+  pending_approval:       "bg-yellow-100 text-yellow-800 border-yellow-200",
+  draft:                  "bg-gray-100 text-gray-700 border-gray-200",
+  internal_review:        "bg-blue-100 text-blue-800 border-blue-200",
+  pending_final_approval: "bg-purple-100 text-purple-800 border-purple-200",
+  active:                 "bg-green-100 text-green-800 border-green-200",
+  expired:                "bg-orange-100 text-orange-700 border-orange-200",
+  terminated:             "bg-red-100 text-red-700 border-red-200",
 }
 
 export const CONTRACT_TYPES: ContractType[]   = ["msa", "sow", "nda", "other"]
-export const CONTRACT_STATUSES: ContractStatus[] = ["pending_approval", "draft", "active", "expired", "terminated"]
+export const CONTRACT_STATUSES: ContractStatus[] = ["pending_approval", "draft", "internal_review", "pending_final_approval", "active", "expired", "terminated"]
+
+// ─── Contract risk tier & Internal Review labels/colors ────────────────────────
+
+export const CONTRACT_RISK_TIER_LABELS: Record<ContractRiskTier, string> = {
+  low:    "Low",
+  medium: "Medium",
+  high:   "High",
+}
+
+export const CONTRACT_RISK_TIER_COLORS: Record<ContractRiskTier, string> = {
+  low:    "bg-green-100 text-green-800 border-green-200",
+  medium: "bg-yellow-100 text-yellow-800 border-yellow-200",
+  high:   "bg-red-100 text-red-700 border-red-200",
+}
+
+export const CONTRACT_RISK_TIERS: ContractRiskTier[] = ["low", "medium", "high"]
+
+export const CONTRACT_REVIEWER_ROLE_LABELS: Record<ContractReviewerRole, string> = {
+  business_user: "Business User",
+  legal:         "Legal",
+  finance:       "Finance",
+  compliance:    "Compliance",
+  vp_cfo:        "VP / CFO",
+}
+
+export const CONTRACT_REVIEW_STATUS_LABELS: Record<ContractReviewStatus, string> = {
+  pending:           "Pending",
+  approved:          "Approved",
+  changes_requested: "Changes Requested",
+}
+
+export const CONTRACT_REVIEW_STATUS_COLORS: Record<ContractReviewStatus, string> = {
+  pending:           "bg-yellow-100 text-yellow-800 border-yellow-200",
+  approved:          "bg-green-100 text-green-800 border-green-200",
+  changes_requested: "bg-red-100 text-red-700 border-red-200",
+}
+
+// ─── Contract clause negotiation/redlining labels/colors (CLM Phase 2) ─────────
+
+export const CONTRACT_CLAUSE_CATEGORY_LABELS: Record<ContractClauseCategory, string> = {
+  liability:   "Liability",
+  indemnity:   "Indemnity",
+  termination: "Termination",
+  ip:          "IP",
+  other:       "Other",
+}
+
+// Categories the confirmed spec flags as high-priority for Legal whenever
+// a redline touches them (liability/indemnity/termination/IP).
+export const CONTRACT_CLAUSE_HIGH_PRIORITY_CATEGORIES: ContractClauseCategory[] = [
+  "liability", "indemnity", "termination", "ip",
+]
+
+export const CONTRACT_CLAUSE_CATEGORIES: ContractClauseCategory[] = ["liability", "indemnity", "termination", "ip", "other"]
+
+export const CONTRACT_CLAUSE_STATUS_LABELS: Record<ContractClauseStatus, string> = {
+  under_negotiation: "Under Negotiation",
+  agreed:            "Agreed",
+}
+
+export const CONTRACT_CLAUSE_STATUS_COLORS: Record<ContractClauseStatus, string> = {
+  under_negotiation: "bg-yellow-100 text-yellow-800 border-yellow-200",
+  agreed:            "bg-green-100 text-green-800 border-green-200",
+}
+
+// ─── Contract final approval matrix labels/colors (CLM Phase 3) ───────────────
+
+export const CONTRACT_APPROVAL_ROLE_LABELS: Record<ContractApprovalRole, string> = {
+  legal:   "Legal Head",
+  finance: "Finance Controller",
+  vp_cfo:  "VP / CFO",
+}
+
+export const CONTRACT_APPROVAL_STATUS_LABELS: Record<ContractApprovalStatus, string> = {
+  pending:  "Pending",
+  approved: "Approved",
+  rejected: "Rejected",
+}
+
+export const CONTRACT_APPROVAL_STATUS_COLORS: Record<ContractApprovalStatus, string> = {
+  pending:  "bg-yellow-100 text-yellow-800 border-yellow-200",
+  approved: "bg-green-100 text-green-800 border-green-200",
+  rejected: "bg-red-100 text-red-700 border-red-200",
+}
+
+// ─── Contract renewal tracking labels/colors (CLM Phase 4) ────────────────────
+
+import type { ContractRenewalDecisionType } from "./types"
+
+export const CONTRACT_RENEWAL_DECISION_LABELS: Record<ContractRenewalDecisionType, string> = {
+  renew:     "Renew",
+  amend:     "Amend",
+  terminate: "Terminate",
+}
+
+export const CONTRACT_RENEWAL_DECISION_COLORS: Record<ContractRenewalDecisionType, string> = {
+  renew:     "bg-green-100 text-green-800 border-green-200",
+  amend:     "bg-blue-100 text-blue-800 border-blue-200",
+  terminate: "bg-red-100 text-red-700 border-red-200",
+}
 
 // ─── Organisation onboarding labels & constants ───────────────────────────────
 

@@ -6,6 +6,9 @@
     { "source": "/api/(.*)", "destination": "/api/[...path]" },
     { "source": "/(.*)", "destination": "/" }
   ],
+  "crons": [
+    { "path": "/api/cron/contract-renewals", "schedule": "0 6 * * *" }
+  ],
   "headers": [
     {
       "source": "/(.*)",

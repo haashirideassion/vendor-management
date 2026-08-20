@@ -119,7 +119,7 @@ export function NotificationBell() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-medium leading-snug truncate">
-                      {rfq.engagement?.title ?? "New RFQ"}
+                      {rfq.purchase_request?.title ?? "New RFQ"}
                     </p>
                     <p className="text-[11px] text-muted-foreground mt-0.5">
                       Quotation requested — tap to respond

@@ -4,6 +4,7 @@ import { requireAuth, AuthenticatedRequest } from "../middleware/auth"
 import { requireOrg, OrgScopedRequest, resolveListScope } from "../middleware/org"
 import { writeAudit, resolveActingAs } from "../services/audit"
 import { gateOnCreate, isManagerOrAdmin } from "../services/approvalGate"
+import { resolveExchangeRateToBase } from "../services/exchangeRates.service"
 
 const router = Router()
 function db(): any { return getSupabaseAdmin() }
@@ -92,6 +93,7 @@ router.post("/create", requireAuth, requireOrg, async (req: Request, res: Respon
       auto_renew,
       renewal_notice_days,
       notes,
+      risk_tier,
       created_by,
     } = req.body
     const { orgId } = req as OrgScopedRequest
@@ -100,6 +102,13 @@ router.post("/create", requireAuth, requireOrg, async (req: Request, res: Respon
       return res.status(400).json({
         error: "vendor_id, contract_type, title, effective_date, expiry_date, total_value, and created_by are required",
       })
+    }
+
+    let exchangeRateToBase: number
+    try {
+      exchangeRateToBase = await resolveExchangeRateToBase(orgId, currency)
+    } catch (fxErr: any) {
+      return res.status(502).json({ error: fxErr.message || "Unable to fetch exchange rate. Please try again." })
     }
 
     const payload: any = {
@@ -112,12 +121,14 @@ router.post("/create", requireAuth, requireOrg, async (req: Request, res: Respon
       created_by,
       org_id: orgId,
       status: "pending_approval", // resolved to its real starting status just below
+      exchange_rate_to_base: exchangeRateToBase,
     }
     if (parent_id !== undefined) payload.parent_id = parent_id
     if (currency !== undefined) payload.currency = currency
     if (auto_renew !== undefined) payload.auto_renew = auto_renew
     if (renewal_notice_days !== undefined) payload.renewal_notice_days = renewal_notice_days
     if (notes !== undefined) payload.notes = notes
+    if (risk_tier !== undefined) payload.risk_tier = risk_tier
 
     const { data: inserted, error } = await db()
       .from("contracts")
@@ -128,14 +139,17 @@ router.post("/create", requireAuth, requireOrg, async (req: Request, res: Respon
 
     // Associate-only creators need Manager/Admin sign-off before the
     // contract is even a real draft; Manager/Admin/solo-mode creators skip
-    // straight to draft, same as before this gate existed.
+    // straight to draft, same as before this gate existed. amount is
+    // converted to the org's base currency first -- approval_policies.
+    // threshold_amount is denominated in base currency, not whatever
+    // currency this specific contract happens to be in.
     const actorId = (req as AuthenticatedRequest).user.id
     const { gated } = await gateOnCreate({
       entityType: "contract",
       entityId: inserted.id,
       requestedBy: actorId,
       orgId,
-      amount: total_value,
+      amount: total_value != null ? total_value * exchangeRateToBase : null,
       entityLabel: "Contract",
       entityTitle: title,
       notifType: "contract_pending_approval",
@@ -314,7 +328,7 @@ router.post("/add-amendment", requireAuth, async (req: Request, res: Response) =
 
     // contract_amendments has no status-change trigger of its own to
     // replace -- this is a new, additive creation-event audit entry (same
-    // pattern as engagements/create and invoices/submit), not a replacement
+    // pattern as purchase-requests/create and invoices/submit), not a replacement
     // for lost coverage.
     const { data: contract } = await db().from("contracts").select("org_id").eq("id", contract_id).maybeSingle()
     if (contract?.org_id) {

@@ -6,11 +6,12 @@ const router = Router()
 function db(): any { return getSupabaseAdmin() }
 
 const ENTITY_TABLE: Record<string, string> = {
-  engagement: "engagements",
+  purchase_request: "purchase_requests",
   purchase_order: "purchase_orders",
   grn: "grns",
   contract: "contracts",
   invoice: "invoices",
+  service_confirmation: "service_confirmations",
 }
 
 // POST /api/attachments/resolve-org — used by the frontend to construct the

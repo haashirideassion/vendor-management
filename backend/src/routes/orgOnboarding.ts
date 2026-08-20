@@ -29,8 +29,10 @@ function isEditableStatus(status: string): boolean {
   return status === "draft" || status === "rejected"
 }
 
+// Routed through resolve_permission_as -- see invoices.ts's identical
+// comment for why.
 async function hasOnboardingPermission(userId: string, orgId: string): Promise<boolean> {
-  const { data } = await db().rpc("has_permission_as", { p_user_id: userId, p_org_id: orgId, p_key: ONBOARDING_PERMISSION })
+  const { data } = await db().rpc("resolve_permission_as", { p_user_id: userId, p_scope: "org", p_org_id: orgId, p_vendor_id: null, p_key: ONBOARDING_PERMISSION })
   return data === true
 }
 

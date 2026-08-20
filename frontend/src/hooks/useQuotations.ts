@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { api } from "@/lib/api"
 import { useAuth } from "@/contexts/AuthContext"
-import type { Quotation, QuotationLineItem } from "@/lib/types"
+import type { Quotation, QuotationLineItem, TaxComponentInput } from "@/lib/types"
 
 export function useQuotationByRFQ(rfqId: string | undefined) {
   const { accessToken } = useAuth()
@@ -15,23 +15,35 @@ export function useQuotationByRFQ(rfqId: string | undefined) {
   })
 }
 
-export function useEngagementQuotations(engagementId: string | undefined) {
+export function usePurchaseRequestQuotations(purchaseRequestId: string | undefined) {
   const { accessToken } = useAuth()
 
   return useQuery({
-    queryKey: ["quotations", "engagement", engagementId],
-    enabled: !!engagementId,
+    queryKey: ["quotations", "purchase_request", purchaseRequestId],
+    enabled: !!purchaseRequestId,
     queryFn: () =>
-      api.post<Quotation[]>("/api/quotations/by-engagement", { engagementId }, accessToken),
+      api.post<Quotation[]>("/api/quotations/by-purchase-request", { purchaseRequestId }, accessToken),
   })
 }
 
 export interface CreateQuotationInput {
   rfq_id: string
-  engagement_id: string
+  purchase_request_id: string
   vendor_id: string
   notes?: string
-  line_items: Omit<QuotationLineItem, "id" | "quotation_id" | "total" | "created_at">[]
+  line_items: (Omit<QuotationLineItem, "id" | "quotation_id" | "total" | "created_at" | "tax_components"> & { tax_components?: TaxComponentInput[] })[]
+}
+
+// Full version history for an RFQ's quotation, newest first.
+export function useQuotationVersionHistory(rfqId: string | undefined) {
+  const { accessToken } = useAuth()
+
+  return useQuery({
+    queryKey: ["quotations", "rfq", rfqId, "versions"],
+    enabled: !!rfqId,
+    queryFn: () =>
+      api.post<Quotation[]>("/api/quotations/by-rfq/versions", { rfqId }, accessToken),
+  })
 }
 
 export function useCreateQuotation() {

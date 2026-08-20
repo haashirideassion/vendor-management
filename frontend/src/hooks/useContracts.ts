@@ -53,7 +53,7 @@ export type CreateContractInput = Pick<
   Contract,
   | "vendor_id" | "contract_type" | "title" | "parent_id"
   | "effective_date" | "expiry_date" | "total_value" | "currency"
-  | "auto_renew" | "renewal_notice_days" | "notes"
+  | "auto_renew" | "renewal_notice_days" | "notes" | "risk_tier"
 >
 
 export function useCreateContract() {

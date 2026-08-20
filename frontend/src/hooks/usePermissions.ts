@@ -75,9 +75,9 @@ export function usePermissions() {
     canManageCategories:   hasPermission("categories", "manage"),
     canVerifyDocuments:    hasPermission("documents", "verify"),
 
-    // ── Procurement — Engagements ────────────────────────────────────────────
-    canCreateEngagement: hasPermission("engagements", "draft"),
-    canApproveEngagement: hasPermission("engagements", "finalize"),
+    // ── Procurement — Purchase Requests ──────────────────────────────────────
+    canCreatePurchaseRequest: hasPermission("purchase_requests", "draft"),
+    canApprovePurchaseRequest: hasPermission("purchase_requests", "finalize"),
 
     // ── Procurement — Purchase Orders ────────────────────────────────────────
     canCreatePO:  hasPermission("purchase_orders", "create"),
@@ -85,6 +85,9 @@ export function usePermissions() {
 
     // ── Procurement — GRN ────────────────────────────────────────────────────
     canRecordGRN: hasPermission("grns", "record"),
+
+    // ── Procurement — Service Confirmation ───────────────────────────────────
+    canRecordServiceConfirmation: hasPermission("service_confirmations", "record"),
 
     // ── Procurement — Invoices ───────────────────────────────────────────────
     canSubmitInvoice:  isVendor,

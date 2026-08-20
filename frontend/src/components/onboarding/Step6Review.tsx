@@ -109,6 +109,18 @@ export function Step6Review({ data, localDocs, onEdit, onSubmit, submitting }: P
         ) : (
           <p className="text-xs text-muted-foreground">No tax or banking details provided.</p>
         )}
+        {data.has_multiple_legal_entities && (data.additional_legal_entities?.length ?? 0) > 0 && (
+          <div className="pt-1.5 mt-1.5 border-t">
+            <span className="text-xs font-medium text-muted-foreground">
+              + {data.additional_legal_entities!.length} additional legal {data.additional_legal_entities!.length === 1 ? "entity" : "entities"}
+            </span>
+            <div className="mt-1 space-y-0.5">
+              {data.additional_legal_entities!.map((e, i) => (
+                <Row key={i} label={e.registered_country} value={e.legal_name || "—"} />
+              ))}
+            </div>
+          </div>
+        )}
       </SectionCard>
 
       {/* Service Categories */}

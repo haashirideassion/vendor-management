@@ -1,14 +1,30 @@
 import { useState } from "react"
-import { useOrgMembers, useAssignableOrgRoles, useInviteOrgMember, useUpdateOrgMemberRoles, type OrgMember } from "@/hooks/useOrgMembers"
+import { Link } from "react-router-dom"
+import {
+  useOrgMembers, useInviteOrgMember, useOrgTeams, useCreateOrgTeam,
+  useAssignableOrgRoles, useOrgAssignablePermissions, useCreateCustomOrgRole, useDeleteCustomOrgRole,
+  useApprovalPolicy, useSetApprovalPolicy,
+  useMatchTolerance, useSetMatchTolerance,
+  useContractApprovalThresholds, useSetContractApprovalThresholds,
+  useSetBaseCurrency,
+} from "@/hooks/useOrgMembers"
 import { useOrg } from "@/contexts/OrgContext"
 import { AnimatedPage } from "@/components/shared/AnimatedPage"
+import { TeamRoleAssignmentEditor, assignmentRowsToPayload, type AssignmentRow } from "@/components/shared/TeamRoleAssignmentEditor"
+import { CustomRoleManagerDialog } from "@/components/shared/CustomRoleManagerDialog"
+import { ApprovalPolicyDialog } from "@/components/shared/ApprovalPolicyDialog"
+import { MatchToleranceDialog } from "@/components/shared/MatchToleranceDialog"
+import { ContractApprovalThresholdsDialog } from "@/components/shared/ContractApprovalThresholdsDialog"
+import { BaseCurrencyDialog } from "@/components/shared/BaseCurrencyDialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogBody } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { EyeIcon } from "@/components/shared/SolarIcon"
+import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
+import type { OrgMember } from "@/hooks/useOrgMembers"
 import { toast } from "sonner"
 
 const STATUS_COLORS: Record<string, string> = {
@@ -17,47 +33,68 @@ const STATUS_COLORS: Record<string, string> = {
   suspended: "bg-orange-100 text-orange-800 border-orange-200",
 }
 
-// Invite/edit-roles are Admin-only actions (organization_members has no
-// dedicated permission key, unlike vendor scope's vendor_users.manage -- the
-// backend now checks the actor's own Admin-tier role directly on both
-// routes). Gated here on the viewer's own resolved role via activeOrg so
-// Manager/Associate/Finance don't see actions the backend would reject
-// anyway, mirroring the vendor-side VendorTeam.tsx pattern.
+function renderTeams(member: OrgMember) {
+  const parts = [
+    ...member.teamAssignments.map((a) => `${a.teamName}: ${a.roleName}`),
+    ...member.directRoleNames.map((r) => `${r} (no team)`),
+  ]
+  return parts.length > 0 ? parts.join(", ") : "—"
+}
+
+// A single "Manage" link per row instead of a wall of per-row action
+// buttons (Edit roles/Restrictions/Temporary Access/Legal Entity Scope/
+// Suspend/Resend/Revoke) -- those all live on OrgMemberDetail.tsx now.
+// This page keeps only the org-wide settings (Teams/Roles/Approval Policy/
+// Match Tolerance/Base Currency/Invite) and the member list itself.
 export function OrgTeam() {
   const { data: members = [], isLoading } = useOrgMembers()
   const { data: assignable } = useAssignableOrgRoles()
+  const { data: teams = [] } = useOrgTeams()
   const { activeOrg } = useOrg()
   const isViewerAdmin = !!activeOrg?.roleNames.includes("Admin")
   const inviteMember = useInviteOrgMember()
-  const updateRoles = useUpdateOrgMemberRoles()
+  const createTeam = useCreateOrgTeam()
+  const { data: assignablePermissions = [] } = useOrgAssignablePermissions()
+  const createCustomRole = useCreateCustomOrgRole()
+  const deleteCustomRole = useDeleteCustomOrgRole()
+  const { data: approvalPolicy = [] } = useApprovalPolicy()
+  const setApprovalPolicy = useSetApprovalPolicy()
+  const { data: matchTolerance } = useMatchTolerance()
+  const setMatchTolerance = useSetMatchTolerance()
+  const { data: contractApprovalThresholds } = useContractApprovalThresholds()
+  const setContractApprovalThresholds = useSetContractApprovalThresholds()
+  const setBaseCurrency = useSetBaseCurrency()
 
   const [inviting, setInviting] = useState(false)
   const [email, setEmail] = useState("")
   const [fullName, setFullName] = useState("")
-  // Exactly one role per org member -- the tiers are cumulative bundles
-  // (Manager's permission set already contains Associate's, Admin's already
-  // contains Manager's; 018_rbac_seed.sql), so a member only ever needs the
-  // one role matching their tier, not a combination. Single-choice (radio),
-  // mirroring the vendor-side fix already shipped this session.
-  const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null)
-  const [editingMember, setEditingMember] = useState<OrgMember | null>(null)
-  const [editRoleId, setEditRoleId] = useState<string | null>(null)
+  const [assignmentRows, setAssignmentRows] = useState<AssignmentRow[]>([{ teamId: null, roleId: null }])
+  const [managingTeams, setManagingTeams] = useState(false)
+  const [newTeamName, setNewTeamName] = useState("")
+  const [managingRoles, setManagingRoles] = useState(false)
+  const [managingApprovalPolicy, setManagingApprovalPolicy] = useState(false)
+  const [managingMatchTolerance, setManagingMatchTolerance] = useState(false)
+  const [managingContractApprovalThresholds, setManagingContractApprovalThresholds] = useState(false)
+  const [managingBaseCurrency, setManagingBaseCurrency] = useState(false)
 
   const isSolo = assignable?.roleMode === "solo"
+  const roles = assignable?.roles ?? []
 
   function resetInviteForm() {
     setEmail("")
     setFullName("")
-    setSelectedRoleId(null)
+    setAssignmentRows([{ teamId: null, roleId: null }])
   }
 
   async function handleInvite() {
     if (!email.trim() || !fullName.trim()) return toast.error("Email and name are required")
-    if (!isSolo && !selectedRoleId) return toast.error("Select a role")
+    const assignments = isSolo ? [] : assignmentRowsToPayload(assignmentRows)
+    if (!isSolo && assignments.length === 0) return toast.error("Select at least one role")
     try {
       const result = await inviteMember.mutateAsync({
         email: email.trim(), fullName: fullName.trim(),
-        roleIds: isSolo ? [] : [selectedRoleId!],
+        roleIds: isSolo ? [] : [...new Set(assignments.map((a) => a.roleId))],
+        assignments: isSolo ? undefined : assignments,
       })
       toast.success(result.inviteSent ? `Invite sent to ${result.email}` : `${result.email} added to this organization`)
       setInviting(false)
@@ -67,26 +104,85 @@ export function OrgTeam() {
     }
   }
 
-  function openEditRoles(member: OrgMember) {
-    setEditingMember(member)
-    setEditRoleId((assignable?.roles ?? []).find((r) => member.roleNames.includes(r.name))?.id ?? null)
+  async function handleCreateTeam() {
+    if (!newTeamName.trim()) return toast.error("Team name is required")
+    try {
+      await createTeam.mutateAsync({ name: newTeamName.trim() })
+      toast.success("Team created")
+      setNewTeamName("")
+    } catch (e: unknown) {
+      toast.error((e as Error).message ?? "Failed to create team")
+    }
   }
 
-  async function handleSaveRoles() {
-    if (!editingMember || !editRoleId) return toast.error("Select a role")
+  async function handleCreateCustomRole(input: { name: string; description?: string; permissionIds: string[] }) {
     try {
-      await updateRoles.mutateAsync({ memberId: editingMember.id, roleIds: [editRoleId] })
-      toast.success("Roles updated")
-      setEditingMember(null)
+      await createCustomRole.mutateAsync(input)
+      toast.success("Custom role created")
     } catch (e: unknown) {
-      toast.error((e as Error).message ?? "Failed to update roles")
+      toast.error((e as Error).message ?? "Failed to create custom role")
+    }
+  }
+
+  async function handleDeleteCustomRole(roleId: string) {
+    try {
+      await deleteCustomRole.mutateAsync({ roleId })
+      toast.success("Custom role deleted")
+    } catch (e: unknown) {
+      toast.error((e as Error).message ?? "Failed to delete custom role")
+    }
+  }
+
+  async function handleSaveApprovalPolicy(roleId: string, thresholdAmount: number | null, clear: boolean) {
+    try {
+      await setApprovalPolicy.mutateAsync({ roleId, thresholdAmount, clear })
+      toast.success(clear ? "Reverted to no limit" : "Approval limit saved")
+    } catch (e: unknown) {
+      toast.error((e as Error).message ?? "Failed to update approval policy")
+    }
+  }
+
+  async function handleSaveMatchTolerance(toleranceType: "amount" | "percentage", toleranceValue: number) {
+    try {
+      await setMatchTolerance.mutateAsync({ toleranceType, toleranceValue })
+      toast.success("Match tolerance updated")
+      setManagingMatchTolerance(false)
+    } catch (e: unknown) {
+      toast.error((e as Error).message ?? "Failed to update match tolerance")
+    }
+  }
+
+  async function handleSaveContractApprovalThresholds(mediumThreshold: number, highThreshold: number) {
+    try {
+      await setContractApprovalThresholds.mutateAsync({ mediumThreshold, highThreshold })
+      toast.success("Contract approval thresholds updated")
+      setManagingContractApprovalThresholds(false)
+    } catch (e: unknown) {
+      toast.error((e as Error).message ?? "Failed to update contract approval thresholds")
+    }
+  }
+
+  async function handleSaveBaseCurrency(currency: string) {
+    try {
+      await setBaseCurrency.mutateAsync(currency)
+      toast.success("Base currency updated — reloading…")
+      setManagingBaseCurrency(false)
+      window.location.reload()
+    } catch (e: unknown) {
+      toast.error((e as Error).message ?? "Failed to update base currency")
     }
   }
 
   return (
     <AnimatedPage className="space-y-6">
       {isViewerAdmin && (
-        <div className="flex items-center justify-end">
+        <div className="flex items-center justify-end gap-2">
+          {!isSolo && <Button variant="outline" onClick={() => setManagingTeams(true)}>Manage Teams</Button>}
+          {!isSolo && <Button variant="outline" onClick={() => setManagingRoles(true)}>Manage Roles</Button>}
+          {!isSolo && <Button variant="outline" onClick={() => setManagingApprovalPolicy(true)}>Approval Policy</Button>}
+          <Button variant="outline" onClick={() => setManagingMatchTolerance(true)}>Match Tolerance</Button>
+          <Button variant="outline" onClick={() => setManagingContractApprovalThresholds(true)}>Contract Approval Thresholds</Button>
+          <Button variant="outline" onClick={() => setManagingBaseCurrency(true)}>Base Currency</Button>
           <Button onClick={() => setInviting(true)}>Invite Member</Button>
         </div>
       )}
@@ -99,15 +195,16 @@ export function OrgTeam() {
               <TableHead>Email</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Roles</TableHead>
-              <TableHead></TableHead>
+              {!isSolo && <TableHead>Teams</TableHead>}
+              <TableHead className="w-20" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading && (
-              <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">Loading…</TableCell></TableRow>
+              <TableRow><TableCell colSpan={isSolo ? 5 : 6} className="text-center text-muted-foreground py-8">Loading…</TableCell></TableRow>
             )}
             {!isLoading && members.length === 0 && (
-              <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">No members yet.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={isSolo ? 5 : 6} className="text-center text-muted-foreground py-8">No members yet.</TableCell></TableRow>
             )}
             {members.map((m) => (
               <TableRow key={m.id}>
@@ -115,10 +212,14 @@ export function OrgTeam() {
                 <TableCell className="text-muted-foreground">{m.profile?.email}</TableCell>
                 <TableCell><Badge variant="outline" className={STATUS_COLORS[m.status]}>{m.status}</Badge></TableCell>
                 <TableCell>{m.roleNames.join(", ") || "—"}</TableCell>
+                {!isSolo && <TableCell className="text-muted-foreground text-sm">{renderTeams(m)}</TableCell>}
                 <TableCell>
-                  {!isSolo && isViewerAdmin && (
-                    <Button size="sm" variant="outline" onClick={() => openEditRoles(m)}>Edit roles</Button>
-                  )}
+                  <Button asChild size="sm" variant="ghost" className="h-8 px-2 gap-1.5 text-xs">
+                    <Link to={`/admin/team/${m.id}`}>
+                      <SolarDuotoneIcon icon={EyeIcon} size={14} strokeWidth={1.5} />
+                      Manage
+                    </Link>
+                  </Button>
                 </TableCell>
               </TableRow>
             ))}
@@ -143,20 +244,7 @@ export function OrgTeam() {
                 This organization is in solo mode — the new member is automatically granted full (Admin + Manager + Associate) access.
               </p>
             ) : (
-              <div className="space-y-1.5">
-                <Label>Role</Label>
-                <RadioGroup value={selectedRoleId ?? ""} onValueChange={setSelectedRoleId} className="space-y-2">
-                  {(assignable?.roles ?? []).map((role) => (
-                    <label key={role.id} className="flex items-start gap-2 text-sm">
-                      <RadioGroupItem value={role.id} className="mt-0.5" />
-                      <span>
-                        <span className="font-medium">{role.name}</span>
-                        {role.description && <span className="block text-xs text-muted-foreground">{role.description}</span>}
-                      </span>
-                    </label>
-                  ))}
-                </RadioGroup>
-              </div>
+              <TeamRoleAssignmentEditor rows={assignmentRows} onChange={setAssignmentRows} teams={teams} roles={roles} />
             )}
           </DialogBody>
           <DialogFooter>
@@ -168,30 +256,76 @@ export function OrgTeam() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!editingMember} onOpenChange={(o) => !o && setEditingMember(null)}>
+      <Dialog open={managingTeams} onOpenChange={setManagingTeams}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Edit Roles — {editingMember?.profile?.full_name}</DialogTitle></DialogHeader>
-          <DialogBody>
-            <RadioGroup value={editRoleId ?? ""} onValueChange={setEditRoleId} className="space-y-2">
-              {(assignable?.roles ?? []).map((role) => (
-                <label key={role.id} className="flex items-start gap-2 text-sm">
-                  <RadioGroupItem value={role.id} className="mt-0.5" />
-                  <span>
-                    <span className="font-medium">{role.name}</span>
-                    {role.description && <span className="block text-xs text-muted-foreground">{role.description}</span>}
-                  </span>
-                </label>
+          <DialogHeader><DialogTitle>Manage Teams</DialogTitle></DialogHeader>
+          <DialogBody className="space-y-4">
+            <div className="flex gap-2">
+              <Input
+                value={newTeamName}
+                onChange={(e) => setNewTeamName(e.target.value)}
+                placeholder="New team name (e.g. Finance)"
+                onKeyDown={(e) => { if (e.key === "Enter") handleCreateTeam() }}
+              />
+              <Button onClick={handleCreateTeam} disabled={createTeam.isPending}>Create</Button>
+            </div>
+            <div className="space-y-1">
+              {teams.length === 0 && <p className="text-sm text-muted-foreground">No teams yet.</p>}
+              {teams.map((t) => (
+                <div key={t.id} className="text-sm rounded-md border px-3 py-2">{t.name}</div>
               ))}
-            </RadioGroup>
+            </div>
           </DialogBody>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingMember(null)}>Cancel</Button>
-            <Button onClick={handleSaveRoles} disabled={updateRoles.isPending}>
-              {updateRoles.isPending ? "Saving…" : "Save"}
-            </Button>
+            <Button variant="outline" onClick={() => setManagingTeams(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <CustomRoleManagerDialog
+        open={managingRoles}
+        onClose={() => setManagingRoles(false)}
+        roles={roles}
+        permissions={assignablePermissions}
+        onCreate={handleCreateCustomRole}
+        onDelete={handleDeleteCustomRole}
+        isCreating={createCustomRole.isPending}
+        isDeleting={deleteCustomRole.isPending}
+      />
+
+      <ApprovalPolicyDialog
+        open={managingApprovalPolicy}
+        onClose={() => setManagingApprovalPolicy(false)}
+        policy={approvalPolicy}
+        onSave={handleSaveApprovalPolicy}
+        isSaving={setApprovalPolicy.isPending}
+      />
+
+      <MatchToleranceDialog
+        open={managingMatchTolerance}
+        onClose={() => setManagingMatchTolerance(false)}
+        toleranceType={matchTolerance?.tolerance_type ?? "amount"}
+        toleranceValue={matchTolerance?.tolerance_value ?? 0}
+        onSave={handleSaveMatchTolerance}
+        isSaving={setMatchTolerance.isPending}
+      />
+
+      <ContractApprovalThresholdsDialog
+        open={managingContractApprovalThresholds}
+        onClose={() => setManagingContractApprovalThresholds(false)}
+        mediumThreshold={contractApprovalThresholds?.medium_threshold ?? 500000}
+        highThreshold={contractApprovalThresholds?.high_threshold ?? 2000000}
+        onSave={handleSaveContractApprovalThresholds}
+        isSaving={setContractApprovalThresholds.isPending}
+      />
+
+      <BaseCurrencyDialog
+        open={managingBaseCurrency}
+        onClose={() => setManagingBaseCurrency(false)}
+        currentCurrency={activeOrg?.baseCurrency ?? "INR"}
+        onSave={handleSaveBaseCurrency}
+        isSaving={setBaseCurrency.isPending}
+      />
     </AnimatedPage>
   )
 }

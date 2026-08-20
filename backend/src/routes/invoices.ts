@@ -4,6 +4,7 @@ import { requireAuth, AuthenticatedRequest } from "../middleware/auth"
 import { requireOrg, OrgScopedRequest, resolveListScope, resolveVendorId } from "../middleware/org"
 import { writeAudit, resolveActingAs } from "../services/audit"
 import { findOrgRoleHolderIds, findVendorRoleHolderIds, notifyUsers } from "../services/approvalGate"
+import { resolveExchangeRateToBase } from "../services/exchangeRates.service"
 
 const router = Router()
 function db(): any { return getSupabaseAdmin() }
@@ -26,13 +27,20 @@ async function attachGRNsByPO<T extends { po_id: string | null }>(rows: T[]): Pr
   return rows.map((r) => ({ ...r, grns: r.po_id ? (grnsByPO.get(r.po_id) ?? []) : [] }))
 }
 
+// Routed through resolve_permission_as (062/063) rather than the bare
+// has_vendor_permission_as/has_permission_as RPCs directly -- those only
+// ever checked the role-permission baseline. Going through the resolver
+// additionally applies the Feature Entitlement hard gate (Phase 2) and the
+// subtractive User Restriction override (Phase 4), which every direct RPC
+// caller was silently skipping. Same signature, same call sites -- nothing
+// else in this file needs to change.
 async function hasVendorPermission(userId: string, vendorId: string, key: string): Promise<boolean> {
-  const { data } = await db().rpc("has_vendor_permission_as", { p_user_id: userId, p_vendor_id: vendorId, p_key: key })
+  const { data } = await db().rpc("resolve_permission_as", { p_user_id: userId, p_scope: "vendor", p_org_id: null, p_vendor_id: vendorId, p_key: key })
   return data === true
 }
 
 async function hasOrgPermission(userId: string, orgId: string, key: string): Promise<boolean> {
-  const { data } = await db().rpc("has_permission_as", { p_user_id: userId, p_org_id: orgId, p_key: key })
+  const { data } = await db().rpc("resolve_permission_as", { p_user_id: userId, p_scope: "org", p_org_id: orgId, p_vendor_id: null, p_key: key })
   return data === true
 }
 
@@ -48,7 +56,7 @@ async function canReviewInvoices(userId: string, orgId: string): Promise<boolean
 // (vendor invoice pages fetch their own invoices this way too).
 router.post("/list", requireAuth, async (req: Request, res: Response) => {
   try {
-    const { status, vendor_id, po_id, match_status } = req.body
+    const { status, vendor_id, po_id, match_status, has_open_exception } = req.body
 
     const scope = await resolveListScope(req)
     if ("error" in scope) return res.status(scope.error.status).json({ error: scope.error.message })
@@ -56,7 +64,7 @@ router.post("/list", requireAuth, async (req: Request, res: Response) => {
     let query = db()
       .from("invoices")
       .select(
-        "*, vendor:vendor_id(company_name), purchase_order:po_id(po_number), grn:grn_id(grn_number), contract:contract_id(contract_ref, title), engagement:engagement_id(title)"
+        "*, vendor:vendor_id(company_name), purchase_order:po_id(po_number), grn:grn_id(grn_number), contract:contract_id(contract_ref, title), purchase_request:purchase_request_id(title)"
       )
       .order("created_at", { ascending: false })
 
@@ -71,6 +79,19 @@ router.post("/list", requireAuth, async (req: Request, res: Response) => {
     if (status) query = query.eq("status", status)
     if (po_id) query = query.eq("po_id", po_id)
     if (match_status) query = query.eq("match_status", match_status)
+
+    // "Exception" is not an invoice status -- it's a filter onto the
+    // invoice_exceptions queue (migration 073), surfaced here as one more
+    // option in the existing status dropdown rather than a separate page.
+    if (has_open_exception) {
+      const { data: openExceptions, error: excError } = await db()
+        .from("invoice_exceptions")
+        .select("invoice_id")
+        .eq("status", "open")
+      if (excError) throw excError
+      const invoiceIds = (openExceptions ?? []).map((e: any) => e.invoice_id)
+      query = query.in("id", invoiceIds.length > 0 ? invoiceIds : ["00000000-0000-0000-0000-000000000000"])
+    }
 
     const { data, error } = await query
 
@@ -96,7 +117,7 @@ router.post("/get", requireAuth, async (req: Request, res: Response) => {
     const { data, error } = await db()
       .from("invoices")
       .select(
-        "*, vendor:vendor_id(company_name), purchase_order:po_id(po_number), grn:grn_id(grn_number), contract:contract_id(contract_ref, title), engagement:engagement_id(title)"
+        "*, vendor:vendor_id(company_name), purchase_order:po_id(po_number), grn:grn_id(grn_number), contract:contract_id(contract_ref, title), purchase_request:purchase_request_id(title)"
       )
       .eq("id", id)
       .single()
@@ -117,7 +138,7 @@ router.post("/get", requireAuth, async (req: Request, res: Response) => {
 
 // POST /api/invoices/submit — vendor-only (the only real caller, per
 // VendorInvoices.tsx). org_id is derived from whichever of po_id/
-// engagement_id/contract_id was actually supplied -- never a global default,
+// purchase_request_id/contract_id was actually supplied -- never a global default,
 // since that would silently misfile the invoice under the wrong org in a
 // multi-org setup.
 router.post("/submit", requireAuth, async (req: Request, res: Response) => {
@@ -128,7 +149,7 @@ router.post("/submit", requireAuth, async (req: Request, res: Response) => {
       po_id: rawPoId,
       grn_id,
       contract_id,
-      engagement_id,
+      purchase_request_id,
       total_amount,
       currency,
       invoice_date,
@@ -165,6 +186,7 @@ router.post("/submit", requireAuth, async (req: Request, res: Response) => {
     }
 
     let po_id = rawPoId
+    let poCurrency: string | null = null
 
     // A supplied po_id must actually belong to this vendor -- otherwise a
     // vendor could file an invoice against another vendor's PO/GRN chain,
@@ -172,20 +194,29 @@ router.post("/submit", requireAuth, async (req: Request, res: Response) => {
     if (po_id) {
       const { data: poRow, error: poCheckError } = await db()
         .from("purchase_orders")
-        .select("vendor_id")
+        .select("vendor_id, currency")
         .eq("id", po_id)
         .maybeSingle()
       if (poCheckError) throw poCheckError
       if (!poRow || poRow.vendor_id !== vendor_id) {
         return res.status(400).json({ error: "po_id does not belong to this vendor" })
       }
+      poCurrency = poRow.currency
+      // An invoice in a different currency than its own PO would silently
+      // corrupt the three-way match (which just diffs raw numerics assuming
+      // everything is already the same currency) -- reject outright rather
+      // than let it through, mirroring the same check already enforced for
+      // a Release Order against its Blanket PO.
+      if (currency !== undefined && poCurrency && currency !== poCurrency) {
+        return res.status(400).json({ error: `This invoice's currency must match its PO's currency (${poCurrency})` })
+      }
     }
 
-    if (!po_id && engagement_id && vendor_id) {
+    if (!po_id && purchase_request_id && vendor_id) {
       const { data: poRow } = await db()
         .from("purchase_orders")
         .select("id")
-        .eq("engagement_id", engagement_id)
+        .eq("purchase_request_id", purchase_request_id)
         .eq("vendor_id", vendor_id)
         .limit(1)
         .maybeSingle()
@@ -197,15 +228,26 @@ router.post("/submit", requireAuth, async (req: Request, res: Response) => {
     if (po_id) {
       const { data } = await db().from("purchase_orders").select("org_id").eq("id", po_id).maybeSingle()
       orgId = data?.org_id ?? null
-    } else if (engagement_id) {
-      const { data } = await db().from("engagements").select("org_id").eq("id", engagement_id).maybeSingle()
+    } else if (purchase_request_id) {
+      const { data } = await db().from("purchase_requests").select("org_id").eq("id", purchase_request_id).maybeSingle()
       orgId = data?.org_id ?? null
     } else if (contract_id) {
       const { data } = await db().from("contracts").select("org_id").eq("id", contract_id).maybeSingle()
       orgId = data?.org_id ?? null
     }
     if (!orgId) {
-      return res.status(400).json({ error: "Could not determine organization for this invoice — a valid po_id, engagement_id, or contract_id is required" })
+      return res.status(400).json({ error: "Could not determine organization for this invoice — a valid po_id, purchase_request_id, or contract_id is required" })
+    }
+
+    // Inherit the PO's currency when the invoice doesn't specify one --
+    // there's no legitimate case for these to differ (see the check above).
+    const finalCurrency: string | undefined = currency ?? poCurrency ?? undefined
+
+    let exchangeRateToBase: number
+    try {
+      exchangeRateToBase = await resolveExchangeRateToBase(orgId, finalCurrency)
+    } catch (fxErr: any) {
+      return res.status(502).json({ error: fxErr.message || "Unable to fetch exchange rate. Please try again." })
     }
 
     const invoicePayload: any = {
@@ -217,12 +259,13 @@ router.post("/submit", requireAuth, async (req: Request, res: Response) => {
       org_id: orgId,
       status: "submitted",
       match_status: "pending",
+      exchange_rate_to_base: exchangeRateToBase,
     }
     if (po_id !== undefined) invoicePayload.po_id = po_id
     if (grn_id !== undefined) invoicePayload.grn_id = grn_id
     if (contract_id !== undefined) invoicePayload.contract_id = contract_id
-    if (engagement_id !== undefined) invoicePayload.engagement_id = engagement_id
-    if (currency !== undefined) invoicePayload.currency = currency
+    if (purchase_request_id !== undefined) invoicePayload.purchase_request_id = purchase_request_id
+    if (finalCurrency !== undefined) invoicePayload.currency = finalCurrency
     if (due_date !== undefined) invoicePayload.due_date = due_date
     if (notes !== undefined) invoicePayload.notes = notes
     if (storage_path !== undefined) invoicePayload.storage_path = storage_path
@@ -237,7 +280,7 @@ router.post("/submit", requireAuth, async (req: Request, res: Response) => {
 
     // The old invoice_audit trigger only fired on UPDATE, so it never
     // covered creation -- this is a new, additive audit entry (for parity
-    // with engagements/create), not a replacement for lost coverage.
+    // with purchase-requests/create), not a replacement for lost coverage.
     await writeAudit({
       entityType: "invoice",
       entityId: data.id,
@@ -300,6 +343,75 @@ router.post("/run-match", requireAuth, requireOrg, async (req: Request, res: Res
   } catch (err: any) {
     console.error("[invoices/run-match]", err.message)
     res.status(500).json({ error: "Failed to run three-way match" })
+  }
+})
+
+// POST /api/invoices/exceptions/list — {status?, invoiceId?}. This org's
+// 3-way match exception queue (migration 073) -- does NOT replace /review's
+// existing approve/reject authority over an under_review invoice, it's the
+// missing audit trail for why that invoice landed there and whether anyone
+// has looked at it yet. invoiceId scopes this to a single invoice, for the
+// "Match Exception" card on that invoice's own detail page.
+router.post("/exceptions/list", requireAuth, requireOrg, async (req: Request, res: Response) => {
+  try {
+    const { status, invoiceId } = req.body
+    const { orgId } = req as OrgScopedRequest
+
+    let query = db()
+      .from("invoice_exceptions")
+      .select("*, invoice:invoice_id(invoice_ref, vendor_invoice_number, status, vendor:vendor_id(company_name)), purchase_order:po_id(po_number)")
+      .eq("org_id", orgId)
+      .order("created_at", { ascending: false })
+    if (status) query = query.eq("status", status)
+    if (invoiceId) query = query.eq("invoice_id", invoiceId)
+
+    const { data, error } = await query
+    if (error) throw error
+    res.json({ data })
+  } catch (err: any) {
+    console.error("[invoices/exceptions/list]", err.message)
+    res.status(500).json({ error: "Failed to list invoice exceptions" })
+  }
+})
+
+// POST /api/invoices/exceptions/resolve — {id, status: 'resolved'|'waived', notes?}.
+// A resolution note here is the record of WHY a variance was accepted or
+// fixed -- separate from, and prior to, whatever /review decision (approve/
+// reject) an org reviewer makes on the invoice itself.
+router.post("/exceptions/resolve", requireAuth, requireOrg, async (req: Request, res: Response) => {
+  try {
+    const { id, status, notes } = req.body
+    const { orgId } = req as OrgScopedRequest
+    const userId = (req as AuthenticatedRequest).user.id
+    if (!id || !["resolved", "waived"].includes(status)) {
+      return res.status(400).json({ error: "id and a status of 'resolved' or 'waived' are required" })
+    }
+
+    const { data: existing, error: getError } = await db()
+      .from("invoice_exceptions")
+      .select("id, org_id, status")
+      .eq("id", id)
+      .maybeSingle()
+    if (getError) throw getError
+    if (!existing || existing.org_id !== orgId) return res.status(404).json({ error: "Exception not found" })
+    if (existing.status !== "open") return res.status(400).json({ error: "This exception has already been resolved" })
+
+    if (!(await canReviewInvoices(userId, orgId))) {
+      return res.status(403).json({ error: "You are not authorized to resolve this exception" })
+    }
+
+    const { data, error } = await db()
+      .from("invoice_exceptions")
+      .update({ status, resolution_notes: notes ?? null, resolved_by: userId, resolved_at: new Date().toISOString() })
+      .eq("id", id)
+      .select()
+      .single()
+    if (error) throw error
+
+    res.json({ data })
+  } catch (err: any) {
+    console.error("[invoices/exceptions/resolve]", err.message)
+    res.status(500).json({ error: "Failed to resolve invoice exception" })
   }
 })
 
@@ -378,69 +490,141 @@ router.post("/review", requireAuth, requireOrg, async (req: Request, res: Respon
   }
 })
 
-// POST /api/invoices/mark-paid — same permission gate as /review (reuses
-// invoices.approve/approve_unlimited rather than a dedicated invoices.
-// mark_paid key, matching how the frontend already reuses canApproveInvoice
-// as the proxy for this action). Also now requires the invoice to actually
-// be "approved" first -- previously any status could jump straight to paid.
-router.post("/mark-paid", requireAuth, requireOrg, async (req: Request, res: Response) => {
+// POST /api/invoices/payments/list — {invoiceId}. Same scoping rule as
+// /get (org reviewer for their own org's invoice, vendor for their own
+// invoice) -- payment history is exactly as sensitive as the invoice itself.
+router.post("/payments/list", requireAuth, async (req: Request, res: Response) => {
   try {
-    const { id } = req.body
+    const { invoiceId } = req.body
+    if (!invoiceId) return res.status(400).json({ error: "invoiceId is required" })
+
+    const scope = await resolveListScope(req)
+    if ("error" in scope) return res.status(scope.error.status).json({ error: scope.error.message })
+
+    const { data: invoice, error: invError } = await db().from("invoices").select("org_id, vendor_id").eq("id", invoiceId).maybeSingle()
+    if (invError) throw invError
+    if (!invoice) return res.status(404).json({ error: "Invoice not found" })
+    if (scope.mode === "org" ? invoice.org_id !== scope.orgId : invoice.vendor_id !== scope.vendorId) {
+      return res.status(404).json({ error: "Invoice not found" })
+    }
+
+    const { data, error } = await db()
+      .from("invoice_payments")
+      .select("*")
+      .eq("invoice_id", invoiceId)
+      .order("paid_date", { ascending: false })
+    if (error) throw error
+
+    res.json({ data })
+  } catch (err: any) {
+    console.error("[invoices/payments/list]", err.message)
+    res.status(500).json({ error: "Failed to list invoice payments" })
+  }
+})
+
+// POST /api/invoices/payments/create — {invoiceId, amount, paymentMethod,
+// referenceNumber?, paidDate?, notes?}. Replaces the old /mark-paid (a bare
+// status flip with no amount/method/reference) -- records a real payment
+// row and derives the invoice's status from the running total paid,
+// supporting partial/installment payments. Same permission gate /mark-paid
+// used (invoices.approve/approve_unlimited via canReviewInvoices).
+router.post("/payments/create", requireAuth, requireOrg, async (req: Request, res: Response) => {
+  try {
+    const { invoiceId, amount, paymentMethod, referenceNumber, paidDate, notes } = req.body
     const { orgId } = req as OrgScopedRequest
     const userId = (req as AuthenticatedRequest).user.id
-    if (!id) return res.status(400).json({ error: "id is required" })
+
+    if (!invoiceId || amount === undefined || !paymentMethod) {
+      return res.status(400).json({ error: "invoiceId, amount, and paymentMethod are required" })
+    }
+    if (Number(amount) <= 0) return res.status(400).json({ error: "amount must be greater than 0" })
+    if (!["bank_transfer", "cheque", "cash", "card", "upi", "other"].includes(paymentMethod)) {
+      return res.status(400).json({ error: "Invalid paymentMethod" })
+    }
 
     if (!(await canReviewInvoices(userId, orgId))) {
-      return res.status(403).json({ error: "You are not authorized to mark this invoice as paid" })
+      return res.status(403).json({ error: "You are not authorized to record a payment on this invoice" })
     }
 
     const { data: existing, error: getError } = await db()
       .from("invoices")
-      .select("status")
-      .eq("id", id)
+      .select("status, total_amount, vendor_id")
+      .eq("id", invoiceId)
       .eq("org_id", orgId)
       .single()
     if (getError) throw getError
-    if (existing.status !== "approved") {
-      return res.status(400).json({ error: "Only an approved invoice can be marked as paid" })
+    if (!["approved", "partially_paid"].includes(existing.status)) {
+      return res.status(400).json({ error: "Only an approved (or partially paid) invoice can receive a payment" })
     }
+
+    const { data: priorPayments, error: priorError } = await db()
+      .from("invoice_payments")
+      .select("amount")
+      .eq("invoice_id", invoiceId)
+    if (priorError) throw priorError
+    const alreadyPaid = (priorPayments ?? []).reduce((sum: number, p: any) => sum + Number(p.amount), 0)
+    const remaining = Number(existing.total_amount) - alreadyPaid
+
+    if (Number(amount) > remaining + 1e-6) {
+      return res.status(400).json({ error: `Amount exceeds the remaining balance (${remaining.toFixed(2)})` })
+    }
+
+    const { data: payment, error: payError } = await db()
+      .from("invoice_payments")
+      .insert({
+        invoice_id: invoiceId,
+        org_id: orgId,
+        amount,
+        payment_method: paymentMethod,
+        reference_number: referenceNumber ?? null,
+        paid_date: paidDate || new Date().toISOString().split("T")[0],
+        notes: notes ?? null,
+        recorded_by: userId,
+      })
+      .select()
+      .single()
+    if (payError) throw payError
+
+    const totalPaid = alreadyPaid + Number(amount)
+    const fullyPaid = totalPaid >= Number(existing.total_amount) - 1e-6
+    const newStatus = fullyPaid ? "paid" : "partially_paid"
 
     const { data, error } = await db()
       .from("invoices")
-      .update({ status: "paid", paid_at: new Date().toISOString() })
-      .eq("id", id)
+      .update({ status: newStatus, paid_at: fullyPaid ? new Date().toISOString() : null })
+      .eq("id", invoiceId)
       .eq("org_id", orgId)
       .select()
       .single()
-
     if (error) throw error
 
-    if (existing.status !== "paid") {
-      const userId = (req as AuthenticatedRequest).user.id
+    if (existing.status !== newStatus) {
       await writeAudit({
         entityType: "invoice",
-        entityId: id,
-        action: "status_changed",
+        entityId: invoiceId,
+        action: "payment_recorded",
         oldValue: { status: existing.status },
-        newValue: { status: "paid" },
+        newValue: { status: newStatus, amount, payment_method: paymentMethod },
         performedBy: userId,
         orgId,
         actingAs: (req as OrgScopedRequest).orgAccess === "group_admin" ? "group_admin" : null,
       })
-
-      const recipientIds = await findVendorRoleHolderIds(data.vendor_id, ["Admin", "Finance"])
-      await notifyUsers(recipientIds, {
-        type: "invoice_status_update",
-        title: "Invoice paid",
-        message: "Your invoice has been marked as paid.",
-        moduleReferenceId: id,
-      })
     }
 
-    res.json({ data })
+    const recipientIds = await findVendorRoleHolderIds(existing.vendor_id, ["Admin", "Finance"])
+    await notifyUsers(recipientIds, {
+      type: "invoice_status_update",
+      title: fullyPaid ? "Invoice paid" : "Partial payment recorded",
+      message: fullyPaid
+        ? "Your invoice has been fully paid."
+        : `A partial payment has been recorded on your invoice. Remaining balance: ${(remaining - Number(amount)).toFixed(2)}.`,
+      moduleReferenceId: invoiceId,
+    })
+
+    res.json({ data: { invoice: data, payment } })
   } catch (err: any) {
-    console.error("[invoices/mark-paid]", err.message)
-    res.status(500).json({ error: "Failed to mark invoice as paid" })
+    console.error("[invoices/payments/create]", err.message)
+    res.status(500).json({ error: err.message || "Failed to record payment" })
   }
 })
 

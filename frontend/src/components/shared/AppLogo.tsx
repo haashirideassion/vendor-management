@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils"
 
 interface AppLogoProps {
   className?: string
+  variant?: "theme" | "color"
 }
 
 function getResolvedDark(theme: string): boolean {
@@ -12,7 +13,7 @@ function getResolvedDark(theme: string): boolean {
   return window.matchMedia("(prefers-color-scheme: dark)").matches
 }
 
-export function AppLogo({ className }: AppLogoProps) {
+export function AppLogo({ className, variant = "theme" }: AppLogoProps) {
   const { theme } = useTheme()
   const [isDark, setIsDark] = useState(() => getResolvedDark(theme))
 
@@ -28,9 +29,11 @@ export function AppLogo({ className }: AppLogoProps) {
     return () => mq.removeEventListener("change", handler)
   }, [theme])
 
+  const src = variant === "color" ? ( isDark ? "/sidelogo-dark.png" : "/logo-color.png" ) : isDark ? "/logo-dark.png" : "/logo-light.png"
+
   return (
     <img
-      src={isDark ? "/logo-dark.png" : "/logo-light.png"}
+      src={src}
       alt="Cognivend"
       className={cn("object-contain", className)}
       draggable={false}

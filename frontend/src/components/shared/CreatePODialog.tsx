@@ -12,12 +12,14 @@ import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTi
 import { Separator } from "@/components/ui/separator"
 import { Add01Icon, Delete01Icon } from "@/components/shared/SolarIcon"
 import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
+import { TaxComponentsField } from "@/components/shared/TaxComponentsField"
 
 const lineItemSchema = z.object({
   description: z.string().min(1, "Required"),
   quantity:    z.coerce.number().positive("Must be > 0"),
   unit_price:  z.coerce.number().min(0, "Must be ≥ 0"),
   tax_rate:    z.coerce.number().min(0).max(100).default(0),
+  tax_components: z.array(z.object({ name: z.string(), rate: z.coerce.number() })).optional(),
   unit:        z.string().optional(),
 })
 
@@ -33,7 +35,7 @@ type FormValues = z.infer<typeof schema>
 export interface CreatePODialogProps {
   open:              boolean
   onOpenChange:      (o: boolean) => void
-  defaultEngagementId?: string
+  defaultPurchaseRequestId?: string
   defaultVendors?:   { id: string; company_name: string }[]
   defaultLineItems?: { description: string; quantity: number; unit_price: number | null; tax_rate?: number; unit?: string | null }[]
   currency?:         string
@@ -42,7 +44,7 @@ export interface CreatePODialogProps {
 export function CreatePODialog({
   open,
   onOpenChange,
-  defaultEngagementId,
+  defaultPurchaseRequestId,
   defaultVendors = [],
   defaultLineItems = [],
   currency = "INR",
@@ -57,8 +59,8 @@ export function CreatePODialog({
       currency,
       notes:       "",
       line_items:  defaultLineItems.length > 0
-        ? defaultLineItems.map((li) => ({ description: li.description, quantity: li.quantity, unit_price: li.unit_price ?? 0, tax_rate: li.tax_rate ?? 0, unit: li.unit ?? "" }))
-        : [{ description: "", quantity: 1, unit_price: 0, tax_rate: 0, unit: "" }],
+        ? defaultLineItems.map((li) => ({ description: li.description, quantity: li.quantity, unit_price: li.unit_price ?? 0, tax_rate: li.tax_rate ?? 0, tax_components: [], unit: li.unit ?? "" }))
+        : [{ description: "", quantity: 1, unit_price: 0, tax_rate: 0, tax_components: [], unit: "" }],
     },
   })
 
@@ -72,8 +74,8 @@ export function CreatePODialog({
       currency,
       notes:       "",
       line_items:  defaultLineItems.length > 0
-        ? defaultLineItems.map((li) => ({ description: li.description, quantity: li.quantity, unit_price: li.unit_price ?? 0, tax_rate: li.tax_rate ?? 0, unit: li.unit ?? "" }))
-        : [{ description: "", quantity: 1, unit_price: 0, tax_rate: 0, unit: "" }],
+        ? defaultLineItems.map((li) => ({ description: li.description, quantity: li.quantity, unit_price: li.unit_price ?? 0, tax_rate: li.tax_rate ?? 0, tax_components: [], unit: li.unit ?? "" }))
+        : [{ description: "", quantity: 1, unit_price: 0, tax_rate: 0, tax_components: [], unit: "" }],
     })
   }, [open])
 
@@ -85,12 +87,16 @@ export function CreatePODialog({
 
   async function onSubmit(data: FormValues) {
     await createPO.mutateAsync({
-      engagement_id: defaultEngagementId,
+      purchase_request_id: defaultPurchaseRequestId,
       vendor_id:     data.vendor_id,
       total_value:   data.total_value || computedTotal,
       currency:      data.currency,
       notes:         data.notes || undefined,
-      line_items:    data.line_items.map((li) => ({ ...li, unit: li.unit ?? null })),
+      line_items:    data.line_items.map((li) => ({
+        ...li,
+        unit: li.unit ?? null,
+        tax_components: (li.tax_components ?? []).filter((c) => c.name.trim() !== ""),
+      })),
     })
     onOpenChange(false)
   }
@@ -119,7 +125,7 @@ export function CreatePODialog({
                     </SelectContent>
                   </Select>
                 ) : (
-                  <p className="text-sm text-muted-foreground">No vendors on this engagement.</p>
+                  <p className="text-sm text-muted-foreground">No vendors on this purchase request.</p>
                 )}
                 {form.formState.errors.vendor_id && (
                   <p className="text-xs text-destructive">{form.formState.errors.vendor_id.message}</p>
@@ -138,23 +144,23 @@ export function CreatePODialog({
                 <Label className="text-sm font-semibold">Line Items <span className="text-destructive">*</span></Label>
                 <Button
                   type="button" size="sm" variant="outline" className="h-7 text-xs gap-1"
-                  onClick={() => append({ description: "", quantity: 1, unit_price: 0, tax_rate: 0, unit: "" })}
+                  onClick={() => append({ description: "", quantity: 1, unit_price: 0, tax_rate: 0, tax_components: [], unit: "" })}
                 >
                   <SolarDuotoneIcon icon={Add01Icon} size={12} strokeWidth={2} />
                   Add row
                 </Button>
               </div>
               <div className="grid grid-cols-12 gap-2 px-1">
-                <span className="col-span-4 text-xs text-muted-foreground">Description</span>
+                <span className="col-span-3 text-xs text-muted-foreground">Description</span>
                 <span className="col-span-2 text-xs text-muted-foreground">Qty</span>
                 <span className="col-span-2 text-xs text-muted-foreground">Unit Price</span>
-                <span className="col-span-1 text-xs text-muted-foreground">Tax %</span>
+                <span className="col-span-2 text-xs text-muted-foreground">Tax %</span>
                 <span className="col-span-2 text-xs text-muted-foreground">Unit</span>
                 <span className="col-span-1" />
               </div>
               {fields.map((field, i) => (
                 <div key={field.id} className="grid grid-cols-12 gap-2 items-start">
-                  <div className="col-span-4">
+                  <div className="col-span-3">
                     <Input {...form.register(`line_items.${i}.description`)} placeholder="Description" className="h-8 text-xs" />
                   </div>
                   <div className="col-span-2">
@@ -163,8 +169,13 @@ export function CreatePODialog({
                   <div className="col-span-2">
                     <Input type="number" min={0} step="any" {...form.register(`line_items.${i}.unit_price`)} placeholder="0" className="h-8 text-xs" />
                   </div>
-                  <div className="col-span-1">
-                    <Input type="number" min={0} max={100} step="any" {...form.register(`line_items.${i}.tax_rate`)} placeholder="0" className="h-8 text-xs" />
+                  <div className="col-span-2">
+                    <TaxComponentsField
+                      flatRate={form.watch(`line_items.${i}.tax_rate`) ?? 0}
+                      onFlatRateChange={(rate) => form.setValue(`line_items.${i}.tax_rate`, rate)}
+                      components={form.watch(`line_items.${i}.tax_components`) ?? []}
+                      onComponentsChange={(components) => form.setValue(`line_items.${i}.tax_components`, components)}
+                    />
                   </div>
                   <div className="col-span-2">
                     <Input {...form.register(`line_items.${i}.unit`)} placeholder="pcs" className="h-8 text-xs" />

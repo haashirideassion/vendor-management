@@ -1,11 +1,13 @@
 import { useState } from "react"
 import { useParams, Link } from "react-router-dom"
 import { useGRN, useUpdateGRNStatus } from "@/hooks/useGRNs"
+import { RateVendorDialog } from "@/components/shared/RateVendorDialog"
 import { useApprovalRequests, useReviewApproval } from "@/hooks/useApprovalWorkflow"
 import { usePermissions } from "@/hooks/usePermissions"
 import { useOrg } from "@/contexts/OrgContext"
 import { AnimatedPage } from "@/components/shared/AnimatedPage"
 import { AttachmentList } from "@/components/shared/AttachmentList"
+import { TaxComponentsDisplay } from "@/components/shared/TaxComponentsDisplay"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -27,11 +29,12 @@ export function GRNDetail() {
   const [gateNotes, setGateNotes] = useState("")
   const [confirmAction, setConfirmAction] = useState<"verified" | "rejected" | null>(null)
   const [notes, setNotes] = useState("")
+  const [showRateDialog, setShowRateDialog] = useState(false)
 
   const { data: grn, isLoading } = useGRN(id!)
   const { data: approvalRequests = [] } = useApprovalRequests("grn", id!)
   const pendingApproval = approvalRequests.find((a) => a.status === "pending")
-  const { canRecordGRN } = usePermissions()
+  const { canRecordGRN, canRateVendors } = usePermissions()
   const { activeOrg } = useOrg()
   const isManagerOrAdminViewer = !!activeOrg?.roleNames.some((r) => r === "Manager" || r === "Admin")
 
@@ -139,6 +142,11 @@ export function GRNDetail() {
               Submit
             </Button>
           )}
+          {grn.status === "verified" && canRateVendors && (
+            <Button size="sm" variant="outline" onClick={() => setShowRateDialog(true)}>
+              Rate Vendor
+            </Button>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -202,7 +210,9 @@ export function GRNDetail() {
                             <TableCell className="text-sm">{li.description}</TableCell>
                             <TableCell className="text-sm text-right tabular-nums">{li.quantity_received}</TableCell>
                             <TableCell className="text-sm text-right tabular-nums">{formatCurrency(li.unit_price)}</TableCell>
-                            <TableCell className="text-sm text-right text-muted-foreground">{li.tax_rate ?? 0}%</TableCell>
+                            <TableCell className="text-sm text-right text-muted-foreground">
+                              <TaxComponentsDisplay taxRate={li.tax_rate} components={li.tax_components} />
+                            </TableCell>
                             <TableCell className="text-sm text-right text-muted-foreground">{li.unit ?? "—"}</TableCell>
                             <TableCell className="text-sm text-right font-medium tabular-nums">
                               {formatCurrency(li.quantity_received * li.unit_price * (1 + (li.tax_rate ?? 0) / 100))}
@@ -296,6 +306,13 @@ export function GRNDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <RateVendorDialog
+        open={showRateDialog}
+        onOpenChange={setShowRateDialog}
+        vendorId={grn.vendor_id}
+        vendorName={grn.vendor?.company_name}
+      />
     </AnimatedPage>
   )
 }

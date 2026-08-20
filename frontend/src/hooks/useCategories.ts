@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { api } from "@/lib/api"
 import { useAuth } from "@/contexts/AuthContext"
-import type { ServiceCategory } from "@/lib/types"
+import type { ServiceCategory, FulfillmentType } from "@/lib/types"
 
 export function useVendorCategories(vendorId?: string) {
   const { accessToken } = useAuth()
@@ -44,10 +44,10 @@ export function useCreateCategory() {
   const { accessToken } = useAuth()
 
   return useMutation({
-    mutationFn: async (payload: { name: string; description?: string }) => {
+    mutationFn: async (payload: { name: string; description?: string; fulfillment_type?: FulfillmentType }) => {
       const { data } = await api.post<{ data: ServiceCategory }>(
         "/api/categories/create",
-        { name: payload.name, description: payload.description },
+        { name: payload.name, description: payload.description, fulfillment_type: payload.fulfillment_type },
         accessToken
       )
       return data as ServiceCategory

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { useParams, Link } from "react-router-dom"
-import { useForm, useFieldArray } from "react-hook-form"
+import { useForm, useFieldArray, Controller } from "react-hook-form"
 import type { Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -27,15 +28,25 @@ import type { RFQStatus, QuotationStatus } from "@/lib/types"
 import { format } from "date-fns"
 import { ArrowLeft01Icon, Add01Icon, Delete01Icon } from "@/components/shared/SolarIcon"
 import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
+import { TaxComponentsField } from "@/components/shared/TaxComponentsField"
 import { toast } from "sonner"
 
 const lineItemSchema = z.object({
   description: z.string().min(1, "Required"),
-  quantity:    z.coerce.number().positive("Must be > 0"),
-  unit_price:  z.coerce.number().min(0, "Must be ≥ 0"),
-  tax_rate:    z.coerce.number().min(0).max(100).default(0),
+  availability_status: z.enum(["available", "partially_available", "not_available"]).default("available"),
+  quantity:    z.coerce.number().optional().nullable(),
+  unit_price:  z.coerce.number().optional().nullable(),
+  tax_rate:    z.coerce.number().min(0).max(100).optional().nullable(),
+  tax_components: z.array(z.object({ name: z.string(), rate: z.coerce.number() })).optional(),
   remarks:     z.string().optional(),
 }).superRefine((item, ctx) => {
+  if (item.availability_status === "not_available") return
+  if (!(Number(item.quantity) > 0)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Must be > 0", path: ["quantity"] })
+  }
+  if (item.unit_price === undefined || item.unit_price === null || Number(item.unit_price) < 0) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Must be ≥ 0", path: ["unit_price"] })
+  }
   if (Number(item.unit_price) === 0 && !item.remarks?.trim()) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -89,22 +100,26 @@ export function VendorRFQDetail() {
     if (!showQuotationDialog) return
     // An existing draft (created earlier via Save Draft, or sent back by the
     // Manager for changes) already has real rate/tax/remarks values --
-    // previously this always rebuilt from the engagement's line items with
+    // previously this always rebuilt from the purchase request's line items with
     // unit_price/tax_rate hardcoded to 0, silently discarding whatever the
     // vendor had already entered every time "Edit Quotation" was reopened.
     const seed = quotation?.line_items && quotation.line_items.length > 0
       ? quotation.line_items.map((li) => ({
           description: li.description,
+          availability_status: li.availability_status ?? "available",
           quantity:    li.quantity,
           unit_price:  li.unit_price,
           tax_rate:    li.tax_rate,
+          tax_components: (li.tax_components ?? []).map((c) => ({ name: c.name, rate: c.rate })),
           remarks:     li.remarks ?? "",
         }))
-      : (rfq?.engagement?.line_items ?? []).map((li) => ({
+      : (rfq?.purchase_request?.line_items ?? []).map((li) => ({
           description: li.description,
+          availability_status: "available" as const,
           quantity:    li.quantity,
           unit_price:  0,
           tax_rate:    0,
+          tax_components: [],
           remarks:     "",
         }))
     form.reset({
@@ -127,10 +142,20 @@ export function VendorRFQDetail() {
     if (!rfq) return
     await createQuotation.mutateAsync({
       rfq_id:        rfq.id,
-      engagement_id: rfq.engagement_id,
+      purchase_request_id: rfq.purchase_request_id,
       vendor_id:     rfq.vendor_id,
       notes:         data.notes ?? undefined,
-      line_items:    data.line_items.map((li) => ({ ...li, remarks: li.remarks ?? null })),
+      line_items:    data.line_items.map((li) => ({
+        ...li,
+        remarks: li.remarks ?? null,
+        // Not-available lines never carry pricing -- the backend enforces
+        // this too (migration 070's CHECK constraint), blanked here as well
+        // so a leftover value from before the toggle isn't silently sent.
+        quantity:   li.availability_status === "not_available" ? null : (li.quantity ?? null),
+        unit_price: li.availability_status === "not_available" ? null : (li.unit_price ?? null),
+        tax_rate:   li.availability_status === "not_available" ? null : (li.tax_rate ?? null),
+        tax_components: li.availability_status === "not_available" ? [] : (li.tax_components ?? []).filter((c) => c.name.trim() !== ""),
+      })),
     })
     toast.success("Quotation saved as draft")
     setShowQuotationDialog(false)
@@ -188,7 +213,7 @@ export function VendorRFQDetail() {
           <div className="flex items-start justify-between gap-4">
             <div>
               <h1 className="text-xl font-bold tracking-tight font-mono">{rfq.rfq_number ?? "RFQ"}</h1>
-              <p className="text-sm text-muted-foreground mt-0.5">{rfq.engagement?.title ?? "—"}</p>
+              <p className="text-sm text-muted-foreground mt-0.5">{rfq.purchase_request?.title ?? "—"}</p>
             </div>
             <div className="flex items-center gap-2">
               <span className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-xs font-medium border ${RFQ_STATUS_COLORS[rfq.status as RFQStatus]}`}>
@@ -205,33 +230,33 @@ export function VendorRFQDetail() {
 
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold">Engagement Details</CardTitle>
+            <CardTitle className="text-sm font-semibold">Purchase Request Details</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
-              {rfq.engagement?.description && (
+              {rfq.purchase_request?.description && (
                 <div className="col-span-2">
                   <p className="text-xs text-muted-foreground mb-0.5">Description</p>
-                  <p className="whitespace-pre-wrap">{rfq.engagement.description}</p>
+                  <p className="whitespace-pre-wrap">{rfq.purchase_request.description}</p>
                 </div>
               )}
-              {rfq.engagement?.start_date && (
+              {rfq.purchase_request?.start_date && (
                 <div>
                   <p className="text-xs text-muted-foreground mb-0.5">Start Date</p>
-                  <p className="font-medium">{format(new Date(rfq.engagement.start_date), "dd MMM yyyy")}</p>
+                  <p className="font-medium">{format(new Date(rfq.purchase_request.start_date), "dd MMM yyyy")}</p>
                 </div>
               )}
-              {rfq.engagement?.end_date && (
+              {rfq.purchase_request?.end_date && (
                 <div>
                   <p className="text-xs text-muted-foreground mb-0.5">End Date</p>
-                  <p className="font-medium">{format(new Date(rfq.engagement.end_date), "dd MMM yyyy")}</p>
+                  <p className="font-medium">{format(new Date(rfq.purchase_request.end_date), "dd MMM yyyy")}</p>
                 </div>
               )}
-              {rfq.engagement?.estimated_value != null && (
+              {rfq.purchase_request?.estimated_value != null && (
                 <div>
                   <p className="text-xs text-muted-foreground mb-0.5">Budget</p>
                   <p className="font-medium tabular-nums">
-                    {formatCurrency(rfq.engagement.estimated_value, rfq.engagement.currency)}
+                    {formatCurrency(rfq.purchase_request.estimated_value, rfq.purchase_request.currency)}
                   </p>
                 </div>
               )}
@@ -239,11 +264,19 @@ export function VendorRFQDetail() {
                 <p className="text-xs text-muted-foreground mb-0.5">RFQ Received</p>
                 <p className="font-medium">{format(new Date(rfq.created_at), "dd MMM yyyy")}</p>
               </div>
+              {rfq.response_deadline && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-0.5">Response Deadline</p>
+                  <p className={`font-medium ${new Date(rfq.response_deadline) < new Date() ? "text-destructive" : ""}`}>
+                    {format(new Date(rfq.response_deadline), "dd MMM yyyy, HH:mm")}
+                  </p>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
 
-        {rfq.engagement?.line_items && rfq.engagement.line_items.length > 0 && (
+        {rfq.purchase_request?.line_items && rfq.purchase_request.line_items.length > 0 && (
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-semibold">Requested Items</CardTitle>
@@ -256,13 +289,13 @@ export function VendorRFQDetail() {
                   <span className="col-span-2">Unit</span>
                   <span className="col-span-3 text-right">Rate</span>
                 </div>
-                {rfq.engagement.line_items.map((li) => (
+                {rfq.purchase_request.line_items.map((li) => (
                   <div key={li.id} className="grid grid-cols-12 gap-2 text-sm py-1 border-b last:border-0">
                     <span className="col-span-5">{li.description}</span>
                     <span className="col-span-2 text-right tabular-nums">{li.quantity}</span>
                     <span className="col-span-2 text-muted-foreground">{li.unit ?? "—"}</span>
                     <span className="col-span-3 text-right tabular-nums">
-                      {li.unit_price != null ? formatCurrency(li.unit_price, rfq.engagement?.currency ?? "INR") : "—"}
+                      {li.unit_price != null ? formatCurrency(li.unit_price, rfq.purchase_request?.currency ?? "INR") : "—"}
                     </span>
                   </div>
                 ))}
@@ -290,17 +323,30 @@ export function VendorRFQDetail() {
               )}
               {quotation.notes && <p className="text-sm">{quotation.notes}</p>}
               {quotation.total_amount != null && (
-                <p className="text-sm font-semibold">Total: {formatCurrency(quotation.total_amount, rfq.engagement?.currency ?? "INR")}</p>
+                <p className="text-sm font-semibold">Total: {formatCurrency(quotation.total_amount, rfq.purchase_request?.currency ?? "INR")}</p>
               )}
               {quotation.line_items && quotation.line_items.length > 0 && (
                 <div className="space-y-1 pt-1">
                   {quotation.line_items.map((li) => (
                     <div key={li.id} className="flex justify-between text-xs text-muted-foreground border-b pb-1">
-                      <span>
-                        {li.description} × {li.quantity} @ {formatCurrency(li.unit_price, rfq.engagement?.currency ?? "INR")}
-                        {li.tax_rate ? ` + ${li.tax_rate}% tax` : ""}
-                      </span>
-                      <span className="tabular-nums">{formatCurrency(li.total, rfq.engagement?.currency ?? "INR")}</span>
+                      {li.availability_status === "not_available" ? (
+                        <span>{li.description} — <span className="font-medium text-foreground">Not Available</span></span>
+                      ) : (
+                        <span>
+                          {li.description}
+                          {li.availability_status === "partially_available" && <span className="font-medium text-amber-700"> (Partial)</span>}
+                          {" "}× {li.quantity} @ {formatCurrency(li.unit_price ?? 0, rfq.purchase_request?.currency ?? "INR")}
+                          {li.tax_rate ? (
+                            <>
+                              {" "}+ {li.tax_rate}% tax
+                              {li.tax_components && li.tax_components.length > 0 && (
+                                <span> ({li.tax_components.map((c) => `${c.name} ${c.rate}%`).join(" + ")})</span>
+                              )}
+                            </>
+                          ) : ""}
+                        </span>
+                      )}
+                      <span className="tabular-nums">{formatCurrency(li.total, rfq.purchase_request?.currency ?? "INR")}</span>
                     </div>
                   ))}
                 </div>
@@ -353,8 +399,8 @@ export function VendorRFQDetail() {
               </div>
               <Separator />
               <div className="space-y-3">
-                {(rfq?.engagement?.line_items ?? []).length > 0 && (
-                  <p className="text-xs text-muted-foreground">Pre-filled from engagement scope — add pricing to each item.</p>
+                {(rfq?.purchase_request?.line_items ?? []).length > 0 && (
+                  <p className="text-xs text-muted-foreground">Pre-filled from purchase request scope — add pricing to each item.</p>
                 )}
                 <div className="flex items-center justify-between">
                   <Label className="text-sm font-semibold">Line Items</Label>
@@ -363,46 +409,75 @@ export function VendorRFQDetail() {
                     size="sm"
                     variant="outline"
                     className="h-7 text-xs gap-1"
-                    onClick={() => append({ description: "", quantity: 1, unit_price: 0, tax_rate: 0, remarks: "" })}
+                    onClick={() => append({ description: "", availability_status: "available", quantity: 1, unit_price: 0, tax_rate: 0, tax_components: [], remarks: "" })}
                   >
                     <SolarDuotoneIcon icon={Add01Icon} size={12} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" />
                     Add Row
                   </Button>
                 </div>
                 <div className="space-y-2">
-                  <div className="grid grid-cols-[repeat(24,minmax(0,1fr))] gap-2 text-xs text-muted-foreground font-medium px-1">
+                  <div className="grid grid-cols-[repeat(28,minmax(0,1fr))] gap-2 text-xs text-muted-foreground font-medium px-1">
                     <span className="col-span-6">Description</span>
+                    <span className="col-span-4">Availability</span>
                     <span className="col-span-3">Qty</span>
                     <span className="col-span-3">Rate</span>
-                    <span className="col-span-3">Tax %</span>
-                    <span className="col-span-3">Unit</span>
+                    <span className="col-span-4">Tax %</span>
+                    <span className="col-span-2">Unit</span>
                     <span className="col-span-4">Remarks</span>
                     <span className="col-span-2" />
                   </div>
-                  {fields.map((field, i) => (
-                    <div key={field.id} className="grid grid-cols-[repeat(24,minmax(0,1fr))] gap-2 items-start">
+                  {fields.map((field, i) => {
+                    const availability = form.watch(`line_items.${i}.availability_status`)
+                    const notAvailable = availability === "not_available"
+                    return (
+                    <div key={field.id} className="grid grid-cols-[repeat(28,minmax(0,1fr))] gap-2 items-start">
                       <div className="col-span-6">
                         <Input {...form.register(`line_items.${i}.description`)} placeholder="Item" className="h-8 text-xs" />
                       </div>
+                      <div className="col-span-4">
+                        <Controller
+                          control={form.control}
+                          name={`line_items.${i}.availability_status`}
+                          render={({ field: f }) => (
+                            <Select value={f.value} onValueChange={f.onChange}>
+                              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="available">Available</SelectItem>
+                                <SelectItem value="partially_available">Partially Available</SelectItem>
+                                <SelectItem value="not_available">Not Available</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          )}
+                        />
+                      </div>
                       <div className="col-span-3">
-                        <Input type="number" min={0.01} step="any" {...form.register(`line_items.${i}.quantity`)} placeholder="1" className="h-8 text-xs" />
+                        <Input type="number" min={0.01} step="any" disabled={notAvailable} {...form.register(`line_items.${i}.quantity`)} placeholder="1" className="h-8 text-xs" />
                       </div>
                       <div className="col-span-3">
                         <Input
-                          type="number" min={0} step="any"
+                          type="number" min={0} step="any" disabled={notAvailable}
                           {...form.register(`line_items.${i}.unit_price`, {
                             onChange: () => form.trigger(`line_items.${i}.remarks`),
                           })}
                           placeholder="0" className="h-8 text-xs"
                         />
                       </div>
-                      <div className="col-span-3">
-                        <Input type="number" min={0} max={100} step="any" {...form.register(`line_items.${i}.tax_rate`)} placeholder="0" className="h-8 text-xs" />
+                      <div className="col-span-4">
+                        {notAvailable ? (
+                          <Input type="number" min={0} max={100} step="any" disabled {...form.register(`line_items.${i}.tax_rate`)} placeholder="0" className="h-8 text-xs" />
+                        ) : (
+                          <TaxComponentsField
+                            flatRate={form.watch(`line_items.${i}.tax_rate`) ?? 0}
+                            onFlatRateChange={(rate) => form.setValue(`line_items.${i}.tax_rate`, rate)}
+                            components={form.watch(`line_items.${i}.tax_components`) ?? []}
+                            onComponentsChange={(components) => form.setValue(`line_items.${i}.tax_components`, components)}
+                          />
+                        )}
                       </div>
-                      <div className="col-span-3 flex items-center h-8">
-                        {/* Read-only -- unit is set by the organisation on the engagement's line item, not editable by the vendor. */}
+                      <div className="col-span-2 flex items-center h-8">
+                        {/* Read-only -- unit is set by the organisation on the purchase request's line item, not editable by the vendor. */}
                         <span className="text-xs text-muted-foreground truncate">
-                          {rfq?.engagement?.line_items?.[i]?.unit ?? "—"}
+                          {rfq?.purchase_request?.line_items?.[i]?.unit ?? "—"}
                         </span>
                       </div>
                       <div className="col-span-4">
@@ -417,11 +492,11 @@ export function VendorRFQDetail() {
                         </button>
                       </div>
                     </div>
-                  ))}
+                  )})}
                 </div>
                 <div className="flex justify-end pt-1">
                   <p className="text-sm font-semibold">
-                    Grand Total: {formatCurrency(grandTotal, rfq.engagement?.currency ?? "INR")}
+                    Grand Total: {formatCurrency(grandTotal, rfq.purchase_request?.currency ?? "INR")}
                   </p>
                 </div>
               </div>
