@@ -60,8 +60,11 @@ export function useCreateQuotation() {
   })
 }
 
-// Associate (or Manager/Admin covering for one) sends a finished draft up
-// for Manager approval. Does not reach the org yet.
+// A pure Associate sends a finished draft up for Manager approval (does not
+// reach the org yet). A vendor Manager/Admin/Finance already holds the
+// approval permission, so the backend skips that hand-off for them and
+// submits straight to the organisation instead -- the returned quotation's
+// status reflects which one happened.
 export function useSubmitQuotationForReview() {
   const queryClient = useQueryClient()
   const { accessToken } = useAuth()
@@ -69,9 +72,9 @@ export function useSubmitQuotationForReview() {
   return useMutation({
     mutationFn: ({ id, total_amount }: { id: string; total_amount: number }) =>
       api.post<Quotation>("/api/quotations/submit-for-review", { id, total_amount }, accessToken),
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["quotations"] })
-      toast.success("Sent to Manager for approval")
+      toast.success(data.status === "submitted" ? "Quotation submitted to the organisation" : "Sent to Manager for approval")
     },
     onError: () => toast.error("Failed to submit quotation"),
   })

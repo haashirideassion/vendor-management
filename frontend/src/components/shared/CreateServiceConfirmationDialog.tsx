@@ -80,7 +80,7 @@ async function fetchRemainingLineItems(poId: string): Promise<(POLineItem & { re
 }
 
 export function CreateServiceConfirmationDialog({ open, onOpenChange, defaultPOId, defaultVendorId, onSuccess }: CreateServiceConfirmationDialogProps) {
-  const { data: allIssuedPOs = [] } = usePurchaseOrders({ status: "issued" })
+  const { data: allIssuedPOs = [], isLoading: posLoading } = usePurchaseOrders({ status: "issued" })
   // A Blanket PO is never fulfilled directly -- only its Release Orders are.
   const pos = allIssuedPOs.filter((p) => p.fulfillment_type === "service" && p.po_type !== "blanket")
   const createServiceConfirmation = useCreateServiceConfirmation()
@@ -191,7 +191,7 @@ export function CreateServiceConfirmationDialog({ open, onOpenChange, defaultPOI
                 ) : (
                   <Select onValueChange={handlePOChange}>
                     <SelectTrigger><SelectValue placeholder="Select issued PO" /></SelectTrigger>
-                    <SelectContent>
+                    <SelectContent loading={posLoading}>
                       {pos.map((p) => (
                         <SelectItem key={p.id} value={p.id}>
                           {p.po_number} — {p.vendor?.company_name}

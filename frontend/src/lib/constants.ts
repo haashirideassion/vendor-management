@@ -454,11 +454,13 @@ export const ORG_ONBOARDING_DOCUMENT_LABELS: Record<OrgOnboardingDocumentType, s
 }
 
 export const REQUIRED_ORG_ONBOARDING_DOCUMENTS: OrgOnboardingDocumentType[] = [
-  "certificate_of_incorporation", "pan_copy", "memorandum_of_association",
-  "articles_of_association", "board_resolution", "bank_proof",
+  "certificate_of_incorporation", "pan_copy",
 ]
 
-export const OPTIONAL_ORG_ONBOARDING_DOCUMENTS: OrgOnboardingDocumentType[] = ["gst_certificate"]
+export const OPTIONAL_ORG_ONBOARDING_DOCUMENTS: OrgOnboardingDocumentType[] = [
+  "memorandum_of_association", "articles_of_association", "board_resolution",
+  "bank_proof", "gst_certificate",
+]
 
 export const ORG_ONBOARDING_STATUS_LABELS: Record<OrgOnboardingStatus, string> = {
   draft: "Draft",

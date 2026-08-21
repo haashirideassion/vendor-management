@@ -79,7 +79,7 @@ async function fetchRemainingLineItems(poId: string): Promise<(POLineItem & { re
 }
 
 export function CreateGRNDialog({ open, onOpenChange, defaultPOId, defaultVendorId, onSuccess }: CreateGRNDialogProps) {
-  const { data: allIssuedPOs = [] } = usePurchaseOrders({ status: "issued" })
+  const { data: allIssuedPOs = [], isLoading: posLoading } = usePurchaseOrders({ status: "issued" })
   // Only goods POs get a GRN -- a services PO is confirmed via Service
   // Confirmation instead (see CreateServiceConfirmationDialog). A Blanket PO
   // is never fulfilled directly either -- only its Release Orders are.
@@ -192,7 +192,7 @@ export function CreateGRNDialog({ open, onOpenChange, defaultPOId, defaultVendor
                 ) : (
                   <Select onValueChange={handlePOChange}>
                     <SelectTrigger><SelectValue placeholder="Select issued PO" /></SelectTrigger>
-                    <SelectContent>
+                    <SelectContent loading={posLoading}>
                       {pos.map((p) => (
                         <SelectItem key={p.id} value={p.id}>
                           {p.po_number} — {p.vendor?.company_name}

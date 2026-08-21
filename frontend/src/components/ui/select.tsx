@@ -63,8 +63,16 @@ function SelectContent({
   children,
   position = "item-aligned",
   align = "center",
+  loading = false,
   ...props
-}: React.ComponentProps<typeof SelectPrimitive.Content>) {
+}: React.ComponentProps<typeof SelectPrimitive.Content> & {
+  // When there are no real options to show: renders a "Loading…" row while
+  // true, or "No Options" once false -- so an empty list is never just a
+  // blank popover, and callers don't have to hand-roll this per screen.
+  loading?: boolean
+}) {
+  const isEmpty = React.Children.count(children) === 0
+
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Content
@@ -83,7 +91,13 @@ function SelectContent({
             position === "popper" && ""
           )}
         >
-          {children}
+          {isEmpty ? (
+            <div data-slot="select-empty" className="py-6 text-center text-sm text-muted-foreground">
+              {loading ? "Loading…" : "No Options"}
+            </div>
+          ) : (
+            children
+          )}
         </SelectPrimitive.Viewport>
         <SelectScrollDownButton />
       </SelectPrimitive.Content>

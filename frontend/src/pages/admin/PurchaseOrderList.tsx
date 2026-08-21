@@ -88,7 +88,7 @@ export function PurchaseOrderList() {
   const defaultPurchaseRequestId = searchParams.get("purchase_request_id") ?? undefined
   const { data: pos = [], isLoading } = usePurchaseOrders({ status: status || undefined })
   const { data: purchaseRequests = [] } = usePurchaseRequests({ status: "approved" })
-  const { data: vendors = [] }        = useVendors({ status: "active" })
+  const { data: vendors = [], isLoading: vendorsLoading } = useVendors({ status: "active" })
   const createPO          = useCreatePurchaseOrder()
   const uploadAttachments = useUploadAttachments()
 
@@ -320,7 +320,7 @@ export function PurchaseOrderList() {
                 <Label>Vendor <span className="text-destructive">*</span></Label>
                 <Select onValueChange={(v) => form.setValue("vendor_id", v)}>
                   <SelectTrigger><SelectValue placeholder="Select vendor" /></SelectTrigger>
-                  <SelectContent>
+                  <SelectContent loading={vendorsLoading}>
                     {vendors.map((v) => <SelectItem key={v.id} value={v.id}>{v.company_name}</SelectItem>)}
                   </SelectContent>
                 </Select>

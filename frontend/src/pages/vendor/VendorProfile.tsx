@@ -13,9 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Command, CommandInput, CommandList, CommandItem, CommandEmpty } from "@/components/ui/command"
-import { Checkbox } from "@/components/ui/checkbox"
+import { MultiSelect } from "@/components/ui/multi-select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogBody } from "@/components/ui/dialog"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
@@ -76,7 +74,6 @@ export function VendorProfile() {
   const { data: myRoleNames = [] } = useMyVendorRole()
   const isViewerAdmin = myRoleNames.includes("Admin")
   const [editing, setEditing] = useState(false)
-  const [categoryPickerOpen, setCategoryPickerOpen] = useState(false)
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
   const [addOrgOpen, setAddOrgOpen] = useState(false)
   const initializedRef = useRef(false)
@@ -142,10 +139,6 @@ export function VendorProfile() {
   }
 
   const isPending = updateVendor.isPending || updateVendorCategories.isPending
-
-  const selectedCategoryLabels = allCategories
-    .filter((c) => selectedCategoryIds.includes(c.id))
-    .map((c) => c.name)
 
   if (isLoading) {
     return (
@@ -271,49 +264,13 @@ export function VendorProfile() {
             <CardContent className="space-y-3">
               {editing ? (
                 <div className="space-y-3">
-                  <Popover open={categoryPickerOpen} onOpenChange={setCategoryPickerOpen}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        role="combobox"
-                        className="w-full justify-start font-normal h-9 text-sm"
-                      >
-                        {selectedCategoryLabels.length === 0 ? (
-                          <span className="text-muted-foreground">Select categories…</span>
-                        ) : (
-                          <span className="truncate">{selectedCategoryLabels.join(", ")}</span>
-                        )}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[320px] p-0" align="start">
-                      <Command>
-                        <CommandInput placeholder="Search categories…" />
-                        <CommandList>
-                          <CommandEmpty>No categories found.</CommandEmpty>
-                          {allCategories.map((cat) => (
-                            <CommandItem
-                              key={cat.id}
-                              value={cat.name}
-                              onSelect={() => toggleCategory(cat.id)}
-                            >
-                              <Checkbox
-                                checked={selectedCategoryIds.includes(cat.id)}
-                                className="mr-2 h-4 w-4"
-                                onCheckedChange={() => toggleCategory(cat.id)}
-                              />
-                              <div>
-                                <p className="text-sm">{cat.name}</p>
-                                {cat.description && (
-                                  <p className="text-xs text-muted-foreground">{cat.description}</p>
-                                )}
-                              </div>
-                            </CommandItem>
-                          ))}
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
+                  <MultiSelect
+                    options={allCategories.map((cat) => ({ id: cat.id, label: cat.name, description: cat.description ?? undefined }))}
+                    value={selectedCategoryIds}
+                    onChange={setSelectedCategoryIds}
+                    placeholder="Select categories…"
+                    searchPlaceholder="Search categories…"
+                  />
 
                   {selectedCategoryIds.length === 0 && (
                     <p className="text-xs text-muted-foreground">No categories selected.</p>

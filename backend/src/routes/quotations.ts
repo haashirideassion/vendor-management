@@ -350,9 +350,17 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
 })
 
 // POST /api/quotations/submit-for-review
-// Associate (or Manager/Admin, if the Associate isn't available) finishes a
-// draft quotation and sends it up for Manager approval. This does NOT reach
-// the organisation yet -- it only moves draft -> pending_manager_review.
+// A pure Associate finishes a draft quotation and sends it up for Manager
+// approval -- this does NOT reach the organisation yet, it only moves
+// draft -> pending_manager_review. But a vendor Manager/Admin/Finance (i.e.
+// anyone who already holds quotations.submit, the same permission /approve
+// requires) has the authority to approve their own submission a moment
+// later anyway -- forcing them through a separate manual "Approve" click on
+// their own quotation is an unnecessary approval dependency, not a real
+// second opinion. So for them this skips straight to "submitted", exactly
+// what /approve below does, self-reviewed. Mirrors gateOnCreate's
+// Associate-only-gates / everyone-else-self-approves rule (approvalGate.ts),
+// which this route was the original model for but never carried out itself.
 router.post("/submit-for-review", requireAuth, async (req: Request, res: Response) => {
   try {
     const { id, total_amount } = req.body
@@ -369,20 +377,26 @@ router.post("/submit-for-review", requireAuth, async (req: Request, res: Respons
       return res.status(400).json({ error: "Only a draft quotation can be sent for review" })
     }
 
-    const canSubmit =
-      (await hasVendorPermission(userId, existing.vendor_id, "quotations.draft_line_items")) ||
-      (await hasVendorPermission(userId, existing.vendor_id, "quotations.submit"))
+    const canSelfApprove = await hasVendorPermission(userId, existing.vendor_id, "quotations.submit")
+    const canSubmit = canSelfApprove || (await hasVendorPermission(userId, existing.vendor_id, "quotations.draft_line_items"))
     if (!canSubmit) {
       return res.status(403).json({ error: "You are not authorized to submit this quotation" })
     }
 
+    const nowIso = new Date().toISOString()
     const { data, error } = await db()
       .from("quotations")
-      .update({ status: "pending_manager_review", total_amount })
+      .update(
+        canSelfApprove
+          ? { status: "submitted", total_amount, submitted_at: nowIso, reviewed_by: userId, reviewed_at: nowIso }
+          : { status: "pending_manager_review", total_amount }
+      )
       .eq("id", id)
       .select("*, vendor:vendor_id(company_name)")
       .single()
     if (error) throw error
+
+    if (canSelfApprove) await notifyOrgOfSubmittedQuotation(data)
 
     return res.json(data)
   } catch (err: any) {

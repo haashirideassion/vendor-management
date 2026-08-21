@@ -53,7 +53,8 @@ export function TaxComponentsField({ flatRate, onFlatRateChange, components, onC
             }}
           />
           <Input
-            type="number" min={0} step="any" placeholder="%" className="h-7 text-xs w-16"
+            type="number" min={0} step="any" placeholder="%"
+            className="h-7 w-16 px-1.5 text-center text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
             value={c.rate}
             onChange={(e) => {
               const next = [...components]

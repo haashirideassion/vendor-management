@@ -164,7 +164,13 @@ export function VendorRFQDetail() {
 
   async function onSubmitForReview() {
     if (!quotation) return
-    await submitForReview.mutateAsync({ id: quotation.id, total_amount: quotationTotal })
+    const result = await submitForReview.mutateAsync({ id: quotation.id, total_amount: quotationTotal })
+    // Manager/Admin/Finance skip the pending-review hand-off and land on
+    // "submitted" directly (see quotations.ts) -- advance the RFQ the same
+    // way onApprove() does, since no separate approval step will follow.
+    if (result?.status === "submitted" && rfq) {
+      await updateRFQStatus.mutateAsync({ id: rfq.id, status: "responded" })
+    }
   }
 
   async function onApprove() {
@@ -359,7 +365,7 @@ export function VendorRFQDetail() {
                     disabled={submitForReview.isPending}
                     onClick={onSubmitForReview}
                   >
-                    {submitForReview.isPending ? "Sending…" : "Submit for Review"}
+                    {submitForReview.isPending ? "Sending…" : (canReview ? "Submit to Organisation" : "Submit for Review")}
                   </Button>
                 </div>
               )}
@@ -416,80 +422,95 @@ export function VendorRFQDetail() {
                   </Button>
                 </div>
                 <div className="space-y-2">
-                  <div className="grid grid-cols-[repeat(28,minmax(0,1fr))] gap-2 text-xs text-muted-foreground font-medium px-1">
-                    <span className="col-span-6">Description</span>
-                    <span className="col-span-4">Availability</span>
-                    <span className="col-span-3">Qty</span>
-                    <span className="col-span-3">Rate</span>
-                    <span className="col-span-4">Tax %</span>
-                    <span className="col-span-2">Unit</span>
-                    <span className="col-span-4">Remarks</span>
-                    <span className="col-span-2" />
-                  </div>
                   {fields.map((field, i) => {
                     const availability = form.watch(`line_items.${i}.availability_status`)
                     const notAvailable = availability === "not_available"
                     return (
-                    <div key={field.id} className="grid grid-cols-[repeat(28,minmax(0,1fr))] gap-2 items-start">
-                      <div className="col-span-6">
-                        <Input {...form.register(`line_items.${i}.description`)} placeholder="Item" className="h-8 text-xs" />
-                      </div>
-                      <div className="col-span-4">
-                        <Controller
-                          control={form.control}
-                          name={`line_items.${i}.availability_status`}
-                          render={({ field: f }) => (
-                            <Select value={f.value} onValueChange={f.onChange}>
-                              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="available">Available</SelectItem>
-                                <SelectItem value="partially_available">Partially Available</SelectItem>
-                                <SelectItem value="not_available">Not Available</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          )}
-                        />
-                      </div>
-                      <div className="col-span-3">
-                        <Input type="number" min={0.01} step="any" disabled={notAvailable} {...form.register(`line_items.${i}.quantity`)} placeholder="1" className="h-8 text-xs" />
-                      </div>
-                      <div className="col-span-3">
-                        <Input
-                          type="number" min={0} step="any" disabled={notAvailable}
-                          {...form.register(`line_items.${i}.unit_price`, {
-                            onChange: () => form.trigger(`line_items.${i}.remarks`),
-                          })}
-                          placeholder="0" className="h-8 text-xs"
-                        />
-                      </div>
-                      <div className="col-span-4">
-                        {notAvailable ? (
-                          <Input type="number" min={0} max={100} step="any" disabled {...form.register(`line_items.${i}.tax_rate`)} placeholder="0" className="h-8 text-xs" />
-                        ) : (
-                          <TaxComponentsField
-                            flatRate={form.watch(`line_items.${i}.tax_rate`) ?? 0}
-                            onFlatRateChange={(rate) => form.setValue(`line_items.${i}.tax_rate`, rate)}
-                            components={form.watch(`line_items.${i}.tax_components`) ?? []}
-                            onComponentsChange={(components) => form.setValue(`line_items.${i}.tax_components`, components)}
+                    <div key={field.id} className="rounded-xl border border-border/60 p-3 space-y-2">
+                      {/* Row 1: Description + Availability (kept at its previous row-2 width) */}
+                      <div className="flex gap-2">
+                        <div className="flex-1 space-y-1">
+                          <Label className="text-[11px] text-muted-foreground">Description</Label>
+                          <Input {...form.register(`line_items.${i}.description`)} placeholder="Item" className="h-8 text-xs" />
+                        </div>
+                        <div className="w-40 shrink-0 space-y-1">
+                          <Label className="text-[11px] text-muted-foreground">Availability</Label>
+                          <Controller
+                            control={form.control}
+                            name={`line_items.${i}.availability_status`}
+                            render={({ field: f }) => (
+                              <Select value={f.value} onValueChange={f.onChange}>
+                                {/* SelectTrigger's own data-[size=default]:h-11 rule outranks a
+                                    plain h-8 on specificity -- h-8! forces the match with the
+                                    other row-1 fields. */}
+                                <SelectTrigger className="h-8! w-full text-xs"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="available">Available</SelectItem>
+                                  <SelectItem value="partially_available">Partially Available</SelectItem>
+                                  <SelectItem value="not_available">Not Available</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            )}
                           />
-                        )}
+                        </div>
                       </div>
-                      <div className="col-span-2 flex items-center h-8">
-                        {/* Read-only -- unit is set by the organisation on the purchase request's line item, not editable by the vendor. */}
-                        <span className="text-xs text-muted-foreground truncate">
-                          {rfq?.purchase_request?.line_items?.[i]?.unit ?? "—"}
-                        </span>
-                      </div>
-                      <div className="col-span-4">
-                        <Input {...form.register(`line_items.${i}.remarks`)} placeholder="Optional" className={`h-8 text-xs ${form.formState.errors.line_items?.[i]?.remarks ? "border-destructive" : ""}`} />
-                        {form.formState.errors.line_items?.[i]?.remarks && (
-                          <p className="text-[10px] text-destructive mt-0.5">{form.formState.errors.line_items[i]!.remarks!.message}</p>
-                        )}
-                      </div>
-                      <div className="col-span-2 flex justify-center pt-1">
-                        <button type="button" onClick={() => remove(i)} className="text-muted-foreground hover:text-destructive">
-                          <SolarDuotoneIcon icon={Delete01Icon} size={14} strokeWidth={1.5} />
-                        </button>
+
+                      {/* Row 2: Quantity, Rate, Tax %, Unit, Remarks, Delete --
+                          Tax % gets a wider track since TaxComponentsField packs a number
+                          input, its spinner, and an "add breakdown" button into one cell. */}
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-[1fr_1fr_2.2fr_0.8fr_1.4fr_0.5fr] gap-2">
+                        <div className="space-y-1">
+                          <Label className="text-[11px] text-muted-foreground">Quantity</Label>
+                          <Input type="number" min={0.01} step="any" disabled={notAvailable} {...form.register(`line_items.${i}.quantity`)} placeholder="1" className="h-8 text-xs" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[11px] text-muted-foreground">Rate</Label>
+                          <Input
+                            type="number" min={0} step="any" disabled={notAvailable}
+                            {...form.register(`line_items.${i}.unit_price`, {
+                              onChange: () => form.trigger(`line_items.${i}.remarks`),
+                            })}
+                            placeholder="0" className="h-8 text-xs"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[11px] text-muted-foreground">Tax %</Label>
+                          {notAvailable ? (
+                            <Input type="number" min={0} max={100} step="any" disabled {...form.register(`line_items.${i}.tax_rate`)} placeholder="0" className="h-8 text-xs" />
+                          ) : (
+                            <TaxComponentsField
+                              flatRate={form.watch(`line_items.${i}.tax_rate`) ?? 0}
+                              onFlatRateChange={(rate) => form.setValue(`line_items.${i}.tax_rate`, rate)}
+                              components={form.watch(`line_items.${i}.tax_components`) ?? []}
+                              onComponentsChange={(components) => form.setValue(`line_items.${i}.tax_components`, components)}
+                            />
+                          )}
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[11px] text-muted-foreground">Unit</Label>
+                          {/* Read-only -- unit is set by the organisation on the purchase request's line item, not editable by the vendor. */}
+                          <div className="h-8 flex items-center rounded-md border border-input bg-muted/30 px-2.5 text-xs text-muted-foreground truncate">
+                            {rfq?.purchase_request?.line_items?.[i]?.unit ?? "—"}
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[11px] text-muted-foreground">Remarks</Label>
+                          <Input {...form.register(`line_items.${i}.remarks`)} placeholder="Optional" className={`h-8 text-xs ${form.formState.errors.line_items?.[i]?.remarks ? "border-destructive" : ""}`} />
+                          {form.formState.errors.line_items?.[i]?.remarks && (
+                            <p className="text-[10px] text-destructive mt-0.5">{form.formState.errors.line_items[i]!.remarks!.message}</p>
+                          )}
+                        </div>
+                        <div className="flex flex-col items-center space-y-1">
+                          <Label className="text-[11px] invisible">Remove</Label>
+                          <button
+                            type="button"
+                            onClick={() => remove(i)}
+                            title="Remove row"
+                            className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                          >
+                            <SolarDuotoneIcon icon={Delete01Icon} size={14} strokeWidth={1.5} />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   )})}

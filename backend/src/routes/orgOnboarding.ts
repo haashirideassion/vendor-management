@@ -93,10 +93,6 @@ const ALLOWED_ORG_DOC_TYPES = new Set([
 const REQUIRED_ORG_DOC_TYPES = [
   "certificate_of_incorporation",
   "pan_copy",
-  "memorandum_of_association",
-  "articles_of_association",
-  "board_resolution",
-  "bank_proof",
 ]
 
 // Per-step whitelist of updatable draft columns -- the client never gets to

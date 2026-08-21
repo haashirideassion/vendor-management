@@ -16,9 +16,7 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Command, CommandInput, CommandList, CommandItem, CommandEmpty } from "@/components/ui/command"
-import { Checkbox } from "@/components/ui/checkbox"
+import { MultiSelect } from "@/components/ui/multi-select"
 import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -67,69 +65,6 @@ function StatusChip({ status }: { status: PurchaseRequestStatus }) {
     <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border ${PURCHASE_REQUEST_STATUS_COLORS[status]}`}>
       {PURCHASE_REQUEST_STATUS_LABELS[status]}
     </span>
-  )
-}
-
-function MultiSelect({
-  options,
-  value,
-  onChange,
-  placeholder,
-  disabled,
-  searchPlaceholder,
-}: {
-  options: { id: string; label: string }[]
-  value: string[]
-  onChange: (v: string[]) => void
-  placeholder: string
-  disabled?: boolean
-  searchPlaceholder?: string
-}) {
-  const [open, setOpen] = useState(false)
-  const toggle = (id: string) => {
-    onChange(value.includes(id) ? value.filter((v) => v !== id) : [...value, id])
-  }
-  const selectedLabels = options.filter((o) => value.includes(o.id)).map((o) => o.label)
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          role="combobox"
-          disabled={disabled}
-          className="w-full justify-start font-normal h-9 text-sm truncate"
-        >
-          {selectedLabels.length === 0
-            ? <span className="text-muted-foreground">{placeholder}</span>
-            : <span className="truncate">{selectedLabels.join(", ")}</span>
-          }
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent
-        className="w-[320px] p-0"
-        align="start"
-        onWheel={(e) => e.stopPropagation()}
-      >
-        <Command>
-          <CommandInput placeholder={searchPlaceholder ?? "Search…"} />
-          <CommandList className="max-h-56 overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: "var(--border) transparent" }}>
-            <CommandEmpty>No results found.</CommandEmpty>
-            {options.map((opt) => (
-              <CommandItem key={opt.id} value={opt.label} onSelect={() => toggle(opt.id)}>
-                <Checkbox
-                  checked={value.includes(opt.id)}
-                  className="mr-2 h-4 w-4"
-                  onCheckedChange={() => toggle(opt.id)}
-                />
-                {opt.label}
-              </CommandItem>
-            ))}
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
   )
 }
 
@@ -415,6 +350,7 @@ export function PurchaseRequestList() {
                       placeholder={watchedCategoryIds.length === 0 ? "Select categories first" : "Select vendors to invite"}
                       disabled={watchedCategoryIds.length === 0}
                       searchPlaceholder="Search vendors…"
+                      loading={vendorsFetching}
                     />
                   )}
                 />

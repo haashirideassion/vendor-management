@@ -89,7 +89,7 @@ export function ContractList() {
     contract_type: typeFilter || undefined,
     status:        statusFilter || undefined,
   })
-  const { data: vendors = [] } = useVendors({ status: "active" })
+  const { data: vendors = [], isLoading: vendorsLoading } = useVendors({ status: "active" })
   const { data: msas = [] }    = useContracts({ contract_type: "msa" })
   const createContract    = useCreateContract()
   const uploadAttachments = useUploadAttachments()
@@ -297,7 +297,7 @@ export function ContractList() {
                 <Label>Vendor <span className="text-destructive">*</span></Label>
                 <Select onValueChange={(v) => form.setValue("vendor_id", v)}>
                   <SelectTrigger><SelectValue placeholder="Select active vendor" /></SelectTrigger>
-                  <SelectContent>
+                  <SelectContent loading={vendorsLoading}>
                     {vendors.map((v) => (
                       <SelectItem key={v.id} value={v.id}>{v.company_name}</SelectItem>
                     ))}
