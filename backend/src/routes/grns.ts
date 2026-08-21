@@ -3,7 +3,7 @@ import { getSupabaseAdmin } from "../utils/supabaseAdmin"
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth"
 import { requireOrg, OrgScopedRequest } from "../middleware/org"
 import { writeAudit, resolveActingAs } from "../services/audit"
-import { gateOnCreate, isManagerOrAdmin, notifyUsers } from "../services/approvalGate"
+import { gateOnCreate, isManagerOrAdmin, notifyUsers, findActiveVendorUserIds } from "../services/approvalGate"
 import { attachTaxComponents, insertTaxComponents, sumTaxComponents } from "../services/taxComponents.service"
 
 const router = Router()
@@ -200,7 +200,7 @@ router.post("/update-status", requireAuth, async (req: Request, res: Response) =
 
     const { data: existing, error: getError } = await db()
       .from("grns")
-      .select("status, org_id, created_by, po_id")
+      .select("status, org_id, created_by, po_id, vendor_id")
       .eq("id", id)
       .single()
     if (getError) throw getError
@@ -255,6 +255,22 @@ router.post("/update-status", requireAuth, async (req: Request, res: Response) =
         message: notes ? `Your GRN was ${status}: ${notes}` : `Your GRN was ${status}.`,
         moduleReferenceId: id,
       })
+
+      // Until now the vendor had NO visibility into whether their delivered
+      // goods were ever received -- notify their whole active team so they
+      // learn about it here instead of only finding out indirectly later,
+      // e.g. when an invoice they submit does or doesn't clear the 3-way match.
+      if (existing.vendor_id) {
+        const vendorUserIds = await findActiveVendorUserIds(existing.vendor_id)
+        await notifyUsers(vendorUserIds, {
+          type: "grn_decision",
+          title: status === "verified" ? "Delivery Verified" : "Delivery Rejected",
+          message: status === "verified"
+            ? "The organisation has verified receipt of your delivered goods."
+            : (notes ? `The organisation rejected your delivery: ${notes}` : "The organisation rejected your delivery."),
+          moduleReferenceId: id,
+        })
+      }
     }
 
     return res.json(data)

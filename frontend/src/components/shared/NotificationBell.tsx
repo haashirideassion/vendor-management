@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils"
 function notificationHref(type: Notification["type"]): string {
   switch (type) {
     case "invoice_status_update": return "/vendor/invoices"
+    case "grn_decision": return "/vendor/purchase-orders"
     default: return "/vendor/dashboard"
   }
 }

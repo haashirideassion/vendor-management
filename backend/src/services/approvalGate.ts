@@ -113,6 +113,18 @@ export async function findVendorRoleHolderIds(vendorId: string, roleNames: strin
   return [...ids]
 }
 
+// Every active vendor_users member for this vendor, regardless of role --
+// for broadcast-style notices (e.g. "your delivery was received") that any
+// vendor staff should see, not just whoever holds a specific permission.
+export async function findActiveVendorUserIds(vendorId: string): Promise<string[]> {
+  const { data: rows } = await db()
+    .from("vendor_users")
+    .select("profile_id")
+    .eq("vendor_id", vendorId)
+    .eq("status", "active")
+  return (rows ?? []).map((r: any) => r.profile_id)
+}
+
 // Every active Manager in the org, falling back to every active Admin if the
 // org has no Manager (solo-mode orgs, or a tiered org that just hasn't
 // invited one yet) -- matches the confirmed "Manager, or Admin if absent"
