@@ -30,7 +30,7 @@ router.post("/list", requireAuth, requireOrg, async (req: Request, res: Response
 
     let query = db()
       .from("grns")
-      .select("*, vendor:vendor_id(company_name), purchase_order:po_id(po_number), line_items:grn_line_items(*)")
+      .select("*, vendor:vendor_id(company_name), purchase_order:po_id(po_number), team:team_id(name), line_items:grn_line_items(*)")
       .eq("org_id", orgId)
       .order("created_at", { ascending: false })
 
@@ -56,7 +56,7 @@ router.post("/get", requireAuth, requireOrg, async (req: Request, res: Response)
 
     const { data, error } = await db()
       .from("grns")
-      .select("*, vendor:vendor_id(company_name), purchase_order:po_id(po_number), line_items:grn_line_items(*)")
+      .select("*, vendor:vendor_id(company_name), purchase_order:po_id(po_number), team:team_id(name), line_items:grn_line_items(*)")
       .eq("id", id)
       .eq("org_id", orgId)
       .single()
@@ -119,6 +119,12 @@ router.post("/create", requireAuth, requireOrg, async (req: Request, res: Respon
       }
     }
 
+    // team_id is denormalized forward from the PO (itself denormalized
+    // forward from the purchase request) at creation time, same as
+    // fulfillment_type is for POs -- optional, so a PO with no team simply
+    // yields a GRN with no team.
+    const { data: po } = await db().from("purchase_orders").select("po_number, team_id").eq("id", po_id).maybeSingle()
+
     const { data: grn, error: grnError } = await db()
       .from("grns")
       .insert({
@@ -127,6 +133,7 @@ router.post("/create", requireAuth, requireOrg, async (req: Request, res: Respon
         created_by,
         verified_by: verified_by ?? null,
         org_id:      orgId,
+        team_id:     po?.team_id ?? null,
         status: "pending_approval", // resolved to its real starting status just below
       })
       .select("id")
@@ -138,7 +145,6 @@ router.post("/create", requireAuth, requireOrg, async (req: Request, res: Respon
     // even submitted; Manager/Admin/solo-mode creators skip straight to
     // submitted, same as before this gate existed.
     const actorId = (req as AuthenticatedRequest).user.id
-    const { data: po } = await db().from("purchase_orders").select("po_number").eq("id", po_id).maybeSingle()
     const { gated } = await gateOnCreate({
       entityType: "grn",
       entityId: grnId,
@@ -180,7 +186,7 @@ router.post("/create", requireAuth, requireOrg, async (req: Request, res: Respon
 
     const { data: full, error: getError } = await db()
       .from("grns")
-      .select("*, vendor:vendor_id(company_name), purchase_order:po_id(po_number), line_items:grn_line_items(*)")
+      .select("*, vendor:vendor_id(company_name), purchase_order:po_id(po_number), team:team_id(name), line_items:grn_line_items(*)")
       .eq("id", grnId)
       .single()
     if (getError) throw getError

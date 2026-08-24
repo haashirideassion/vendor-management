@@ -64,7 +64,7 @@ router.post("/list", requireAuth, async (req: Request, res: Response) => {
     let query = db()
       .from("invoices")
       .select(
-        "*, vendor:vendor_id(company_name), purchase_order:po_id(po_number), grn:grn_id(grn_number), contract:contract_id(contract_ref, title), purchase_request:purchase_request_id(title)"
+        "*, vendor:vendor_id(company_name), purchase_order:po_id(po_number), grn:grn_id(grn_number), contract:contract_id(contract_ref, title), purchase_request:purchase_request_id(title), team:team_id(name)"
       )
       .order("created_at", { ascending: false })
 
@@ -117,7 +117,7 @@ router.post("/get", requireAuth, async (req: Request, res: Response) => {
     const { data, error } = await db()
       .from("invoices")
       .select(
-        "*, vendor:vendor_id(company_name), purchase_order:po_id(po_number), grn:grn_id(grn_number), contract:contract_id(contract_ref, title), purchase_request:purchase_request_id(title)"
+        "*, vendor:vendor_id(company_name), purchase_order:po_id(po_number), grn:grn_id(grn_number), contract:contract_id(contract_ref, title), purchase_request:purchase_request_id(title), team:team_id(name)"
       )
       .eq("id", id)
       .single()
@@ -225,12 +225,18 @@ router.post("/submit", requireAuth, async (req: Request, res: Response) => {
     }
 
     let orgId: string | null = null
+    // Resolved in the same branches as orgId, since Team is denormalized
+    // forward the same way (PO's team, or else the purchase request's own) --
+    // a contract-only invoice has no team concept and stays null.
+    let teamId: string | null = null
     if (po_id) {
-      const { data } = await db().from("purchase_orders").select("org_id").eq("id", po_id).maybeSingle()
+      const { data } = await db().from("purchase_orders").select("org_id, team_id").eq("id", po_id).maybeSingle()
       orgId = data?.org_id ?? null
+      teamId = data?.team_id ?? null
     } else if (purchase_request_id) {
-      const { data } = await db().from("purchase_requests").select("org_id").eq("id", purchase_request_id).maybeSingle()
+      const { data } = await db().from("purchase_requests").select("org_id, team_id").eq("id", purchase_request_id).maybeSingle()
       orgId = data?.org_id ?? null
+      teamId = data?.team_id ?? null
     } else if (contract_id) {
       const { data } = await db().from("contracts").select("org_id").eq("id", contract_id).maybeSingle()
       orgId = data?.org_id ?? null
@@ -257,6 +263,7 @@ router.post("/submit", requireAuth, async (req: Request, res: Response) => {
       invoice_date,
       submitted_by,
       org_id: orgId,
+      team_id: teamId,
       status: "submitted",
       match_status: "pending",
       exchange_rate_to_base: exchangeRateToBase,
@@ -323,7 +330,7 @@ router.post("/run-match", requireAuth, requireOrg, async (req: Request, res: Res
 
     const { data: existing, error: getError } = await db()
       .from("invoices")
-      .select("org_id")
+      .select("org_id, match_status, vendor_invoice_number")
       .eq("id", invoiceId)
       .maybeSingle()
     if (getError) throw getError
@@ -338,6 +345,27 @@ router.post("/run-match", requireAuth, requireOrg, async (req: Request, res: Res
     const { data, error } = await db().rpc("perform_three_way_match", { p_invoice_id: invoiceId })
 
     if (error) throw error
+
+    // Only notify on the transition INTO variance -- re-running the match
+    // while an exception is already open (e.g. someone re-checking after a
+    // partial fix) would otherwise re-notify Admin/Finance on every click.
+    if (existing.match_status !== "variance") {
+      const { data: rematched } = await db()
+        .from("invoices")
+        .select("match_status")
+        .eq("id", invoiceId)
+        .maybeSingle()
+
+      if (rematched?.match_status === "variance") {
+        const recipientIds = await findOrgRoleHolderIds(orgId, ["Admin", "Finance"])
+        await notifyUsers(recipientIds, {
+          type: "invoice_match_exception",
+          title: "Invoice Match Exception",
+          message: `Invoice ${existing.vendor_invoice_number} did not match its delivered quantities/amount within tolerance and needs review.`,
+          moduleReferenceId: invoiceId,
+        })
+      }
+    }
 
     res.json({ data })
   } catch (err: any) {

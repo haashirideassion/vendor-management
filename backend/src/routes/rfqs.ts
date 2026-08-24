@@ -47,7 +47,7 @@ router.post("/vendor-list", requireAuth, async (req: Request, res: Response) => 
     // approval, not ones still in draft/pending_approval.
     let query = db()
       .from("rfqs")
-      .select("*, purchase_request:purchase_request_id!inner(*, line_items:purchase_request_line_items(*)), vendor:vendor_id(company_name)")
+      .select("*, purchase_request:purchase_request_id!inner(*, line_items:purchase_request_line_items(*)), vendor:vendor_id(company_name), team:team_id(name)")
       .eq("vendor_id", vendorId)
       .eq("purchase_request.status", "approved")
       .order("created_at", { ascending: false })
@@ -71,7 +71,7 @@ router.post("/get", requireAuth, async (req: Request, res: Response) => {
 
     const { data, error } = await db()
       .from("rfqs")
-      .select("*, purchase_request:purchase_request_id(*, line_items:purchase_request_line_items(*)), vendor:vendor_id(company_name)")
+      .select("*, purchase_request:purchase_request_id(*, line_items:purchase_request_line_items(*)), vendor:vendor_id(company_name), team:team_id(name)")
       .eq("id", id)
       .single()
 
@@ -100,7 +100,7 @@ router.post("/by-purchase-request", requireAuth, async (req: Request, res: Respo
 
     let query = db()
       .from("rfqs")
-      .select("*, purchase_request:purchase_request_id!inner(*, line_items:purchase_request_line_items(*)), vendor:vendor_id(company_name)")
+      .select("*, purchase_request:purchase_request_id!inner(*, line_items:purchase_request_line_items(*)), vendor:vendor_id(company_name), team:team_id(name)")
       .eq("purchase_request_id", purchaseRequestId)
       .order("created_at", { ascending: false })
 

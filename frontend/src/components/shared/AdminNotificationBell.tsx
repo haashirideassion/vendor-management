@@ -34,6 +34,7 @@ function notificationMeta(type: Notification["type"]): {
       }
     case "new_invoice":
     case "invoice_status_update":
+    case "invoice_match_exception":
       return { icon: Invoice02Icon, href: (refId) => (refId ? `/admin/invoices/${refId}` : "/admin/invoices") }
     case "new_quotation":
       // No dedicated quotation detail page exists -- quotations are viewed
@@ -46,6 +47,7 @@ function notificationMeta(type: Notification["type"]): {
       return { icon: Briefcase01Icon, href: (refId) => (refId ? `/admin/grns/${refId}` : "/admin/grns") }
     case "purchase_request_pending_approval":
     case "purchase_request_decision":
+    case "rfq_raised":
       return { icon: Briefcase01Icon, href: (refId) => (refId ? `/admin/purchase-requests/${refId}` : "/admin/purchase-requests") }
     case "contract_pending_approval":
     case "contract_decision":

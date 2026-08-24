@@ -179,6 +179,10 @@ export function InvoiceDetail() {
                   <p className="font-medium">{invoice.vendor?.company_name ?? "—"}</p>
                 </div>
                 <div>
+                  <p className="text-xs text-muted-foreground mb-0.5">Team</p>
+                  <p className="font-medium">{invoice.team?.name ?? "—"}</p>
+                </div>
+                <div>
                   <p className="text-xs text-muted-foreground mb-0.5">Amount</p>
                   <p className="font-medium tabular-nums">{formatCurrency(invoice.total_amount, invoice.currency)}</p>
                   {invoice.match_variance !== null && invoice.match_variance !== 0 && (

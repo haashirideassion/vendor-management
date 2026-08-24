@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, Fragment } from "react"
 import { useParams, Link } from "react-router-dom"
 import { usePurchaseRequest, useUpdatePurchaseRequestStatus } from "@/hooks/usePurchaseRequests"
 import { usePurchaseOrders, useCreatePurchaseOrder } from "@/hooks/usePurchaseOrders"
@@ -7,7 +7,6 @@ import { usePurchaseRequestQuotations } from "@/hooks/useQuotations"
 import { usePermissions } from "@/hooks/usePermissions"
 import { useOrg } from "@/contexts/OrgContext"
 import { AttachmentList } from "@/components/shared/AttachmentList"
-import { CreatePODialog } from "@/components/shared/CreatePODialog"
 import { toast } from "sonner"
 import { AnimatedPage } from "@/components/shared/AnimatedPage"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -17,6 +16,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table"
+import { TaxComponentsDisplay } from "@/components/shared/TaxComponentsDisplay"
 import {
   PURCHASE_REQUEST_STATUS_LABELS,
   PURCHASE_REQUEST_STATUS_COLORS,
@@ -45,7 +46,6 @@ export function PurchaseRequestDetail() {
   const [notes, setNotes] = useState("")
   const [selectedItems, setSelectedItems] = useState<Map<string, SelectedItem>>(new Map())
   const [showPOConfirm, setShowPOConfirm] = useState(false)
-  const [poDialogOpen, setPoDialogOpen] = useState(false)
 
   const { data: purchaseRequest, isLoading } = usePurchaseRequest(id!)
   const { data: pos = [] } = usePurchaseOrders({ purchase_request_id: id })
@@ -72,6 +72,28 @@ export function PurchaseRequestDetail() {
   const blanketByVendor = new Map<string, typeof activeBlanketPOs[number]>()
   for (const bpo of activeBlanketPOs) {
     if (!blanketByVendor.has(bpo.vendor_id)) blanketByVendor.set(bpo.vendor_id, bpo)
+  }
+
+  // One column per vendor with a current quotation for this PR (quotations
+  // is already filtered to status=submitted && is_current=true server-side).
+  const vendorColumns = quotations.map((q) => ({ quotation: q, vendorId: q.vendor_id, vendorName: q.vendor?.company_name ?? "Vendor" }))
+
+  // The one line item (if any) from this vendor's quotation that was quoted
+  // against this specific PR line item -- matched by the stable FK, not by
+  // array position or description text, so it stays correct even if the
+  // vendor edited the description or reordered/removed rows.
+  function cellFor(prLineItemId: string, quot: (typeof quotations)[number]): QuotationLineItem | undefined {
+    return (quot.line_items ?? []).find((li) => li.purchase_request_line_item_id === prLineItemId)
+  }
+
+  // Every line item with no PR-line-item match -- both genuine ad-hoc rows a
+  // vendor added beyond the PR's own list, and (since there's no backfill)
+  // every line of a quotation submitted before this linkage existed. Shown
+  // separately rather than guessed into a PR line item row.
+  const additionalItemsByVendor = new Map<string, { quotation: (typeof quotations)[number]; items: QuotationLineItem[] }>()
+  for (const quot of quotations) {
+    const extras = (quot.line_items ?? []).filter((li) => li.purchase_request_line_item_id == null)
+    if (extras.length > 0) additionalItemsByVendor.set(quot.vendor_id, { quotation: quot, items: extras })
   }
 
   function toggleLineItem(lineItemId: string, item: SelectedItem) {
@@ -223,12 +245,6 @@ export function PurchaseRequestDetail() {
               </Button>
             </>
           )}
-          {status === "approved" && (
-            <Button size="sm" variant="outline" onClick={() => setPoDialogOpen(true)}>
-              <SolarDuotoneIcon icon={Add01Icon} size={14} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" className="mr-1.5" />
-              Issue PO
-            </Button>
-          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -248,6 +264,10 @@ export function PurchaseRequestDetail() {
                 <div>
                   <p className="text-xs text-muted-foreground mb-0.5">Category</p>
                   <p className="font-medium">{purchaseRequest.category?.name ?? "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-0.5">Team</p>
+                  <p className="font-medium">{purchaseRequest.team?.name ?? "—"}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground mb-0.5">Estimated Value</p>
@@ -410,79 +430,178 @@ export function PurchaseRequestDetail() {
               </div>
             )}
 
-            {quotations.map((quot) => (
-              <Card key={quot.id}>
+            {/* Vendor statuses -- the grid below focuses on rate comparison, so
+                each vendor's quotation number/status is called out here once. */}
+            <div className="flex flex-wrap gap-2">
+              {vendorColumns.map(({ quotation, vendorId, vendorName }) => (
+                <div key={vendorId} className="flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs">
+                  <span className="font-medium">{vendorName}</span>
+                  <span className="font-mono text-muted-foreground">{quotation.quot_number}</span>
+                  <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 font-medium border ${QUOTATION_STATUS_COLORS[quotation.status as QuotationStatus]}`}>
+                    {QUOTATION_STATUS_LABELS[quotation.status as QuotationStatus]}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {/* Line-item-by-vendor comparison: rows are the PR's own line
+                items (so a zero-quote item still shows), columns are vendors. */}
+            <Card>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead rowSpan={2} className="sticky left-0 bg-background z-10 border-r align-middle">Item</TableHead>
+                      {vendorColumns.map(({ vendorId, vendorName }) => (
+                        <TableHead key={vendorId} colSpan={4} className="text-center border-l">
+                          {vendorName}
+                        </TableHead>
+                      ))}
+                    </TableRow>
+                    <TableRow>
+                      {vendorColumns.map(({ vendorId }) => (
+                        <Fragment key={vendorId}>
+                          <TableHead className="border-l text-right">Rate</TableHead>
+                          <TableHead className="text-right">Tax</TableHead>
+                          <TableHead className="text-right">Total</TableHead>
+                          <TableHead className="w-8" />
+                        </Fragment>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(purchaseRequest.line_items ?? []).map((prLi) => (
+                      <TableRow key={prLi.id}>
+                        <TableCell className="sticky left-0 bg-background z-10 border-r align-middle whitespace-normal max-w-xs">
+                          {prLi.description}
+                          <div className="text-xs text-muted-foreground">Qty {prLi.quantity}{prLi.unit ? ` ${prLi.unit}` : ""}</div>
+                        </TableCell>
+                        {vendorColumns.map(({ quotation, vendorId }) => {
+                          const cell = cellFor(prLi.id, quotation)
+                          if (!cell) {
+                            return (
+                              <TableCell key={vendorId} colSpan={4} className="border-l text-center text-muted-foreground text-xs">
+                                Not quoted
+                              </TableCell>
+                            )
+                          }
+                          if (cell.availability_status === "not_available") {
+                            return (
+                              <TableCell key={vendorId} colSpan={4} className="border-l text-center text-muted-foreground italic text-xs">
+                                Not available
+                              </TableCell>
+                            )
+                          }
+                          return (
+                            <Fragment key={vendorId}>
+                              <TableCell className="border-l text-right tabular-nums">
+                                {formatCurrency(cell.unit_price ?? 0, purchaseRequest.currency)}
+                                {cell.availability_status === "partially_available" && (
+                                  <span className="ml-1 text-[10px] font-medium text-amber-700">(Partial)</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <TaxComponentsDisplay taxRate={cell.tax_rate} components={cell.tax_components} />
+                              </TableCell>
+                              <TableCell className="text-right font-medium tabular-nums">
+                                {formatCurrency(cell.total, purchaseRequest.currency)}
+                              </TableCell>
+                              <TableCell>
+                                <Checkbox
+                                  checked={selectedItems.has(cell.id)}
+                                  disabled={posSent}
+                                  onCheckedChange={() => toggleLineItem(cell.id, {
+                                    quotation_id: quotation.id,
+                                    vendor_id: vendorId,
+                                    line: cell,
+                                  })}
+                                />
+                              </TableCell>
+                            </Fragment>
+                          )
+                        })}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+
+            {/* Extra items a vendor quoted beyond the PR's own line items, plus
+                (since there's no way to retroactively link them) every line of
+                a quotation submitted before this comparison table existed. */}
+            {additionalItemsByVendor.size > 0 && (
+              <Card>
                 <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-sm font-semibold">{quot.vendor?.company_name ?? "Vendor"}</CardTitle>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs text-muted-foreground">{quot.quot_number}</span>
-                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border ${QUOTATION_STATUS_COLORS[quot.status as QuotationStatus]}`}>
-                        {QUOTATION_STATUS_LABELS[quot.status as QuotationStatus]}
-                      </span>
-                    </div>
-                  </div>
+                  <CardTitle className="text-sm font-semibold">Additional Items Quoted</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-3">
-                  {quot.notes && <p className="text-sm text-muted-foreground">{quot.notes}</p>}
-                  {(quot.line_items ?? []).length > 0 && (
-                    <div className="space-y-1">
-                      <div className="grid grid-cols-12 gap-2 text-xs text-muted-foreground font-medium px-1 pb-1">
-                        <span className="col-span-1" />
-                        <span className="col-span-4">Description</span>
-                        <span className="col-span-2 text-right">Qty</span>
-                        <span className="col-span-2 text-right">Rate</span>
-                        <span className="col-span-1 text-right">Tax</span>
-                        <span className="col-span-2 text-right">Total</span>
-                      </div>
-                      {(quot.line_items ?? []).map((li) => {
-                        const notAvailable = li.availability_status === "not_available"
-                        return (
-                        <div key={li.id} className="grid grid-cols-12 gap-2 items-center py-1 border-b border-border/50 text-sm">
-                          <div className="col-span-1 flex justify-center">
-                            <Checkbox
-                              checked={selectedItems.has(li.id)}
-                              disabled={posSent || notAvailable}
-                              onCheckedChange={() => toggleLineItem(li.id, {
-                                quotation_id: quot.id,
-                                vendor_id: quot.vendor_id,
-                                line: li,
-                              })}
-                            />
-                          </div>
-                          <div className="col-span-4">
-                            {li.description}
-                            {li.availability_status === "partially_available" && (
-                              <span className="ml-1.5 text-xs font-medium text-amber-700">(Partial)</span>
+                <CardContent className="space-y-4">
+                  {Array.from(additionalItemsByVendor.entries()).map(([vendorId, { quotation, items }]) => (
+                    <div key={vendorId}>
+                      <p className="text-xs font-medium text-muted-foreground mb-1">{quotation.vendor?.company_name ?? "Vendor"}</p>
+                      <div className="space-y-1">
+                        <div className="grid grid-cols-12 gap-2 text-xs text-muted-foreground font-medium px-1 pb-1">
+                          <span className="col-span-1" />
+                          <span className="col-span-4">Description</span>
+                          <span className="col-span-2 text-right">Qty</span>
+                          <span className="col-span-2 text-right">Rate</span>
+                          <span className="col-span-1 text-right">Tax</span>
+                          <span className="col-span-2 text-right">Total</span>
+                        </div>
+                        {items.map((li) => {
+                          const notAvailable = li.availability_status === "not_available"
+                          return (
+                          <div key={li.id} className="grid grid-cols-12 gap-2 items-center py-1 border-b border-border/50 text-sm">
+                            <div className="col-span-1 flex justify-center">
+                              <Checkbox
+                                checked={selectedItems.has(li.id)}
+                                disabled={posSent || notAvailable}
+                                onCheckedChange={() => toggleLineItem(li.id, {
+                                  quotation_id: quotation.id,
+                                  vendor_id: vendorId,
+                                  line: li,
+                                })}
+                              />
+                            </div>
+                            <div className="col-span-4">
+                              {li.description}
+                              {li.availability_status === "partially_available" && (
+                                <span className="ml-1.5 text-xs font-medium text-amber-700">(Partial)</span>
+                              )}
+                            </div>
+                            {notAvailable ? (
+                              <div className="col-span-6 text-right text-muted-foreground italic">Not Available</div>
+                            ) : (
+                              <>
+                                <div className="col-span-2 text-right tabular-nums">{li.quantity}</div>
+                                <div className="col-span-2 text-right tabular-nums">{formatCurrency(li.unit_price ?? 0, purchaseRequest.currency)}</div>
+                                <div
+                                  className="col-span-1 text-right text-muted-foreground"
+                                  title={li.tax_components && li.tax_components.length > 0 ? li.tax_components.map((c) => `${c.name} ${c.rate}%`).join(" + ") : undefined}
+                                >
+                                  {li.tax_rate}%
+                                </div>
+                                <div className="col-span-2 text-right font-medium tabular-nums">{formatCurrency(li.total, purchaseRequest.currency)}</div>
+                              </>
                             )}
                           </div>
-                          {notAvailable ? (
-                            <div className="col-span-6 text-right text-muted-foreground italic">Not Available</div>
-                          ) : (
-                            <>
-                              <div className="col-span-2 text-right tabular-nums">{li.quantity}</div>
-                              <div className="col-span-2 text-right tabular-nums">{formatCurrency(li.unit_price ?? 0, purchaseRequest.currency)}</div>
-                              <div
-                                className="col-span-1 text-right text-muted-foreground"
-                                title={li.tax_components && li.tax_components.length > 0 ? li.tax_components.map((c) => `${c.name} ${c.rate}%`).join(" + ") : undefined}
-                              >
-                                {li.tax_rate}%
-                              </div>
-                              <div className="col-span-2 text-right font-medium tabular-nums">{formatCurrency(li.total, purchaseRequest.currency)}</div>
-                            </>
-                          )}
-                        </div>
-                      )})}
+                        )})}
+                      </div>
                     </div>
-                  )}
-                  {quot.total_amount != null && (
-                    <div className="flex justify-end pt-1">
-                      <p className="text-sm font-semibold">Total: {formatCurrency(quot.total_amount, purchaseRequest.currency)}</p>
-                    </div>
-                  )}
+                  ))}
                 </CardContent>
               </Card>
-            ))}
+            )}
+
+            {/* Vendor totals */}
+            <div className="flex flex-wrap justify-end gap-x-6 gap-y-1">
+              {vendorColumns.filter(({ quotation }) => quotation.total_amount != null).map(({ quotation, vendorId, vendorName }) => (
+                <p key={vendorId} className="text-sm">
+                  <span className="text-muted-foreground">{vendorName} Total: </span>
+                  <span className="font-semibold">{formatCurrency(quotation.total_amount!, purchaseRequest.currency)}</span>
+                </p>
+              ))}
+            </div>
           </div>
         )}
 
@@ -571,16 +690,6 @@ export function PurchaseRequestDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <CreatePODialog
-        open={poDialogOpen}
-        onOpenChange={setPoDialogOpen}
-        defaultPurchaseRequestId={id}
-        defaultVendors={(purchaseRequest?.purchase_request_vendors ?? [])
-          .map(prv => prv.vendor)
-          .filter((v): v is { id: string; company_name: string } => v != null)}
-        defaultLineItems={purchaseRequest?.line_items ?? []}
-        currency={purchaseRequest?.currency}
-      />
     </AnimatedPage>
   )
 }

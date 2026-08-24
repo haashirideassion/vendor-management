@@ -172,6 +172,10 @@ export function ServiceConfirmationDetail() {
                   )}
                 </div>
                 <div>
+                  <p className="text-xs text-muted-foreground mb-0.5">Team</p>
+                  <p className="font-medium">{sc.team?.name ?? "—"}</p>
+                </div>
+                <div>
                   <p className="text-xs text-muted-foreground mb-0.5">Confirmed Date</p>
                   <p className="font-medium">{format(new Date(sc.confirmed_date), "dd MMM yyyy")}</p>
                 </div>

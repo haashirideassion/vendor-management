@@ -181,7 +181,11 @@ function normalizeLineItem(item: any) {
     throw new Error(`Invalid availability_status: ${availability}`)
   }
   if (availability === "not_available") {
-    return { availability_status: availability, quantity: null, unit_price: null, tax_rate: null, tax_components: undefined as TaxComponentInput[] | undefined }
+    return {
+      availability_status: availability, quantity: null, unit_price: null, tax_rate: null,
+      tax_components: undefined as TaxComponentInput[] | undefined,
+      purchase_request_line_item_id: item.purchase_request_line_item_id ?? null,
+    }
   }
   if (item.quantity === undefined || item.quantity === null || Number(item.quantity) <= 0) {
     throw new Error("quantity must be greater than 0 for an available/partially available line")
@@ -198,6 +202,7 @@ function normalizeLineItem(item: any) {
     unit_price: item.unit_price,
     tax_rate:   sumTaxComponents(taxComponents, item.tax_rate ?? null),
     tax_components: taxComponents,
+    purchase_request_line_item_id: item.purchase_request_line_item_id ?? null,
   }
 }
 
@@ -323,6 +328,7 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
             unit_price:   item.unit_price,
             tax_rate:     item.tax_rate,
             remarks:      line_items[idx].remarks ?? null,
+            purchase_request_line_item_id: item.purchase_request_line_item_id,
           }))
         )
         .select("id")

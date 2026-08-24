@@ -3,7 +3,7 @@ import { getSupabaseAdmin } from "../utils/supabaseAdmin"
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth"
 import { requireOrg, OrgScopedRequest, resolveListScope } from "../middleware/org"
 import { writeAudit, resolveActingAs } from "../services/audit"
-import { gateOnCreate, isManagerOrAdmin } from "../services/approvalGate"
+import { gateOnCreate, isManagerOrAdmin, findOrgRoleHolderIds, findActiveVendorUserIds, notifyUsers } from "../services/approvalGate"
 import { resolveExchangeRateToBase } from "../services/exchangeRates.service"
 
 const router = Router()
@@ -22,7 +22,7 @@ router.post("/list", requireAuth, async (req: Request, res: Response) => {
     let query = db()
       .from("purchase_requests")
       .select(
-        "*, vendor:vendor_id(company_name, contact_name), category:category_id(name), creator:created_by(full_name, email), line_items:purchase_request_line_items(*), purchase_request_vendors(vendor:vendor_id(id, company_name))"
+        "*, vendor:vendor_id(company_name, contact_name), category:category_id(name), team:team_id(name), creator:created_by(full_name, email), line_items:purchase_request_line_items(*), purchase_request_vendors(vendor:vendor_id(id, company_name))"
       )
       .order("created_at", { ascending: false })
 
@@ -74,7 +74,7 @@ router.post("/get", requireAuth, async (req: Request, res: Response) => {
     const { data, error } = await db()
       .from("purchase_requests")
       .select(
-        "*, vendor:vendor_id(company_name, contact_name), category:category_id(name), creator:created_by(full_name, email), line_items:purchase_request_line_items(*), purchase_request_vendors(vendor:vendor_id(id, company_name))"
+        "*, vendor:vendor_id(company_name, contact_name), category:category_id(name), team:team_id(name), creator:created_by(full_name, email), line_items:purchase_request_line_items(*), purchase_request_vendors(vendor:vendor_id(id, company_name))"
       )
       .eq("id", id)
       .single()
@@ -113,6 +113,7 @@ router.post("/create", requireAuth, requireOrg, async (req: Request, res: Respon
       line_items,
       created_by,
       response_deadline,
+      team_id,
     } = req.body
     const { orgId } = req as OrgScopedRequest
 
@@ -181,6 +182,24 @@ router.post("/create", requireAuth, requireOrg, async (req: Request, res: Respon
       }
     }
 
+    // Team is optional -- re-validated server-side the same way vendor_ids
+    // is above, so a stale client selection or a direct API call can't tag
+    // a purchase request with another org's team (or an inactive one).
+    if (team_id) {
+      const { data: team, error: teamError } = await db()
+        .from("teams")
+        .select("id")
+        .eq("id", team_id)
+        .eq("scope", "org")
+        .eq("org_id", orgId)
+        .eq("active", true)
+        .maybeSingle()
+      if (teamError) throw teamError
+      if (!team) {
+        return res.status(400).json({ error: "Selected team is not valid for this organization", code: "TEAM_NOT_FOUND" })
+      }
+    }
+
     // Snapshotted at creation time (not re-derived later) so historical
     // reporting stays accurate even as rates move -- same rate is reused
     // below for the approval-gate threshold comparison rather than fetched
@@ -211,6 +230,7 @@ router.post("/create", requireAuth, requireOrg, async (req: Request, res: Respon
       p_org_id: orgId,
       p_response_deadline: response_deadline || null,
       p_exchange_rate_to_base: exchangeRateToBase,
+      p_team_id: team_id || null,
     })
     if (rpcError) throw rpcError
 
@@ -242,7 +262,7 @@ router.post("/create", requireAuth, requireOrg, async (req: Request, res: Respon
     // Fetch full purchase request for response
     const { data: full, error: getError } = await db()
       .from("purchase_requests")
-      .select("*, category:category_id(name), creator:created_by(full_name, email), line_items:purchase_request_line_items(*), purchase_request_vendors(vendor:vendor_id(id, company_name))")
+      .select("*, category:category_id(name), team:team_id(name), creator:created_by(full_name, email), line_items:purchase_request_line_items(*), purchase_request_vendors(vendor:vendor_id(id, company_name))")
       .eq("id", prId)
       .single()
     if (getError) throw getError
@@ -256,6 +276,37 @@ router.post("/create", requireAuth, requireOrg, async (req: Request, res: Respon
       orgId,
       actingAs: (req as OrgScopedRequest).orgAccess === "group_admin" ? "group_admin" : null,
     })
+
+    if (vendor_ids.length > 0) {
+      // Org-side: an RFQ round went out for this purchase request -- Manager/
+      // Admin should hear about it even if they weren't the one who clicked
+      // "create" (e.g. an Associate's request that self-approved because
+      // no threshold was configured for their role).
+      const orgRecipientIds = (await findOrgRoleHolderIds(orgId, ["Manager", "Admin"])).filter((rid) => rid !== actorId)
+      await notifyUsers(orgRecipientIds, {
+        type: "rfq_raised",
+        title: "RFQ Raised",
+        message: `An RFQ was raised against "${title}" for ${vendor_ids.length} vendor${vendor_ids.length !== 1 ? "s" : ""}.`,
+        moduleReferenceId: prId,
+      })
+
+      // Vendor-side: only once the purchase request is actually 'approved' --
+      // rfqs.ts's /vendor-list and /by-purchase-request both hide a vendor's
+      // own RFQ until then, so notifying earlier would link to something the
+      // vendor can't yet open. When gated, this fires instead from
+      // /api/approvals/review once a Manager/Admin approves it.
+      if (!gated) {
+        for (const vendorId of vendor_ids) {
+          const vendorRecipients = await findActiveVendorUserIds(vendorId)
+          await notifyUsers(vendorRecipients, {
+            type: "rfq_invited",
+            title: "New Purchase Request Invitation",
+            message: `You've been invited to submit a quotation for "${title}".`,
+            moduleReferenceId: prId,
+          })
+        }
+      }
+    }
 
     res.json({ data: full })
   } catch (err: any) {

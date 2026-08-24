@@ -210,6 +210,10 @@ export function PurchaseOrderDetail() {
                   <p className="font-medium">{po.vendor?.company_name ?? "—"}</p>
                 </div>
                 <div>
+                  <p className="text-xs text-muted-foreground mb-0.5">Team</p>
+                  <p className="font-medium">{po.team?.name ?? "—"}</p>
+                </div>
+                <div>
                   <p className="text-xs text-muted-foreground mb-0.5">{isBlanket ? "Authorized Amount" : "Total Value"}</p>
                   <p className="font-medium tabular-nums">{formatCurrency(po.total_value, po.currency)}</p>
                 </div>

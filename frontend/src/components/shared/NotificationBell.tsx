@@ -21,6 +21,7 @@ function notificationHref(type: Notification["type"]): string {
   switch (type) {
     case "invoice_status_update": return "/vendor/invoices"
     case "grn_decision": return "/vendor/purchase-orders"
+    case "rfq_invited": return "/vendor/rfqs"
     default: return "/vendor/dashboard"
   }
 }

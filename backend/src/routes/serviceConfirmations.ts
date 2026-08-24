@@ -35,7 +35,7 @@ router.post("/list", requireAuth, requireOrg, async (req: Request, res: Response
 
     let query = db()
       .from("service_confirmations")
-      .select("*, vendor:vendor_id(company_name), purchase_order:po_id(po_number), line_items:service_confirmation_line_items(*)")
+      .select("*, vendor:vendor_id(company_name), purchase_order:po_id(po_number), team:team_id(name), line_items:service_confirmation_line_items(*)")
       .eq("org_id", orgId)
       .order("created_at", { ascending: false })
 
@@ -61,7 +61,7 @@ router.post("/get", requireAuth, requireOrg, async (req: Request, res: Response)
 
     const { data, error } = await db()
       .from("service_confirmations")
-      .select("*, vendor:vendor_id(company_name), purchase_order:po_id(po_number), line_items:service_confirmation_line_items(*)")
+      .select("*, vendor:vendor_id(company_name), purchase_order:po_id(po_number), team:team_id(name), line_items:service_confirmation_line_items(*)")
       .eq("id", id)
       .eq("org_id", orgId)
       .single()
@@ -124,6 +124,11 @@ router.post("/create", requireAuth, requireOrg, async (req: Request, res: Respon
       }
     }
 
+    // team_id is denormalized forward from the PO at creation time, same as
+    // for GRNs -- optional, so a PO with no team simply yields a Service
+    // Confirmation with no team.
+    const { data: po } = await db().from("purchase_orders").select("po_number, team_id").eq("id", po_id).maybeSingle()
+
     const { data: sc, error: scError } = await db()
       .from("service_confirmations")
       .insert({
@@ -132,6 +137,7 @@ router.post("/create", requireAuth, requireOrg, async (req: Request, res: Respon
         created_by,
         verified_by: verified_by ?? null,
         org_id:      orgId,
+        team_id:     po?.team_id ?? null,
         status: "pending_approval", // resolved to its real starting status just below
       })
       .select("id")
@@ -143,7 +149,6 @@ router.post("/create", requireAuth, requireOrg, async (req: Request, res: Respon
     // confirmation is even submitted; Manager/Admin/solo-mode creators skip
     // straight to submitted, same as before this gate existed (GRN).
     const actorId = (req as AuthenticatedRequest).user.id
-    const { data: po } = await db().from("purchase_orders").select("po_number").eq("id", po_id).maybeSingle()
     const { gated } = await gateOnCreate({
       entityType: "service_confirmation",
       entityId: scId,
@@ -185,7 +190,7 @@ router.post("/create", requireAuth, requireOrg, async (req: Request, res: Respon
 
     const { data: full, error: getError } = await db()
       .from("service_confirmations")
-      .select("*, vendor:vendor_id(company_name), purchase_order:po_id(po_number), line_items:service_confirmation_line_items(*)")
+      .select("*, vendor:vendor_id(company_name), purchase_order:po_id(po_number), team:team_id(name), line_items:service_confirmation_line_items(*)")
       .eq("id", scId)
       .single()
     if (getError) throw getError

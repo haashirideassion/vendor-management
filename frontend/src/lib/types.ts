@@ -356,10 +356,12 @@ export interface RFQ {
   created_at: string
   updated_at: string
   response_deadline: string | null
+  team_id: string | null
   purchase_request?: Pick<PurchaseRequest, "title" | "description" | "start_date" | "end_date" | "estimated_value" | "currency"> & {
     line_items?: PurchaseRequestLineItem[]
   }
   vendor?: Pick<Vendor, "company_name">
+  team?: { name: string }
 }
 
 // Manual, named tax breakdown for a line item (e.g. CGST 9% + SGST 9%
@@ -389,6 +391,7 @@ export interface QuotationLineItem {
   total: number
   remarks: string | null
   created_at: string
+  purchase_request_line_item_id: string | null
 }
 
 export interface Quotation {
@@ -432,11 +435,13 @@ export interface PurchaseRequest {
   created_at: string
   updated_at: string
   contract_id: string | null
+  team_id: string | null
   // joined
   vendor?: Pick<Vendor, "company_name" | "contact_name">
   category?: Pick<ServiceCategory, "name">
   creator?: Pick<Profile, "full_name" | "email">
   contract?: Pick<Contract, "contract_ref" | "title">
+  team?: { name: string }
   line_items?: PurchaseRequestLineItem[]
   purchase_request_vendors?: { vendor: { id: string; company_name: string } | null }[]
 }
@@ -467,11 +472,13 @@ export interface PurchaseOrder {
   parent_po_id: string | null
   valid_from: string | null
   valid_until: string | null
+  team_id: string | null
   // joined
   vendor?: Pick<Vendor, "company_name" | "contact_name">
   purchase_request?: Pick<PurchaseRequest, "title">
   contract?: Pick<Contract, "contract_ref" | "title">
   parent_po?: Pick<PurchaseOrder, "po_number" | "total_value">
+  team?: { name: string }
   line_items?: POLineItem[]
 }
 
@@ -500,9 +507,11 @@ export interface GRN {
   verified_at: string | null
   created_at: string
   updated_at: string
+  team_id: string | null
   // joined
   vendor?: Pick<Vendor, "company_name">
   purchase_order?: Pick<PurchaseOrder, "po_number">
+  team?: { name: string }
   line_items?: GRNLineItem[]
 }
 
@@ -535,9 +544,11 @@ export interface ServiceConfirmation {
   verified_at: string | null
   created_at: string
   updated_at: string
+  team_id: string | null
   // joined
   vendor?: Pick<Vendor, "company_name">
   purchase_order?: Pick<PurchaseOrder, "po_number">
+  team?: { name: string }
   line_items?: ServiceConfirmationLineItem[]
 }
 
@@ -580,6 +591,7 @@ export interface Invoice {
   paid_at: string | null
   created_at: string
   updated_at: string
+  team_id: string | null
   // joined
   vendor?: Pick<Vendor, "company_name">
   purchase_order?: Pick<PurchaseOrder, "po_number">
@@ -590,6 +602,7 @@ export interface Invoice {
   grns?: { id: string; grn_number: string | null }[]
   contract?: Pick<Contract, "contract_ref" | "title">
   purchase_request?: Pick<PurchaseRequest, "title">
+  team?: { name: string }
 }
 
 // ─── Payments ────────────────────────────────────────────────────────────────
@@ -773,6 +786,8 @@ export type NotificationType =
   | "grn_pending_approval" | "purchase_request_pending_approval" | "contract_pending_approval" | "category_pending_approval"
   | "grn_decision" | "purchase_request_decision" | "contract_decision" | "category_decision"
   | "invoice_status_update"
+  | "invoice_match_exception"
+  | "rfq_raised" | "rfq_invited"
 
 export interface Notification {
   id: string

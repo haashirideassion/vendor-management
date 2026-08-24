@@ -2,7 +2,7 @@ import { Router, Request, Response } from "express"
 import { getSupabaseAdmin } from "../utils/supabaseAdmin"
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth"
 import { requireOrg, OrgScopedRequest } from "../middleware/org"
-import { isManagerOrAdmin, notifyUsers } from "../services/approvalGate"
+import { isManagerOrAdmin, notifyUsers, findActiveVendorUserIds } from "../services/approvalGate"
 
 const ENTITY_LABELS: Record<string, string> = {
   grn: "GRN",
@@ -151,6 +151,24 @@ router.post("/review", requireAuth, async (req: Request, res: Response) => {
         message: notes ? `Your ${label} was ${status}: ${notes}` : `Your ${label} was ${status}.`,
         moduleReferenceId: data.entity_id,
       })
+    }
+
+    // A gated purchase request's invited vendors couldn't be notified at
+    // creation time (their RFQ was invisible to them until now -- see
+    // purchaseRequests.ts/create) -- tell them the moment it clears approval.
+    if (data.entity_type === "purchase_request" && status === "approved") {
+      const { data: pr } = await db().from("purchase_requests").select("title").eq("id", data.entity_id).maybeSingle()
+      const { data: invited } = await db().from("purchase_request_vendors").select("vendor_id").eq("purchase_request_id", data.entity_id)
+
+      for (const { vendor_id: vendorId } of invited ?? []) {
+        const vendorRecipients = await findActiveVendorUserIds(vendorId)
+        await notifyUsers(vendorRecipients, {
+          type: "rfq_invited",
+          title: "New Purchase Request Invitation",
+          message: `You've been invited to submit a quotation for "${pr?.title ?? "a purchase request"}".`,
+          moduleReferenceId: data.entity_id,
+        })
+      }
     }
 
     return res.json({ data })

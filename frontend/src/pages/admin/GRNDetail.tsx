@@ -172,6 +172,10 @@ export function GRNDetail() {
                   )}
                 </div>
                 <div>
+                  <p className="text-xs text-muted-foreground mb-0.5">Team</p>
+                  <p className="font-medium">{grn.team?.name ?? "—"}</p>
+                </div>
+                <div>
                   <p className="text-xs text-muted-foreground mb-0.5">Received Date</p>
                   <p className="font-medium">{format(new Date(grn.received_date), "dd MMM yyyy")}</p>
                 </div>

@@ -66,7 +66,7 @@ router.post("/list", requireAuth, async (req: Request, res: Response) => {
     let query = db()
       .from("purchase_orders")
       .select(
-        "*, vendor:vendor_id(company_name, contact_name), purchase_request:purchase_request_id(title), parent_po:parent_po_id(po_number, total_value), line_items:po_line_items(*)"
+        "*, vendor:vendor_id(company_name, contact_name), purchase_request:purchase_request_id(title), parent_po:parent_po_id(po_number, total_value), team:team_id(name), line_items:po_line_items(*)"
       )
       .order("created_at", { ascending: false })
 
@@ -108,7 +108,7 @@ router.post("/get", requireAuth, async (req: Request, res: Response) => {
     const { data, error } = await db()
       .from("purchase_orders")
       .select(
-        "*, vendor:vendor_id(company_name, contact_name), purchase_request:purchase_request_id(title), parent_po:parent_po_id(po_number, total_value), line_items:po_line_items(*)"
+        "*, vendor:vendor_id(company_name, contact_name), purchase_request:purchase_request_id(title), parent_po:parent_po_id(po_number, total_value), team:team_id(name), line_items:po_line_items(*)"
       )
       .eq("id", id)
       .single()
@@ -221,13 +221,18 @@ router.post("/create", requireAuth, requireOrg, async (req: Request, res: Respon
     // reclassification doesn't retroactively change how an already-issued
     // PO is handled.
     let fulfillmentType = "service"
+    // Team is likewise denormalized forward from the purchase request at
+    // creation time, in this same lookup -- optional, so a contract-only PO
+    // with no purchase_request_id simply gets team_id = null.
+    let teamId: string | null = null
     if (purchase_request_id) {
       const { data: pr } = await db()
         .from("purchase_requests")
-        .select("category:category_id(fulfillment_type)")
+        .select("team_id, category:category_id(fulfillment_type)")
         .eq("id", purchase_request_id)
         .maybeSingle()
       if (pr?.category?.fulfillment_type) fulfillmentType = pr.category.fulfillment_type
+      teamId = pr?.team_id ?? null
     }
 
     // Snapshotted at creation time -- reused below for the audit trail; no
@@ -256,6 +261,7 @@ router.post("/create", requireAuth, requireOrg, async (req: Request, res: Respon
         org_id:                 orgId,
         status: poStatus,
         fulfillment_type: fulfillmentType,
+        team_id: teamId,
         po_type:      poType,
         parent_po_id: poType === "release" ? parent_po_id : null,
         valid_from:   poType === "blanket" ? (valid_from  ?? null) : null,
@@ -293,7 +299,7 @@ router.post("/create", requireAuth, requireOrg, async (req: Request, res: Respon
 
     const { data: full, error: getError } = await db()
       .from("purchase_orders")
-      .select("*, vendor:vendor_id(company_name, contact_name), purchase_request:purchase_request_id(title), parent_po:parent_po_id(po_number, total_value), line_items:po_line_items(*)")
+      .select("*, vendor:vendor_id(company_name, contact_name), purchase_request:purchase_request_id(title), parent_po:parent_po_id(po_number, total_value), team:team_id(name), line_items:po_line_items(*)")
       .eq("id", poId)
       .single()
     if (getError) throw getError

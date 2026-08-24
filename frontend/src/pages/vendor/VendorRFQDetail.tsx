@@ -32,6 +32,7 @@ import { TaxComponentsField } from "@/components/shared/TaxComponentsField"
 import { toast } from "sonner"
 
 const lineItemSchema = z.object({
+  purchase_request_line_item_id: z.string().nullable().optional(),
   description: z.string().min(1, "Required"),
   availability_status: z.enum(["available", "partially_available", "not_available"]).default("available"),
   quantity:    z.coerce.number().optional().nullable(),
@@ -96,6 +97,12 @@ export function VendorRFQDetail() {
   })
   const { fields, append, remove } = useFieldArray({ control: form.control, name: "line_items" })
 
+  // Keyed by the PR line item's own id (not array index) so this stays
+  // correct even after a row's description is edited or rows are
+  // added/removed -- an ad-hoc row (no matching PR line item) simply
+  // has no entry here.
+  const prLineItemsById = new Map((rfq?.purchase_request?.line_items ?? []).map((li) => [li.id, li]))
+
   useEffect(() => {
     if (!showQuotationDialog) return
     // An existing draft (created earlier via Save Draft, or sent back by the
@@ -105,6 +112,7 @@ export function VendorRFQDetail() {
     // vendor had already entered every time "Edit Quotation" was reopened.
     const seed = quotation?.line_items && quotation.line_items.length > 0
       ? quotation.line_items.map((li) => ({
+          purchase_request_line_item_id: li.purchase_request_line_item_id ?? null,
           description: li.description,
           availability_status: li.availability_status ?? "available",
           quantity:    li.quantity,
@@ -114,6 +122,7 @@ export function VendorRFQDetail() {
           remarks:     li.remarks ?? "",
         }))
       : (rfq?.purchase_request?.line_items ?? []).map((li) => ({
+          purchase_request_line_item_id: li.id,
           description: li.description,
           availability_status: "available" as const,
           quantity:    li.quantity,
@@ -270,6 +279,12 @@ export function VendorRFQDetail() {
                 <p className="text-xs text-muted-foreground mb-0.5">RFQ Received</p>
                 <p className="font-medium">{format(new Date(rfq.created_at), "dd MMM yyyy")}</p>
               </div>
+              {rfq.team?.name && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-0.5">Team</p>
+                  <p className="font-medium">{rfq.team.name}</p>
+                </div>
+              )}
               {rfq.response_deadline && (
                 <div>
                   <p className="text-xs text-muted-foreground mb-0.5">Response Deadline</p>
@@ -415,7 +430,7 @@ export function VendorRFQDetail() {
                     size="sm"
                     variant="outline"
                     className="h-7 text-xs gap-1"
-                    onClick={() => append({ description: "", availability_status: "available", quantity: 1, unit_price: 0, tax_rate: 0, tax_components: [], remarks: "" })}
+                    onClick={() => append({ purchase_request_line_item_id: null, description: "", availability_status: "available", quantity: 1, unit_price: 0, tax_rate: 0, tax_components: [], remarks: "" })}
                   >
                     <SolarDuotoneIcon icon={Add01Icon} size={12} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" />
                     Add Row
@@ -425,6 +440,8 @@ export function VendorRFQDetail() {
                   {fields.map((field, i) => {
                     const availability = form.watch(`line_items.${i}.availability_status`)
                     const notAvailable = availability === "not_available"
+                    const prLineItemId = form.watch(`line_items.${i}.purchase_request_line_item_id`)
+                    const orgLineItem = prLineItemId ? prLineItemsById.get(prLineItemId) : undefined
                     return (
                     <div key={field.id} className="rounded-xl border border-border/60 p-3 space-y-2">
                       {/* Row 1: Description + Availability (kept at its previous row-2 width) */}
@@ -455,10 +472,10 @@ export function VendorRFQDetail() {
                         </div>
                       </div>
 
-                      {/* Row 2: Quantity, Rate, Tax %, Unit, Remarks, Delete --
+                      {/* Row 2: Quantity, Rate, Org's Rate, Tax %, Unit, Remarks, Delete --
                           Tax % gets a wider track since TaxComponentsField packs a number
                           input, its spinner, and an "add breakdown" button into one cell. */}
-                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-[1fr_1fr_2.2fr_0.8fr_1.4fr_0.5fr] gap-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-[1fr_1fr_1fr_2.2fr_0.8fr_1.4fr_0.5fr] gap-2">
                         <div className="space-y-1">
                           <Label className="text-[11px] text-muted-foreground">Quantity</Label>
                           <Input type="number" min={0.01} step="any" disabled={notAvailable} {...form.register(`line_items.${i}.quantity`)} placeholder="1" className="h-8 text-xs" />
@@ -472,6 +489,20 @@ export function VendorRFQDetail() {
                             })}
                             placeholder="0" className="h-8 text-xs"
                           />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[11px] text-muted-foreground">Org's Rate</Label>
+                          {/* Reference only -- the rate the organisation listed on this line
+                              item when it raised the purchase request. Your own quoted Rate
+                              above is a separate value and is never affected by this. */}
+                          <div
+                            title="Reference only — the organisation's rate for this line item. Your quote is a separate value and is not affected by this."
+                            className="h-8 flex items-center rounded-md border border-dashed border-amber-300 bg-amber-50 px-2.5 text-xs text-amber-800 truncate dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200"
+                          >
+                            {orgLineItem
+                              ? (orgLineItem.unit_price != null ? formatCurrency(orgLineItem.unit_price, rfq?.purchase_request?.currency ?? "INR") : "—")
+                              : "— (extra item)"}
+                          </div>
                         </div>
                         <div className="space-y-1">
                           <Label className="text-[11px] text-muted-foreground">Tax %</Label>

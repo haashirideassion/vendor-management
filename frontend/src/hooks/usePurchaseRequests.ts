@@ -68,6 +68,9 @@ export interface CreatePurchaseRequestInput {
   // Required by the backend once vendor_ids is non-empty -- an RFQ is
   // created per invited vendor and quotation deadline is no longer optional.
   response_deadline?: string | null
+  // Optional org-wide reporting tag, propagated forward to RFQ/PO/GRN/
+  // Service Confirmation/Invoice -- never required, never inferred.
+  team_id?: string | null
 }
 
 export function useCreatePurchaseRequest() {

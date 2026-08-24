@@ -7,6 +7,7 @@ import { z } from "zod"
 import { usePurchaseRequests, useCreatePurchaseRequest } from "@/hooks/usePurchaseRequests"
 import { useCategories } from "@/hooks/useCategories"
 import { useVendorsByCategories } from "@/hooks/useVendors"
+import { useOrgTeams } from "@/hooks/useOrgMembers"
 import { usePermissions } from "@/hooks/usePermissions"
 import { usePagination } from "@/hooks/usePagination"
 import { AnimatedPage } from "@/components/shared/AnimatedPage"
@@ -38,6 +39,8 @@ const STATUSES: PurchaseRequestStatus[] = [
   "draft", "pending_approval", "approved", "in_review", "quotations_received", "rejected", "cancelled", "completed",
 ]
 
+const NO_TEAM = "__none__"
+
 const lineItemSchema = z.object({
   description: z.string().min(1, "Description required"),
   quantity:    z.coerce.number().positive("Must be > 0"),
@@ -57,6 +60,7 @@ const createSchema = z.object({
   response_deadline: z.string().min(1, "Quotation response deadline is required"),
   notes:           z.string().optional(),
   line_items:      z.array(lineItemSchema).optional().default([]),
+  team_id:         z.string().nullable().optional(),
 })
 type CreateForm = z.infer<typeof createSchema>
 
@@ -77,12 +81,13 @@ export function PurchaseRequestList() {
   const { canCreatePurchaseRequest } = usePermissions()
   const { data: purchaseRequests = [], isLoading } = usePurchaseRequests({ status: status || undefined, search })
   const { data: categories = [] }  = useCategories(true)
+  const { data: teams = [] }       = useOrgTeams()
   const createPurchaseRequest = useCreatePurchaseRequest()
   const uploadAttachments  = useUploadAttachments()
 
   const form = useForm<CreateForm>({
     resolver: zodResolver(createSchema) as unknown as Resolver<CreateForm>,
-    defaultValues: { category_ids: [], vendor_ids: [], currency: "INR", line_items: [] },
+    defaultValues: { category_ids: [], vendor_ids: [], currency: "INR", line_items: [], team_id: null },
   })
 
   const { fields: lineItemFields, append: appendLineItem, remove: removeLineItem } =
@@ -126,6 +131,7 @@ export function PurchaseRequestList() {
       response_deadline: "",
       notes:           "",
       line_items:      [],
+      team_id:         null,
     })
     didAutoSelectRef.current = false
   }
@@ -160,6 +166,7 @@ export function PurchaseRequestList() {
         end_date:        data.end_date || null,
         response_deadline: data.response_deadline,
         notes:           data.notes ?? null,
+        team_id:         data.team_id ?? null,
         line_items:      (data.line_items ?? []).map((li) => ({
           description: li.description,
           quantity:    li.quantity,
@@ -357,6 +364,25 @@ export function PurchaseRequestList() {
                 {form.formState.errors.vendor_ids && (
                   <p className="text-xs text-destructive">{form.formState.errors.vendor_ids.message}</p>
                 )}
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Team</Label>
+                <Controller
+                  control={form.control}
+                  name="team_id"
+                  render={({ field }) => (
+                    <Select value={field.value ?? NO_TEAM} onValueChange={(v) => field.onChange(v === NO_TEAM ? null : v)}>
+                      <SelectTrigger><SelectValue placeholder="No team" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={NO_TEAM}>No team</SelectItem>
+                        {teams.map((t) => (
+                          <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
