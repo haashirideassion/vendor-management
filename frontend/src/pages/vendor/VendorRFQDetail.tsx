@@ -156,6 +156,7 @@ export function VendorRFQDetail() {
       notes:         data.notes ?? undefined,
       line_items:    data.line_items.map((li) => ({
         ...li,
+        purchase_request_line_item_id: li.purchase_request_line_item_id ?? null,
         remarks: li.remarks ?? null,
         // Not-available lines never carry pricing -- the backend enforces
         // this too (migration 070's CHECK constraint), blanked here as well
