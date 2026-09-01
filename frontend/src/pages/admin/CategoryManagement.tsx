@@ -24,6 +24,7 @@ import { format } from "date-fns"
 import { toast } from "sonner"
 import { api } from "@/lib/api"
 import { useAuth } from "@/contexts/AuthContext"
+import { usePermissions } from "@/hooks/usePermissions"
 
 const PAGE_SIZE = 10
 
@@ -41,6 +42,7 @@ function CategoryTable({
   onToggle,
   onDelete,
   toggling,
+  canManage,
 }: {
   categories: ServiceCategory[]
   vendorCount: (id: string) => number
@@ -48,6 +50,7 @@ function CategoryTable({
   onToggle: (cat: ServiceCategory) => void
   onDelete: (id: string) => void
   toggling: string | null
+  canManage: boolean
 }) {
   const [search, setSearch] = useState("")
   const [page, setPage] = useState(1)
@@ -95,13 +98,13 @@ function CategoryTable({
               <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground hidden sm:table-cell">Description</TableHead>
               <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground w-24">Vendors</TableHead>
               <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground w-24 hidden md:table-cell">Created</TableHead>
-              <TableHead className="w-20" />
+              {canManage && <TableHead className="w-20" />}
             </TableRow>
           </TableHeader>
           <TableBody>
             {paginated.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-10">
+                <TableCell colSpan={canManage ? 5 : 4} className="text-center py-10">
                   <SolarDuotoneIcon icon={Tag01Icon} size={28} strokeWidth={1.5} className="text-muted-foreground/30 mx-auto mb-2" />
                   <p className="text-sm text-muted-foreground">
                     {search ? "No categories match your search." : "No categories here yet."}
@@ -140,42 +143,44 @@ function CategoryTable({
                       {format(new Date(cat.created_at), "dd MMM yyyy")}
                     </span>
                   </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1 justify-end">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
-                        onClick={() => onEdit(cat)}
-                        title="Edit"
-                      >
-                        <SolarDuotoneIcon icon={Edit01Icon} size={14} strokeWidth={1.5} />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className={`h-7 w-7 p-0 ${cat.is_active ? "text-muted-foreground hover:text-orange-600" : "text-muted-foreground hover:text-green-600"}`}
-                        onClick={() => onToggle(cat)}
-                        disabled={toggling === cat.id}
-                        title={cat.is_active ? "Deactivate" : "Activate"}
-                      >
-                        <SolarDuotoneIcon
-                          icon={cat.is_active ? Cancel01Icon : CheckmarkCircle01Icon}
-                          size={14}
-                          strokeWidth={1.5}
-                        />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-                        onClick={() => onDelete(cat.id)}
-                        title="Delete"
-                      >
-                        <SolarDuotoneIcon icon={Delete01Icon} size={14} strokeWidth={1.5} />
-                      </Button>
-                    </div>
-                  </TableCell>
+                  {canManage && (
+                    <TableCell>
+                      <div className="flex items-center gap-1 justify-end">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                          onClick={() => onEdit(cat)}
+                          title="Edit"
+                        >
+                          <SolarDuotoneIcon icon={Edit01Icon} size={14} strokeWidth={1.5} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={`h-7 w-7 p-0 ${cat.is_active ? "text-muted-foreground hover:text-orange-600" : "text-muted-foreground hover:text-green-600"}`}
+                          onClick={() => onToggle(cat)}
+                          disabled={toggling === cat.id}
+                          title={cat.is_active ? "Deactivate" : "Activate"}
+                        >
+                          <SolarDuotoneIcon
+                            icon={cat.is_active ? Cancel01Icon : CheckmarkCircle01Icon}
+                            size={14}
+                            strokeWidth={1.5}
+                          />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                          onClick={() => onDelete(cat.id)}
+                          title="Delete"
+                        >
+                          <SolarDuotoneIcon icon={Delete01Icon} size={14} strokeWidth={1.5} />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))
             )}
@@ -196,6 +201,7 @@ function CategoryTable({
 
 export function CategoryManagement() {
   const { accessToken } = useAuth()
+  const { canManageCategories } = usePermissions()
   const { data: categories = [], isLoading } = useCategories()
   const createCategory = useCreateCategory()
   const updateCategory = useUpdateCategory()
@@ -325,10 +331,12 @@ export function CategoryManagement() {
               {dormantCategories.length > 0 && <span className="tab-count">{dormantCategories.length}</span>}
             </TabsTrigger>
           </TabsList>
-          <Button size="sm" onClick={openCreate} className="gap-1.5 shrink-0">
-            <SolarDuotoneIcon icon={Add01Icon} size={14} strokeWidth={1.5} />
-            Add category
-          </Button>
+          {canManageCategories && (
+            <Button size="sm" onClick={openCreate} className="gap-1.5 shrink-0">
+              <SolarDuotoneIcon icon={Add01Icon} size={14} strokeWidth={1.5} />
+              Add category
+            </Button>
+          )}
           </div>
 
           <TabsContent value="pending" className="mt-4">
@@ -345,14 +353,16 @@ export function CategoryManagement() {
                       <p className="text-sm font-medium">{cat.name}</p>
                       {cat.description && <p className="text-xs text-muted-foreground truncate">{cat.description}</p>}
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <Button size="sm" onClick={() => handleApproveCategory(cat)} disabled={reviewApproval.isPending}>
-                        Approve
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => setRejectTarget(cat)} disabled={reviewApproval.isPending}>
-                        Reject
-                      </Button>
-                    </div>
+                    {canManageCategories && (
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Button size="sm" onClick={() => handleApproveCategory(cat)} disabled={reviewApproval.isPending}>
+                          Approve
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => setRejectTarget(cat)} disabled={reviewApproval.isPending}>
+                          Reject
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -364,11 +374,15 @@ export function CategoryManagement() {
               <div className="rounded-xl border border-dashed p-12 text-center">
                 <SolarDuotoneIcon icon={Tag01Icon} size={32} strokeWidth={1.5} className="text-muted-foreground/30 mx-auto mb-3" />
                 <p className="text-sm font-medium text-muted-foreground">No active categories</p>
-                <p className="text-xs text-muted-foreground/70 mt-1">Create your first category to get started.</p>
-                <Button size="sm" className="mt-4 gap-1.5" onClick={openCreate}>
-                  <SolarDuotoneIcon icon={Add01Icon} size={14} strokeWidth={1.5} />
-                  Add category
-                </Button>
+                {canManageCategories && (
+                  <>
+                    <p className="text-xs text-muted-foreground/70 mt-1">Create your first category to get started.</p>
+                    <Button size="sm" className="mt-4 gap-1.5" onClick={openCreate}>
+                      <SolarDuotoneIcon icon={Add01Icon} size={14} strokeWidth={1.5} />
+                      Add category
+                    </Button>
+                  </>
+                )}
               </div>
             ) : (
               <CategoryTable
@@ -378,6 +392,7 @@ export function CategoryManagement() {
                 onToggle={handleToggle}
                 onDelete={setDeleteTarget}
                 toggling={toggling}
+                canManage={canManageCategories}
               />
             )}
           </TabsContent>
@@ -397,6 +412,7 @@ export function CategoryManagement() {
                 onToggle={handleToggle}
                 onDelete={setDeleteTarget}
                 toggling={toggling}
+                canManage={canManageCategories}
               />
             )}
           </TabsContent>

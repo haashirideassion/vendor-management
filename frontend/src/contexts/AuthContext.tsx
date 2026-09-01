@@ -3,7 +3,7 @@ import { useLocation } from "react-router-dom"
 import { queryClient } from "@/lib/queryClient"
 import { setSupabaseAccessToken } from "@/lib/supabase"
 import { encryptPassword, clearPublicKeyCache } from "@/lib/crypto"
-import { api } from "@/lib/api"
+import { api, setUnauthorizedHandler } from "@/lib/api"
 import { API_BASE } from "@/lib/apiBase"
 import type { Profile, UserRole } from "@/lib/types"
 import { INTERNAL_ROLES } from "@/hooks/usePermissions"
@@ -60,8 +60,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [accessToken, setAccessTokenState] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Mirrors accessToken for the unauthorized-handler below, which is
+  // registered once on mount and would otherwise close over a stale token.
+  const accessTokenRef = useRef<string | null>(null)
 
   async function applySession(data: { accessToken: string; user: AuthUser }) {
+    accessTokenRef.current = data.accessToken
     setAccessTokenState(data.accessToken)
     setSupabaseAccessToken(data.accessToken)
     setUser(data.user)
@@ -100,6 +104,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   function clearSession() {
     if (refreshTimer.current) clearTimeout(refreshTimer.current)
+    accessTokenRef.current = null
     setAccessTokenState(null)
     setUser(null)
     setProfile(null)
@@ -109,6 +114,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // own queries refetch.
     queryClient.clear()
   }
+
+  useEffect(() => {
+    setUnauthorizedHandler(async () => {
+      await silentRefresh()
+      return accessTokenRef.current
+    })
+    return () => setUnauthorizedHandler(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     if (PUBLIC_PATHS.has(pathname)) {

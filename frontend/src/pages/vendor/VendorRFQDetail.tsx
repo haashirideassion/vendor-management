@@ -147,6 +147,21 @@ export function VendorRFQDetail() {
 
   const quotationTotal = (quotation?.line_items ?? []).reduce((sum, li) => sum + (li.total ?? 0), 0)
 
+  function buildLineItemsPayload(data: QuotationForm) {
+    return data.line_items.map((li) => ({
+      ...li,
+      purchase_request_line_item_id: li.purchase_request_line_item_id ?? null,
+      remarks: li.remarks ?? null,
+      // Not-available lines never carry pricing -- the backend enforces
+      // this too (migration 070's CHECK constraint), blanked here as well
+      // so a leftover value from before the toggle isn't silently sent.
+      quantity:   li.availability_status === "not_available" ? null : (li.quantity ?? null),
+      unit_price: li.availability_status === "not_available" ? null : (li.unit_price ?? null),
+      tax_rate:   li.availability_status === "not_available" ? null : (li.tax_rate ?? null),
+      tax_components: li.availability_status === "not_available" ? [] : (li.tax_components ?? []).filter((c) => c.name.trim() !== ""),
+    }))
+  }
+
   async function onSaveDraft(data: QuotationForm) {
     if (!rfq) return
     await createQuotation.mutateAsync({
@@ -154,18 +169,7 @@ export function VendorRFQDetail() {
       purchase_request_id: rfq.purchase_request_id,
       vendor_id:     rfq.vendor_id,
       notes:         data.notes ?? undefined,
-      line_items:    data.line_items.map((li) => ({
-        ...li,
-        purchase_request_line_item_id: li.purchase_request_line_item_id ?? null,
-        remarks: li.remarks ?? null,
-        // Not-available lines never carry pricing -- the backend enforces
-        // this too (migration 070's CHECK constraint), blanked here as well
-        // so a leftover value from before the toggle isn't silently sent.
-        quantity:   li.availability_status === "not_available" ? null : (li.quantity ?? null),
-        unit_price: li.availability_status === "not_available" ? null : (li.unit_price ?? null),
-        tax_rate:   li.availability_status === "not_available" ? null : (li.tax_rate ?? null),
-        tax_components: li.availability_status === "not_available" ? [] : (li.tax_components ?? []).filter((c) => c.name.trim() !== ""),
-      })),
+      line_items:    buildLineItemsPayload(data),
     })
     toast.success("Quotation saved as draft")
     setShowQuotationDialog(false)
@@ -181,6 +185,33 @@ export function VendorRFQDetail() {
     if (result?.status === "submitted" && rfq) {
       await updateRFQStatus.mutateAsync({ id: rfq.id, status: "responded" })
     }
+  }
+
+  // Lets a vendor Manager/Admin/Finance (canReview -- already holds
+  // quotations.submit) skip the usual save-draft-then-submit two-step
+  // entirely: save this draft and submit it to the organisation in one
+  // click, right from the dialog. Mirrors onSubmitForReview's own
+  // skip-to-"submitted" behavior, just without requiring the dialog to be
+  // closed and reopened via the page's separate "Submit to Organisation"
+  // button in between.
+  async function onSaveAndSubmit(data: QuotationForm) {
+    if (!rfq) return
+    const saved = await createQuotation.mutateAsync({
+      rfq_id:        rfq.id,
+      purchase_request_id: rfq.purchase_request_id,
+      vendor_id:     rfq.vendor_id,
+      notes:         data.notes ?? undefined,
+      line_items:    buildLineItemsPayload(data),
+    })
+    const totalAmount = (saved.line_items ?? []).reduce((sum, li) => sum + (li.total ?? 0), 0)
+    const result = await submitForReview.mutateAsync({ id: saved.id, total_amount: totalAmount })
+    // useSubmitQuotationForReview's own onSuccess already toasts the right
+    // message for whichever status this landed on.
+    if (result?.status === "submitted" && rfq) {
+      await updateRFQStatus.mutateAsync({ id: rfq.id, status: "responded" })
+    }
+    setShowQuotationDialog(false)
+    form.reset()
   }
 
   async function onApprove() {
@@ -559,11 +590,21 @@ export function VendorRFQDetail() {
             <Button type="button" variant="outline" onClick={() => setShowQuotationDialog(false)}>Cancel</Button>
             <Button
               type="button"
-              disabled={createQuotation.isPending}
+              variant="outline"
+              disabled={createQuotation.isPending || submitForReview.isPending}
               onClick={form.handleSubmit(onSaveDraft)}
             >
               {createQuotation.isPending ? "Saving…" : "Save Draft"}
             </Button>
+            {canReview && (
+              <Button
+                type="button"
+                disabled={createQuotation.isPending || submitForReview.isPending}
+                onClick={form.handleSubmit(onSaveAndSubmit)}
+              >
+                {submitForReview.isPending ? "Submitting…" : "Submit to Organisation"}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

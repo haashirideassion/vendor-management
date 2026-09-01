@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { useParams, useNavigate } from "react-router-dom"
-import { useVendorVerificationQueue, useSetVendorVerificationStatus } from "@/hooks/useVendorVerificationQueue"
+import { useVendorVerificationQueue, useSetVendorVerificationStatus, useVendorOrganizations } from "@/hooks/useVendorVerificationQueue"
 import { useDocumentSignedUrl } from "@/hooks/useDocuments"
 import { AnimatedPage } from "@/components/shared/AnimatedPage"
 import { EmptyState } from "@/components/shared/EmptyState"
@@ -13,7 +13,7 @@ import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
-import { Building06Icon, File01Icon, ArrowLeft01Icon, Clock01Icon, EyeIcon } from "@/components/shared/SolarIcon"
+import { Building06Icon, File01Icon, ArrowLeft01Icon, Clock01Icon, EyeIcon, LinkIcon } from "@/components/shared/SolarIcon"
 import { format } from "date-fns"
 import { toast } from "sonner"
 
@@ -33,6 +33,10 @@ export function VendorVerificationDetailPage() {
 
   const [pendingAction, setPendingAction] = useState<PendingAction>(null)
   const [reason, setReason] = useState("")
+  const [activeTab, setActiveTab] = useState("overview")
+  // Fetched only once this tab is opened -- keeps the verification queue
+  // itself blind to org/reach by default (see backend/src/routes/superadmin.ts).
+  const { data: orgMappings = [], isLoading: orgsLoading } = useVendorOrganizations(vendor?.id, activeTab === "organizations")
 
   function closeDialog() {
     setPendingAction(null)
@@ -133,7 +137,7 @@ export function VendorVerificationDetailPage() {
         </div>
 
         <div className="flex-1 overflow-y-auto p-6">
-          <Tabs defaultValue="overview">
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="mb-6 h-10 gap-1 bg-muted/50 p-1 rounded-xl">
               <TabsTrigger value="overview" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm gap-1.5 text-sm h-8 px-3">
                 <SolarDuotoneIcon icon={Building06Icon} size={14} strokeWidth={1.5} />
@@ -143,6 +147,11 @@ export function VendorVerificationDetailPage() {
                 <SolarDuotoneIcon icon={File01Icon} size={14} strokeWidth={1.5} />
                 Documents
                 {docs.length > 0 && <span className="tab-count">{docs.length}</span>}
+              </TabsTrigger>
+              <TabsTrigger value="organizations" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm gap-1.5 text-sm h-8 px-3">
+                <SolarDuotoneIcon icon={LinkIcon} size={14} strokeWidth={1.5} />
+                Organizations
+                {orgMappings.length > 0 && <span className="tab-count">{orgMappings.length}</span>}
               </TabsTrigger>
             </TabsList>
 
@@ -217,6 +226,36 @@ export function VendorVerificationDetailPage() {
                       >
                         <SolarDuotoneIcon icon={EyeIcon} size={15} strokeWidth={1.5} />
                       </Button>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </TabsContent>
+
+            {/* ── Organizations ── */}
+            <TabsContent value="organizations" className="space-y-3 mt-0">
+              {orgsLoading ? (
+                <div className="space-y-3">
+                  {[1, 2].map((i) => <div key={i} className="h-16 rounded-xl bg-muted animate-pulse" />)}
+                </div>
+              ) : orgMappings.length === 0 ? (
+                <EmptyState title="Not mapped to any organization" description="This vendor has not been onboarded into any organization yet." />
+              ) : (
+                orgMappings.map((org) => (
+                  <Card key={org.orgId} className="shadow-none">
+                    <CardContent className="flex items-center justify-between gap-4 py-4">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="p-1.5 rounded-lg shrink-0 bg-muted">
+                          <SolarDuotoneIcon icon={Building06Icon} size={16} strokeWidth={1.5} className="text-muted-foreground" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium">{org.orgName}</p>
+                          <p className="text-xs text-muted-foreground">{org.orgCode ?? "—"}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Badge variant="outline">{org.mappingStatus}</Badge>
+                      </div>
                     </CardContent>
                   </Card>
                 ))

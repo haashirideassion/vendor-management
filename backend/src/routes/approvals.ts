@@ -224,11 +224,29 @@ async function flagSegregationOfDuties(approval: any) {
   }
 }
 
-// POST /api/approvals/cancel
+// POST /api/approvals/cancel — only the request's own requester, or a
+// Manager/Admin of the request's own org, may withdraw it.
 router.post("/cancel", requireAuth, async (req: Request, res: Response) => {
   try {
     const { id } = req.body
     if (!id) return res.status(400).json({ error: "Missing id" })
+
+    const { data: existing, error: existingError } = await db()
+      .from("approval_requests")
+      .select("id, org_id, status, requested_by")
+      .eq("id", id)
+      .maybeSingle()
+    if (existingError) throw existingError
+    if (!existing) return res.status(404).json({ error: "Approval request not found" })
+    if (existing.status !== "pending") {
+      return res.status(400).json({ error: "Only a pending approval request can be cancelled" })
+    }
+
+    const actorId = (req as AuthenticatedRequest).user.id
+    const isRequester = existing.requested_by === actorId
+    if (!isRequester && !(await isManagerOrAdmin(actorId, existing.org_id))) {
+      return res.status(403).json({ error: "You are not authorized to cancel this request" })
+    }
 
     const { data, error } = await db()
       .from("approval_requests")

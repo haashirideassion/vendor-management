@@ -45,7 +45,7 @@ export interface CreateServiceConfirmationInput {
   vendor_id: string
   confirmed_date: string
   notes?: string
-  line_items: (Omit<ServiceConfirmationLineItem, "id" | "service_confirmation_id" | "created_at" | "tax_components"> & { tax_components?: TaxComponentInput[] })[]
+  line_items: (Omit<ServiceConfirmationLineItem, "id" | "service_confirmation_id" | "created_at" | "tax_components" | "rejected_quantity" | "rejection_reason"> & { tax_components?: TaxComponentInput[] })[]
 }
 
 export function useCreateServiceConfirmation() {
@@ -79,17 +79,25 @@ export function useUpdateServiceConfirmationStatus() {
       id,
       status,
       notes,
+      line_items,
+      confirmed_good_condition,
     }: {
       id: string
       status: ServiceConfirmationStatus
       notes?: string
+      // Required when status is "rejected" -- which line items were
+      // rejected, how much of each, and why.
+      line_items?: { id: string; rejected_quantity: number; rejection_reason: string }[]
+      // Required when status is "verified" -- an affirmative acknowledgment,
+      // not just a click, that the delivered services were satisfactory.
+      confirmed_good_condition?: boolean
       // Suppresses this hook's own toast -- for callers that show their own,
       // more specific message.
       silent?: boolean
     }) => {
       return api.post<ServiceConfirmation>(
         "/api/service-confirmations/update-status",
-        { id, status, notes, ...(status === "verified" ? { verified_by: user?.id } : {}) },
+        { id, status, notes, line_items, confirmed_good_condition, ...(status === "verified" ? { verified_by: user?.id } : {}) },
         accessToken
       )
     },

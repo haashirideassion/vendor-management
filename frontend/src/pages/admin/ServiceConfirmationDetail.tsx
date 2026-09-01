@@ -14,6 +14,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Separator } from "@/components/ui/separator"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
+import { Input } from "@/components/ui/input"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Label } from "@/components/ui/label"
 import { SERVICE_CONFIRMATION_STATUS_LABELS, SERVICE_CONFIRMATION_STATUS_COLORS } from "@/lib/constants"
 import { formatCurrency } from "@/lib/utils"
 import { format } from "date-fns"
@@ -29,6 +32,10 @@ export function ServiceConfirmationDetail() {
   const [gateNotes, setGateNotes] = useState("")
   const [confirmAction, setConfirmAction] = useState<"verified" | "rejected" | null>(null)
   const [notes, setNotes] = useState("")
+  // Keyed by line item id -- only lines the reviewer actually marks with a
+  // qty > 0 get sent as rejected; the rest of the confirmation is left alone.
+  const [rejectLines, setRejectLines] = useState<Record<string, { qty: string; reason: string }>>({})
+  const [goodCondition, setGoodCondition] = useState(false)
   const [showRateDialog, setShowRateDialog] = useState(false)
 
   const { data: sc, isLoading } = useServiceConfirmation(id!)
@@ -82,6 +89,15 @@ export function ServiceConfirmationDetail() {
     0
   )
 
+  // Only lines with a qty > 0 actually count as rejected -- a reviewer isn't
+  // forced to mark every line, just the ones that were incomplete/unsatisfactory.
+  const rejectedEntries = Object.entries(rejectLines).filter(([, v]) => Number(v.qty) > 0)
+  const canSubmitConfirmAction = confirmAction === "verified"
+    ? goodCondition
+    : confirmAction === "rejected"
+      ? rejectedEntries.length > 0 && rejectedEntries.every(([, v]) => v.reason.trim().length > 0)
+      : false
+
   return (
     <AnimatedPage>
       <div className="p-6 space-y-6">
@@ -122,7 +138,14 @@ export function ServiceConfirmationDetail() {
               <Button size="sm" variant="success" onClick={() => setConfirmAction("verified")}>
                 Verify
               </Button>
-              <Button size="sm" variant="danger" onClick={() => setConfirmAction("rejected")}>
+              <Button
+                size="sm"
+                variant="danger"
+                onClick={() => {
+                  setRejectLines(Object.fromEntries((sc.line_items ?? []).map((li) => [li.id, { qty: "", reason: "" }])))
+                  setConfirmAction("rejected")
+                }}
+              >
                 Reject
               </Button>
             </>
@@ -211,7 +234,15 @@ export function ServiceConfirmationDetail() {
                       <TableBody>
                         {(sc.line_items ?? []).map((li) => (
                           <TableRow key={li.id}>
-                            <TableCell className="text-sm">{li.description}</TableCell>
+                            <TableCell className="text-sm">
+                              {li.description}
+                              {li.rejected_quantity != null && li.rejected_quantity > 0 && (
+                                <p className="text-xs text-destructive mt-0.5">
+                                  Rejected {li.rejected_quantity}{li.unit ? ` ${li.unit}` : ""}
+                                  {li.rejection_reason ? ` — ${li.rejection_reason}` : ""}
+                                </p>
+                              )}
+                            </TableCell>
                             <TableCell className="text-sm text-right tabular-nums">{li.quantity_confirmed}</TableCell>
                             <TableCell className="text-sm text-right tabular-nums">{formatCurrency(li.unit_price)}</TableCell>
                             <TableCell className="text-sm text-right text-muted-foreground">
@@ -272,37 +303,101 @@ export function ServiceConfirmationDetail() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!confirmAction} onOpenChange={(o) => { if (!o) { setConfirmAction(null); setNotes("") } }}>
-        <DialogContent>
+      <Dialog
+        open={!!confirmAction}
+        onOpenChange={(o) => { if (!o) { setConfirmAction(null); setNotes(""); setRejectLines({}); setGoodCondition(false) } }}
+      >
+        <DialogContent size={confirmAction === "rejected" ? "lg" : "md"}>
           <DialogHeader>
             <DialogTitle>{confirmAction === "verified" ? "Verify Service Confirmation" : "Reject Service Confirmation"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 pt-2">
-            <p className="text-sm text-muted-foreground">
-              {confirmAction === "verified"
-                ? "Are you sure you want to verify this service confirmation?"
-                : "Are you sure you want to reject this service confirmation? The vendor will need to resubmit."}
-            </p>
-            <Textarea
-              placeholder={confirmAction === "verified" ? "Remarks (optional)…" : "Reason for rejection…"}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={3}
-            />
+            {confirmAction === "verified" ? (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  Are you sure you want to verify this service confirmation?
+                </p>
+                <label className="flex items-start gap-2 rounded-lg border border-border/60 p-3 text-sm">
+                  <Checkbox checked={goodCondition} onCheckedChange={(c) => setGoodCondition(c === true)} className="mt-0.5" />
+                  <span>I confirm all confirmed quantities were delivered satisfactorily and to scope.</span>
+                </label>
+                <Textarea
+                  placeholder="Remarks (optional)…"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  rows={2}
+                />
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  Mark the quantity of each line item that's being rejected and why. The vendor will need to resubmit.
+                </p>
+                <div className="space-y-2">
+                  {(sc.line_items ?? []).map((li) => (
+                    <div key={li.id} className="grid grid-cols-[1fr_6.5rem_1fr] gap-2 items-start rounded-lg border border-border/60 p-2.5">
+                      <div>
+                        <p className="text-sm font-medium">{li.description}</p>
+                        <p className="text-xs text-muted-foreground">Confirmed: {li.quantity_confirmed}{li.unit ? ` ${li.unit}` : ""}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px] text-muted-foreground">Qty Rejected</Label>
+                        <Input
+                          type="number" min={0} max={li.quantity_confirmed} step="any"
+                          value={rejectLines[li.id]?.qty ?? ""}
+                          onChange={(e) => setRejectLines((prev) => ({ ...prev, [li.id]: { qty: e.target.value, reason: prev[li.id]?.reason ?? "" } }))}
+                          placeholder="0"
+                          className="h-8 text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px] text-muted-foreground">Reason</Label>
+                        <Input
+                          value={rejectLines[li.id]?.reason ?? ""}
+                          onChange={(e) => setRejectLines((prev) => ({ ...prev, [li.id]: { qty: prev[li.id]?.qty ?? "", reason: e.target.value } }))}
+                          placeholder="e.g. scope incomplete"
+                          className="h-8 text-xs"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <Textarea
+                  placeholder="Additional remarks (optional)…"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  rows={2}
+                />
+              </>
+            )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setConfirmAction(null); setNotes("") }} disabled={updateStatus.isPending}>
+            <Button
+              variant="outline"
+              onClick={() => { setConfirmAction(null); setNotes(""); setRejectLines({}); setGoodCondition(false) }}
+              disabled={updateStatus.isPending}
+            >
               Cancel
             </Button>
             <Button
               variant={confirmAction === "verified" ? "success" : "danger"}
-              disabled={updateStatus.isPending}
+              disabled={updateStatus.isPending || !canSubmitConfirmAction}
               onClick={() => {
                 if (!confirmAction || !id) return
-                updateStatus.mutate(
-                  { id, status: confirmAction, notes },
-                  { onSuccess: () => { setConfirmAction(null); setNotes("") } }
-                )
+                if (confirmAction === "rejected") {
+                  const line_items = rejectedEntries.map(([liId, v]) => ({
+                    id: liId, rejected_quantity: Number(v.qty), rejection_reason: v.reason.trim(),
+                  }))
+                  updateStatus.mutate(
+                    { id, status: "rejected", notes, line_items },
+                    { onSuccess: () => { setConfirmAction(null); setNotes(""); setRejectLines({}) } }
+                  )
+                } else {
+                  updateStatus.mutate(
+                    { id, status: "verified", notes, confirmed_good_condition: goodCondition },
+                    { onSuccess: () => { setConfirmAction(null); setNotes(""); setGoodCondition(false) } }
+                  )
+                }
               }}
             >
               {updateStatus.isPending ? "Processing…" : confirmAction === "verified" ? "Verify" : "Reject"}

@@ -91,7 +91,7 @@ export function VendorInvoices() {
     queryKey: ["linked-po-for-invoice", watchedPurchaseRequestId, vendor?.id],
     enabled: !!watchedPurchaseRequestId && !!vendor?.id,
     queryFn: async () => {
-      const { data } = await api.post<{ data: { id: string; po_number: string }[] }>(
+      const { data } = await api.post<{ data: { id: string; po_number: string; total_value: number; currency: string }[] }>(
         "/api/purchase-orders/vendor-list-by-purchase-request",
         { purchase_request_id: watchedPurchaseRequestId },
         accessToken
@@ -382,6 +382,11 @@ export function VendorInvoices() {
                 <Input type="number" min={0} step="any" {...form.register("total_amount")} placeholder="50000" />
                 {form.formState.errors.total_amount && (
                   <p className="text-xs text-destructive">{form.formState.errors.total_amount.message}</p>
+                )}
+                {watchedPurchaseRequestId && linkedPO && (
+                  <p className="text-xs text-muted-foreground">
+                    PO confirmed amount: <span className="font-medium text-foreground tabular-nums">{formatCurrency(linkedPO.total_value, linkedPO.currency)}</span>
+                  </p>
                 )}
               </div>
               <div className="space-y-1.5">

@@ -869,7 +869,11 @@ router.post("/roles/delegations-list", requireAuth, requireOrg, async (req: Requ
   try {
     const { memberId } = req.body as { memberId?: string }
     const { orgId } = req as OrgScopedRequest
+    const actorId = (req as AuthenticatedRequest).user.id
     if (!memberId) return res.status(400).json({ error: "memberId is required" })
+    if (!(await isOrgAdmin(actorId, orgId))) {
+      return res.status(403).json({ error: "Only an organization Admin can view delegated access" })
+    }
 
     const { data: member } = await db().from("organization_members").select("id").eq("id", memberId).eq("org_id", orgId).maybeSingle()
     if (!member) return res.status(404).json({ error: "Member not found in this organization" })
@@ -926,7 +930,11 @@ router.post("/legal-entity-scope/list", requireAuth, requireOrg, async (req: Req
   try {
     const { memberId } = req.body as { memberId?: string }
     const { orgId } = req as OrgScopedRequest
+    const actorId = (req as AuthenticatedRequest).user.id
     if (!memberId) return res.status(400).json({ error: "memberId is required" })
+    if (!(await isOrgAdmin(actorId, orgId))) {
+      return res.status(403).json({ error: "Only an organization Admin can view legal-entity scope" })
+    }
 
     const { data: member } = await db().from("organization_members").select("id").eq("id", memberId).eq("org_id", orgId).maybeSingle()
     if (!member) return res.status(404).json({ error: "Member not found in this organization" })

@@ -41,7 +41,7 @@ export interface CreateGRNInput {
   vendor_id: string
   received_date: string
   notes?: string
-  line_items: (Omit<GRNLineItem, "id" | "grn_id" | "created_at" | "tax_components"> & { tax_components?: TaxComponentInput[] })[]
+  line_items: (Omit<GRNLineItem, "id" | "grn_id" | "created_at" | "tax_components" | "rejected_quantity" | "rejection_reason"> & { tax_components?: TaxComponentInput[] })[]
 }
 
 export function useCreateGRN() {
@@ -75,17 +75,25 @@ export function useUpdateGRNStatus() {
       id,
       status,
       notes,
+      line_items,
+      confirmed_good_condition,
     }: {
       id: string
       status: GRNStatus
       notes?: string
+      // Required when status is "rejected" -- which line items were
+      // rejected, how much of each, and why.
+      line_items?: { id: string; rejected_quantity: number; rejection_reason: string }[]
+      // Required when status is "verified" -- an affirmative acknowledgment,
+      // not just a click, that the received goods are in good condition.
+      confirmed_good_condition?: boolean
       // Suppresses this hook's own toast -- for callers (e.g. the "Submit
       // for review" action) that show their own, more specific message.
       silent?: boolean
     }) => {
       return api.post<GRN>(
         "/api/grns/update-status",
-        { id, status, notes, ...(status === "verified" ? { verified_by: user?.id } : {}) },
+        { id, status, notes, line_items, confirmed_good_condition, ...(status === "verified" ? { verified_by: user?.id } : {}) },
         accessToken
       )
     },

@@ -6,12 +6,23 @@ import { resolveVendorId, isOrgMember, resolveVendorAllowedOrgIds } from "../mid
 const router = Router()
 function db(): any { return getSupabaseAdmin() }
 
+// A vendor may see/act on an RFQ once its purchase request has been
+// released to them (left draft/pending_approval) -- not just while the PR
+// is still literally sitting in "approved". Submitting a quotation itself
+// advances the PR to "in_review" (more vendors still to respond) or
+// "quotations_received" (this was the last one) -- see
+// notifyOrgOfSubmittedQuotation in quotations.ts -- so requiring an exact
+// "approved" match here made a vendor's own submission immediately lock
+// them out of the RFQ they'd just responded to (couldn't re-list it, view
+// it, or have their "responded" status update land).
+const PR_STATUSES_VISIBLE_TO_VENDOR = ["approved", "in_review", "quotations_received", "completed"]
+
 // Internal (non-vendor) callers must send X-Org-Id and be a member of it;
 // vendor callers are scoped to their own vendor_id instead, since vendors
 // aren't rows in organization_members. Also enforces the vendor Associate
 // client-assignment restriction (Phase 3.5/3.6) -- null allowedOrgIds means
 // unrestricted, an array (possibly empty) restricts to exactly those orgs.
-async function checkRfqAccess(
+export async function checkRfqAccess(
   req: Request,
   rfq: { org_id: string; vendor_id: string }
 ): Promise<boolean> {
@@ -49,7 +60,7 @@ router.post("/vendor-list", requireAuth, async (req: Request, res: Response) => 
       .from("rfqs")
       .select("*, purchase_request:purchase_request_id!inner(*, line_items:purchase_request_line_items(*)), vendor:vendor_id(company_name), team:team_id(name)")
       .eq("vendor_id", vendorId)
-      .eq("purchase_request.status", "approved")
+      .in("purchase_request.status", PR_STATUSES_VISIBLE_TO_VENDOR)
       .order("created_at", { ascending: false })
 
     const allowedOrgIds = await resolveVendorAllowedOrgIds(userId, vendorId)
@@ -82,7 +93,7 @@ router.post("/get", requireAuth, async (req: Request, res: Response) => {
     // Vendors can't view an RFQ for a purchase request still awaiting
     // internal approval -- internal staff (already scoped by checkRfqAccess
     // above) have no such restriction.
-    if ((req as AuthenticatedRequest).user.role === "vendor" && data.purchase_request?.status !== "approved") {
+    if ((req as AuthenticatedRequest).user.role === "vendor" && !PR_STATUSES_VISIBLE_TO_VENDOR.includes(data.purchase_request?.status)) {
       return res.status(403).json({ error: "Not authorized to view this RFQ" })
     }
     return res.json(data)
@@ -107,7 +118,7 @@ router.post("/by-purchase-request", requireAuth, async (req: Request, res: Respo
     if (role === "vendor") {
       const vendorId = await resolveVendorId(userId)
       if (!vendorId) return res.json([])
-      query = query.eq("vendor_id", vendorId).eq("purchase_request.status", "approved")
+      query = query.eq("vendor_id", vendorId).in("purchase_request.status", PR_STATUSES_VISIBLE_TO_VENDOR)
       const allowedOrgIds = await resolveVendorAllowedOrgIds(userId, vendorId)
       if (allowedOrgIds !== null) query = query.in("org_id", allowedOrgIds)
     } else {
@@ -141,7 +152,7 @@ router.post("/update-status", requireAuth, async (req: Request, res: Response) =
     if (!(await checkRfqAccess(req, existing))) {
       return res.status(403).json({ error: "Not authorized to update this RFQ" })
     }
-    if ((req as AuthenticatedRequest).user.role === "vendor" && (existing as any).purchase_request?.status !== "approved") {
+    if ((req as AuthenticatedRequest).user.role === "vendor" && !PR_STATUSES_VISIBLE_TO_VENDOR.includes((existing as any).purchase_request?.status)) {
       return res.status(403).json({ error: "Not authorized to update this RFQ" })
     }
 

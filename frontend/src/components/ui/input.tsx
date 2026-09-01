@@ -2,7 +2,7 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
-function Input({ className, type, ...props }: React.ComponentProps<"input">) {
+function Input({ className, type, onWheel, ...props }: React.ComponentProps<"input">) {
   return (
     <input
       type={type}
@@ -11,6 +11,11 @@ function Input({ className, type, ...props }: React.ComponentProps<"input">) {
         "skeuo-inset h-11 w-full min-w-0 rounded-3xl border border-white/50 px-4 py-2 text-base transition-[color,box-shadow,background-color] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm dark:border-white/10 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
         className
       )}
+      onWheel={
+        type === "number"
+          ? (e) => { e.currentTarget.blur(); onWheel?.(e) }
+          : onWheel
+      }
       {...props}
     />
   )

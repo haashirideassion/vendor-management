@@ -315,11 +315,16 @@ router.post("/create", requireAuth, requireOrg, async (req: Request, res: Respon
   }
 })
 
+const PR_STATUS_VALUES = ["draft", "pending_approval", "in_review", "quotations_received", "approved", "rejected", "cancelled", "completed"]
+
 // POST /api/purchase-requests/update-status
 router.post("/update-status", requireAuth, async (req: Request, res: Response) => {
   try {
-    const { id, status, notes, approved_by } = req.body
+    const { id, status, notes } = req.body
     if (!id || !status) return res.status(400).json({ error: "id and status are required" })
+    if (!PR_STATUS_VALUES.includes(status)) {
+      return res.status(400).json({ error: `status must be one of: ${PR_STATUS_VALUES.join(", ")}` })
+    }
 
     // No requireOrg on this route (it's an entity-id-scoped action, not an
     // X-Org-Id-scoped one) -- fetch the purchase request's own org_id and
@@ -332,20 +337,17 @@ router.post("/update-status", requireAuth, async (req: Request, res: Response) =
       .single()
     if (getError) throw getError
 
-    // The pending_approval -> approved/rejected transition is the
-    // Manager/Admin approval gate itself (gateOnCreate, approvalGate.ts) --
-    // only they may resolve it. Every other transition (cancel/complete/etc)
-    // is unchanged, no new restriction added here.
-    if (existing.status === "pending_approval" && ["approved", "rejected"].includes(status)) {
-      const actorId = (req as AuthenticatedRequest).user.id
-      if (!(await isManagerOrAdmin(actorId, existing.org_id))) {
-        return res.status(403).json({ error: "You are not authorized to approve or reject this purchase request" })
-      }
+    // Every transition on this record is an internal Manager/Admin decision
+    // -- not just the pending_approval -> approved/rejected hop. A user with
+    // no role at all in this org has no business changing its status.
+    const actorId = (req as AuthenticatedRequest).user.id
+    if (!(await isManagerOrAdmin(actorId, existing.org_id))) {
+      return res.status(403).json({ error: "You are not authorized to change this purchase request's status" })
     }
 
     const updates: any = { status, notes: notes ?? null }
     if (status === "approved") {
-      updates.approved_by = approved_by
+      updates.approved_by = actorId
       updates.approved_at = new Date().toISOString()
     }
 
@@ -379,11 +381,40 @@ router.post("/update-status", requireAuth, async (req: Request, res: Response) =
   }
 })
 
+// Editable fields only -- org_id, status, approved_by/at, created_by, and
+// every audit/derived column stay off-limits to a free-form update. Status
+// has its own dedicated, gated endpoint (/update-status) above.
+const PR_UPDATABLE_FIELDS = [
+  "title", "description", "category_id", "estimated_value", "currency",
+  "start_date", "end_date", "notes", "response_deadline", "team_id",
+]
+
 // POST /api/purchase-requests/update
 router.post("/update", requireAuth, async (req: Request, res: Response) => {
   try {
-    const { id, ...fields } = req.body
+    const { id, ...rawFields } = req.body
     if (!id) return res.status(400).json({ error: "id is required" })
+
+    const { data: existing, error: getError } = await db()
+      .from("purchase_requests").select("org_id, status").eq("id", id).maybeSingle()
+    if (getError) throw getError
+    if (!existing) return res.status(404).json({ error: "Purchase request not found" })
+
+    const actorId = (req as AuthenticatedRequest).user.id
+    if (!(await isManagerOrAdmin(actorId, existing.org_id))) {
+      return res.status(403).json({ error: "You are not authorized to edit this purchase request" })
+    }
+    if (!["draft", "pending_approval", "rejected"].includes(existing.status)) {
+      return res.status(400).json({ error: "This purchase request is no longer editable" })
+    }
+
+    const fields: Record<string, unknown> = {}
+    for (const key of PR_UPDATABLE_FIELDS) {
+      if (key in rawFields) fields[key] = rawFields[key]
+    }
+    if (Object.keys(fields).length === 0) {
+      return res.status(400).json({ error: "No editable fields were provided" })
+    }
 
     const { data, error } = await db()
       .from("purchase_requests")

@@ -37,6 +37,33 @@ export function useVendorVerificationQueue() {
   })
 }
 
+export interface VendorOrganizationMapping {
+  orgId: string
+  orgName: string
+  orgCode: string | null
+  orgStatus: string
+  mappingStatus: string
+  contractStartDate: string | null
+  contractAnniversary: string | null
+}
+
+// Deliberately a separate query/endpoint from the verification queue above --
+// only fetched once the "Organizations" tab is opened, so the blind-review
+// queue payload never carries org/reach data by default.
+export function useVendorOrganizations(vendorId: string | undefined, enabled: boolean) {
+  const { accessToken } = useAuth()
+  return useQuery({
+    queryKey: ["vendor-organizations", vendorId],
+    queryFn: async () => {
+      const { data } = await api.post<{ data: VendorOrganizationMapping[] }>(
+        "/api/superadmin/vendors/organizations", { vendor_id: vendorId }, accessToken
+      )
+      return data
+    },
+    enabled: enabled && !!vendorId,
+  })
+}
+
 export function useSetVendorVerificationStatus() {
   const qc = useQueryClient()
   const { accessToken } = useAuth()

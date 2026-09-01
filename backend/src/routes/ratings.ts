@@ -13,11 +13,23 @@ async function hasOrgPermission(userId: string, orgId: string, key: string): Pro
   return data === true
 }
 
-// POST /api/ratings/by-vendor — { vendorId }
-router.post("/by-vendor", requireAuth, async (req: Request, res: Response) => {
+// POST /api/ratings/by-vendor — { vendorId }. Org-side only (VendorDetail.tsx);
+// scoped to orgs that actually have a relationship with this vendor, same
+// association check /create already applies.
+router.post("/by-vendor", requireAuth, requireOrg, async (req: Request, res: Response) => {
   try {
     const { vendorId } = req.body
     if (!vendorId) return res.status(400).json({ error: "vendorId is required" })
+    const { orgId } = req as OrgScopedRequest
+    const { data: association, error: assocError } = await db()
+      .from("organization_vendors")
+      .select("id")
+      .eq("org_id", orgId)
+      .eq("vendor_id", vendorId)
+      .maybeSingle()
+    if (assocError) throw assocError
+    if (!association) return res.status(404).json({ error: "Vendor not found in this organization" })
+
     const { data, error } = await db()
       .from("vendor_ratings")
       .select("*, profiles:rated_by(full_name, email)")

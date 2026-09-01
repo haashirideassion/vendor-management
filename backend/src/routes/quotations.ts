@@ -1,6 +1,8 @@
 import { Router, Request, Response } from "express"
 import { getSupabaseAdmin } from "../utils/supabaseAdmin"
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth"
+import { resolveVendorId, isOrgMember } from "../middleware/org"
+import { checkRfqAccess } from "./rfqs"
 import { attachTaxComponents, insertTaxComponents, sumTaxComponents, TaxComponentInput } from "../services/taxComponents.service"
 
 const router = Router()
@@ -111,6 +113,12 @@ router.post("/by-rfq", requireAuth, async (req: Request, res: Response) => {
     const { rfqId } = req.body
     if (!rfqId) return res.status(400).json({ error: "Missing rfqId" })
 
+    const { data: rfq, error: rfqError } = await db().from("rfqs").select("org_id, vendor_id").eq("id", rfqId).maybeSingle()
+    if (rfqError) throw rfqError
+    if (!rfq || !(await checkRfqAccess(req, rfq))) {
+      return res.status(404).json({ error: "RFQ not found" })
+    }
+
     const { data, error } = await db()
       .from("quotations")
       .select("*, vendor:vendor_id(company_name), line_items:quotation_line_items(*)")
@@ -135,6 +143,12 @@ router.post("/by-rfq/versions", requireAuth, async (req: Request, res: Response)
     const { rfqId } = req.body
     if (!rfqId) return res.status(400).json({ error: "Missing rfqId" })
 
+    const { data: rfq, error: rfqError } = await db().from("rfqs").select("org_id, vendor_id").eq("id", rfqId).maybeSingle()
+    if (rfqError) throw rfqError
+    if (!rfq || !(await checkRfqAccess(req, rfq))) {
+      return res.status(404).json({ error: "RFQ not found" })
+    }
+
     const { data, error } = await db()
       .from("quotations")
       .select("*, vendor:vendor_id(company_name), line_items:quotation_line_items(*)")
@@ -149,11 +163,24 @@ router.post("/by-rfq/versions", requireAuth, async (req: Request, res: Response)
   }
 })
 
-// POST /api/quotations/by-purchase-request
+// POST /api/quotations/by-purchase-request — org-side vendor-comparison
+// view only (PurchaseRequestDetail.tsx); a vendor has no legitimate reason
+// to see every other vendor's bid on the same purchase request.
 router.post("/by-purchase-request", requireAuth, async (req: Request, res: Response) => {
   try {
     const { purchaseRequestId } = req.body
     if (!purchaseRequestId) return res.status(400).json({ error: "Missing purchaseRequestId" })
+
+    const { id: userId, role } = (req as AuthenticatedRequest).user
+    if (role === "vendor") return res.status(403).json({ error: "Not authorized" })
+    const orgId = req.headers["x-org-id"]
+    if (!orgId || typeof orgId !== "string") return res.status(400).json({ error: "X-Org-Id header is required" })
+
+    const { data: pr, error: prError } = await db().from("purchase_requests").select("org_id").eq("id", purchaseRequestId).maybeSingle()
+    if (prError) throw prError
+    if (!pr || pr.org_id !== orgId || !(await isOrgMember(userId, orgId))) {
+      return res.status(404).json({ error: "Purchase request not found" })
+    }
 
     const { data, error } = await db()
       .from("quotations")
@@ -212,6 +239,26 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
     const { rfq_id, purchase_request_id, vendor_id, notes, line_items } = req.body
     if (!rfq_id || !purchase_request_id || !vendor_id || !Array.isArray(line_items)) {
       return res.status(400).json({ error: "Missing required fields" })
+    }
+
+    // vendor_id is never trusted from the body as-is -- only the RFQ's own
+    // actual vendor, checked via the caller's real vendor_users membership,
+    // may create or revise a quotation against it. Without this, any
+    // authenticated user could submit or supersede a bid "as" a vendor they
+    // have no relationship to.
+    const { id: callerId, role: callerRole } = (req as AuthenticatedRequest).user
+    if (callerRole === "vendor") {
+      const ownVendorId = await resolveVendorId(callerId)
+      if (!ownVendorId || ownVendorId !== vendor_id) {
+        return res.status(403).json({ error: "You are not authorized to submit a quotation for this vendor" })
+      }
+    } else {
+      return res.status(403).json({ error: "Only a vendor may submit a quotation" })
+    }
+    const { data: rfqForAccess, error: rfqAccessError } = await db().from("rfqs").select("org_id, vendor_id").eq("id", rfq_id).maybeSingle()
+    if (rfqAccessError) throw rfqAccessError
+    if (!rfqForAccess || !(await checkRfqAccess(req, rfqForAccess))) {
+      return res.status(404).json({ error: "RFQ not found" })
     }
 
     let normalizedItems: ReturnType<typeof normalizeLineItem>[]

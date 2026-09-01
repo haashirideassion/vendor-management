@@ -111,6 +111,29 @@ const STEP_FIELDS: Record<number, string[]> = {
   6: ["signatory_name", "signatory_designation", "signatory_email", "signatory_mobile", "signatory_same_for_all_locations"],
 }
 
+// Format validation for the specific fields most likely to end up feeding a
+// payment or a compliance filing -- presence alone (checked at /submit) was
+// the only guard on any of these; "123" passed as a PAN and "notanifsc" as
+// an IFSC code were both accepted end to end before this was added.
+const FIELD_FORMATS: Record<string, { re: RegExp; message: string }> = {
+  work_email:      { re: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: "work_email is not a valid email address" },
+  mobile:          { re: /^[6-9]\d{9}$/, message: "mobile must be a valid 10-digit Indian mobile number" },
+  pan_number:      { re: /^[A-Z]{5}[0-9]{4}[A-Z]$/i, message: "pan_number must be a valid PAN (e.g. ABCDE1234F)" },
+  bank_ifsc:       { re: /^[A-Z]{4}0[A-Z0-9]{6}$/i, message: "bank_ifsc must be a valid IFSC code (e.g. HDFC0001234)" },
+  bank_account_number: { re: /^[0-9]{6,20}$/, message: "bank_account_number must be 6-20 digits" },
+  signatory_email: { re: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: "signatory_email is not a valid email address" },
+  signatory_mobile: { re: /^[6-9]\d{9}$/, message: "signatory_mobile must be a valid 10-digit Indian mobile number" },
+}
+
+function validateFieldFormats(fields: Record<string, unknown>): string | null {
+  for (const [key, value] of Object.entries(fields)) {
+    const rule = FIELD_FORMATS[key]
+    if (!rule || value === null || value === undefined || value === "") continue
+    if (typeof value !== "string" || !rule.re.test(value)) return rule.message
+  }
+  return null
+}
+
 const LOCATION_FIELDS = [
   "location_name", "address", "state", "city", "pincode", "employee_count",
   "nature_of_operations", "is_registered_office", "has_women_employees",
@@ -237,6 +260,9 @@ router.post("/save-step", requireAuth, requireOrg, async (req: Request, res: Res
     const allowed = step !== undefined ? STEP_FIELDS[step] : undefined
     if (!allowed) return res.status(400).json({ error: "Invalid step" })
     if (!fields || typeof fields !== "object") return res.status(400).json({ error: "fields is required" })
+
+    const formatError = validateFieldFormats(fields)
+    if (formatError) return res.status(400).json({ error: formatError })
 
     let draft: any
     try { draft = await resolveOwnDraft(orgId, actorId) } catch (err) {

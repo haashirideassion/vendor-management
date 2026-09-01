@@ -7,6 +7,11 @@ import { gateOnCreate, isManagerOrAdmin } from "../services/approvalGate"
 const router = Router()
 function db(): any { return getSupabaseAdmin() }
 
+async function hasOrgPermission(userId: string, orgId: string, key: string): Promise<boolean> {
+  const { data } = await db().rpc("resolve_permission_as", { p_user_id: userId, p_scope: "org", p_org_id: orgId, p_vendor_id: null, p_key: key })
+  return data === true
+}
+
 // POST /api/categories/list — { activeOnly? }
 router.post("/list", requireAuth, async (req: Request, res: Response) => {
   try {
@@ -144,11 +149,19 @@ router.post("/update", requireAuth, requireOrg, async (req: Request, res: Respon
   }
 })
 
-// POST /api/categories/delete — { id }
-router.post("/delete", requireAuth, async (req: Request, res: Response) => {
+// POST /api/categories/delete — { id }. Categories are a platform-wide
+// taxonomy (no org_id of their own), so this is gated on the categories.manage
+// permission rather than mere org membership -- consistent with /create and
+// /update in this file, which already restrict the equivalent actions.
+router.post("/delete", requireAuth, requireOrg, async (req: Request, res: Response) => {
   try {
     const { id } = req.body
     if (!id) return res.status(400).json({ error: "id is required" })
+    const { orgId } = req as OrgScopedRequest
+    const actorId = (req as AuthenticatedRequest).user.id
+    if (!(await hasOrgPermission(actorId, orgId, "categories.manage"))) {
+      return res.status(403).json({ error: "You are not authorized to delete categories" })
+    }
     const { error } = await db().from("service_categories").delete().eq("id", id)
     if (error) throw error
     res.json({ ok: true })

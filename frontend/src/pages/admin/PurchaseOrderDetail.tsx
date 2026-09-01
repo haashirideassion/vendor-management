@@ -165,12 +165,12 @@ export function PurchaseOrderDetail() {
           {/* A Blanket PO is never fulfilled directly -- only its Release
               Orders are. */}
           {!isBlanket && po.status === "issued" && po.fulfillment_type === "goods" && canRecordGRN && (
-            <Button size="sm" variant="outline" onClick={() => setShowGRNDialog(true)}>
+            <Button size="sm" onClick={() => setShowGRNDialog(true)}>
               Record GRN
             </Button>
           )}
           {!isBlanket && po.status === "issued" && po.fulfillment_type === "service" && canRecordServiceConfirmation && (
-            <Button size="sm" variant="outline" onClick={() => setShowSCDialog(true)}>
+            <Button size="sm" onClick={() => setShowSCDialog(true)}>
               Record Service Confirmation
             </Button>
           )}

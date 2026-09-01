@@ -451,7 +451,7 @@ export function PurchaseRequestDetail() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead rowSpan={2} className="sticky left-0 bg-background z-10 border-r align-middle">Item</TableHead>
+                      <TableHead rowSpan={2} className="sticky left-0 bg-card z-10 border-r align-middle">Item</TableHead>
                       {vendorColumns.map(({ vendorId, vendorName }) => (
                         <TableHead key={vendorId} colSpan={4} className="text-center border-l">
                           {vendorName}
@@ -472,7 +472,7 @@ export function PurchaseRequestDetail() {
                   <TableBody>
                     {(purchaseRequest.line_items ?? []).map((prLi) => (
                       <TableRow key={prLi.id}>
-                        <TableCell className="sticky left-0 bg-background z-10 border-r align-middle whitespace-normal max-w-xs">
+                        <TableCell className="sticky left-0 bg-card z-10 border-r align-middle whitespace-normal max-w-xs">
                           {prLi.description}
                           <div className="text-xs text-muted-foreground">Qty {prLi.quantity}{prLi.unit ? ` ${prLi.unit}` : ""}</div>
                         </TableCell>

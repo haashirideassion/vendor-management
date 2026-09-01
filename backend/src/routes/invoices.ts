@@ -210,6 +210,25 @@ router.post("/submit", requireAuth, async (req: Request, res: Response) => {
       if (currency !== undefined && poCurrency && currency !== poCurrency) {
         return res.status(400).json({ error: `This invoice's currency must match its PO's currency (${poCurrency})` })
       }
+
+      // Partial invoicing against a PO is legitimate (mirrors partial GRNs),
+      // but the running total across every non-rejected invoice already
+      // raised against it must not exceed what the PO actually authorizes --
+      // otherwise nothing stops the same delivery being billed twice.
+      const { data: poForTotal } = await db().from("purchase_orders").select("total_value").eq("id", po_id).maybeSingle()
+      const { data: priorInvoices } = await db()
+        .from("invoices")
+        .select("total_amount")
+        .eq("po_id", po_id)
+        .neq("status", "rejected")
+      const alreadyInvoiced = (priorInvoices ?? []).reduce((sum: number, inv: any) => sum + Number(inv.total_amount), 0)
+      if (poForTotal && Number(total_amount) + alreadyInvoiced > Number(poForTotal.total_value) + 1) {
+        const remaining = Number(poForTotal.total_value) - alreadyInvoiced
+        return res.status(400).json({
+          error: `This invoice would exceed the purchase order's remaining unbilled balance (${remaining.toFixed(2)} left)`,
+          code: "EXCEEDS_PO_BALANCE",
+        })
+      }
     }
 
     if (!po_id && purchase_request_id && vendor_id) {
@@ -468,13 +487,24 @@ router.post("/review", requireAuth, requireOrg, async (req: Request, res: Respon
 
     const { data: existing, error: getError } = await db()
       .from("invoices")
-      .select("status")
+      .select("status, match_status")
       .eq("id", id)
       .eq("org_id", orgId)
       .single()
     if (getError) throw getError
     if (!["submitted", "under_review", "matched"].includes(existing.status)) {
       return res.status(400).json({ error: "This invoice is not awaiting review" })
+    }
+
+    // An open, unresolved 3-way-match variance is not a hard block on
+    // approval by design (an org may have a legitimate reason to pay
+    // anyway), but it can no longer be waved through silently -- approving
+    // it now requires the reviewer to write down why.
+    if (status === "approved" && existing.match_status === "variance" && !notes?.trim()) {
+      return res.status(400).json({
+        error: "This invoice has an unresolved 3-way-match variance. An override reason is required to approve it.",
+        code: "VARIANCE_OVERRIDE_REQUIRED",
+      })
     }
 
     const updates: any = { status, reviewed_by, reviewed_at: new Date().toISOString() }
@@ -489,6 +519,17 @@ router.post("/review", requireAuth, requireOrg, async (req: Request, res: Respon
       .single()
 
     if (error) throw error
+
+    // Close out the open exception with the same override reason, so the
+    // exceptions queue reflects that this variance was consciously accepted
+    // rather than silently left dangling on an already-approved invoice.
+    if (status === "approved" && existing.match_status === "variance") {
+      await db()
+        .from("invoice_exceptions")
+        .update({ status: "waived", resolution_notes: notes, resolved_by: reviewed_by, resolved_at: new Date().toISOString() })
+        .eq("invoice_id", id)
+        .eq("status", "open")
+    }
 
     if (existing.status !== status) {
       await writeAudit({

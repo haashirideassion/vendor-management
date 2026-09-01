@@ -202,11 +202,38 @@ router.post("/create", requireAuth, requireOrg, async (req: Request, res: Respon
   }
 })
 
+const SC_STATUS_VALUES = ["pending_approval", "draft", "submitted", "verified", "rejected"]
+
+// Mirrors grns.ts's validateGrnDecision: reject must say which line items
+// and how much of each was rejected, and why; verify must be an
+// affirmative "I checked, it's all in good condition," not just a click.
+function validateScDecision(status: string, line_items: any, confirmed_good_condition: any): string | null {
+  if (status === "rejected") {
+    if (!Array.isArray(line_items) || line_items.length === 0) {
+      return "At least one rejected line item is required"
+    }
+    for (const li of line_items) {
+      if (!li.id || !(Number(li.rejected_quantity) > 0) || !String(li.rejection_reason ?? "").trim()) {
+        return "Each rejected line item needs a quantity greater than 0 and a reason"
+      }
+    }
+  }
+  if (status === "verified" && confirmed_good_condition !== true) {
+    return "You must confirm the delivered services were satisfactory before verifying"
+  }
+  return null
+}
+
 // POST /api/service-confirmations/update-status
 router.post("/update-status", requireAuth, async (req: Request, res: Response) => {
   try {
-    const { id, status, notes, verified_by } = req.body
+    const { id, status, notes, line_items, confirmed_good_condition } = req.body
     if (!id || !status) return res.status(400).json({ error: "Missing id or status" })
+    if (!SC_STATUS_VALUES.includes(status)) {
+      return res.status(400).json({ error: `status must be one of: ${SC_STATUS_VALUES.join(", ")}` })
+    }
+    const validationError = validateScDecision(status, line_items, confirmed_good_condition)
+    if (validationError) return res.status(400).json({ error: validationError })
 
     const { data: existing, error: getError } = await db()
       .from("service_confirmations")
@@ -215,19 +242,17 @@ router.post("/update-status", requireAuth, async (req: Request, res: Response) =
       .single()
     if (getError) throw getError
 
-    // The pending_approval -> submitted transition is the Manager/Admin
-    // approval gate itself (gateOnCreate, approvalGate.ts) -- only they may
-    // resolve it.
-    if (existing.status === "pending_approval" && status === "submitted") {
-      const actorId = (req as AuthenticatedRequest).user.id
-      if (!(await isManagerOrAdmin(actorId, existing.org_id))) {
-        return res.status(403).json({ error: "You are not authorized to approve this Service Confirmation" })
-      }
+    // Every transition on this record -- not just the pending_approval ->
+    // submitted approval-gate hop -- is an internal Manager/Admin decision
+    // about the receiving org's own Service Confirmation.
+    const actorId = (req as AuthenticatedRequest).user.id
+    if (!(await isManagerOrAdmin(actorId, existing.org_id))) {
+      return res.status(403).json({ error: "You are not authorized to change this Service Confirmation's status" })
     }
 
     const update: Record<string, any> = { status, notes: notes ?? null }
     if (status === "verified") {
-      update.verified_by = verified_by ?? null
+      update.verified_by = actorId
       update.verified_at = new Date().toISOString()
     }
 
@@ -239,6 +264,20 @@ router.post("/update-status", requireAuth, async (req: Request, res: Response) =
       .single()
 
     if (error) throw error
+
+    if (status === "rejected") {
+      // Scoped to this Service Confirmation's own line items -- a line id
+      // from another record can't be targeted through this endpoint.
+      await Promise.all(
+        (line_items as { id: string; rejected_quantity: number; rejection_reason: string }[]).map((li) =>
+          db()
+            .from("service_confirmation_line_items")
+            .update({ rejected_quantity: li.rejected_quantity, rejection_reason: li.rejection_reason.trim() })
+            .eq("id", li.id)
+            .eq("service_confirmation_id", id)
+        )
+      )
+    }
 
     if (existing.status !== status) {
       const userId = (req as AuthenticatedRequest).user.id

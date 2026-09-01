@@ -468,6 +468,39 @@ router.post("/vendors/verification-status", requireAuth, requireSuperAdmin, asyn
   }
 })
 
+// POST /api/superadmin/vendors/organizations — which organisations a vendor
+// is mapped to (organization_vendors join). Deliberately a separate endpoint
+// from vendors/verification-queue above, fetched only when a reviewer opens
+// the "Organizations" tab -- the queue itself stays blind to org/reach.
+router.post("/vendors/organizations", requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
+  try {
+    const { vendor_id } = req.body as { vendor_id?: string }
+    if (!vendor_id) return res.status(400).json({ error: "vendor_id is required" })
+
+    const { data, error } = await db()
+      .from("organization_vendors")
+      .select("status, contract_start_date, contract_anniversary, organization:org_id(id, name, org_code, status)")
+      .eq("vendor_id", vendor_id)
+    if (error) throw error
+
+    const result = (data ?? [])
+      .filter((row: any) => row.organization)
+      .map((row: any) => ({
+        orgId: row.organization.id,
+        orgName: row.organization.name,
+        orgCode: row.organization.org_code,
+        orgStatus: row.organization.status,
+        mappingStatus: row.status,
+        contractStartDate: row.contract_start_date,
+        contractAnniversary: row.contract_anniversary,
+      }))
+    res.json({ data: result })
+  } catch (err: any) {
+    console.error("[superadmin/vendors/organizations]", err.message)
+    res.status(500).json({ error: "Failed to load vendor's organizations" })
+  }
+})
+
 // POST /api/superadmin/break-glass/view — time-of-access-logged read of an
 // entity superadmin has no standing access to. Requires a reason; writes an
 // audit_log entry via support_view_entity() before fetching the row.

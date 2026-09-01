@@ -743,6 +743,18 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
     if (!company_name || !contact_name || !contact_email || !tax_gst_number || !pan_number) {
       return res.status(400).json({ error: "company_name, contact_name, contact_email, tax_gst_number, and pan_number are required" })
     }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact_email)) {
+      return res.status(400).json({ error: "contact_email is not a valid email address" })
+    }
+    if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/i.test(pan_number)) {
+      return res.status(400).json({ error: "pan_number must be a valid PAN (e.g. ABCDE1234F)" })
+    }
+    if (!/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/i.test(tax_gst_number)) {
+      return res.status(400).json({ error: "tax_gst_number must be a valid 15-character GSTIN" })
+    }
+    if (bank_routing_number && !/^[A-Z]{4}0[A-Z0-9]{6}$/i.test(bank_routing_number)) {
+      return res.status(400).json({ error: "bank_routing_number must be a valid IFSC code (e.g. HDFC0001234)" })
+    }
 
     const resolved = await resolveOnboardingTargets({ org_code, group_code })
     if ("error" in resolved) return res.status(400).json({ error: resolved.error })
@@ -1147,6 +1159,16 @@ router.post("/upload-document", requireAuth, uploadOptional, async (req: Request
     // Validate inputs
     if (!vendor_id || !document_type) {
       return res.status(400).json({ error: "vendor_id and document_type are required" })
+    }
+
+    // A vendor may only upload to their own compliance record -- never a
+    // client-supplied vendor_id "as" someone else. Consistent with every
+    // other vendor-ownership check in this file (/update, /update-categories,
+    // /get-my-vendor).
+    const callerId = (req as AuthenticatedRequest).user.id
+    const ownVendorId = await resolveVendorId(callerId)
+    if (!ownVendorId || ownVendorId !== vendor_id) {
+      return res.status(403).json({ error: "You are not authorized to upload documents for this vendor" })
     }
 
     let buffer: Buffer

@@ -36,6 +36,7 @@ import {
 } from "@/components/shared/SolarIcon"
 import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
 import type { VendorStatus, InvoiceStatus, PurchaseRequestStatus } from "@/lib/types"
+import { usePermissions } from "@/hooks/usePermissions"
 
 const VENDOR_CHART_COLORS: Record<VendorStatus, string> = {
   invited: "#94a3b8",
@@ -100,6 +101,7 @@ const TOOLTIP_STYLE = {
 }
 
 export function Reports() {
+  const { canViewReports } = usePermissions()
   const { data: vendors = [], isLoading } = useVendors()
   const [dateRange, setDateRange] = useState<{ from?: string; to?: string }>({})
   const { data: analytics } = useProcurementKPIs(dateRange)
@@ -133,6 +135,14 @@ export function Reports() {
   const blanketUtilization = analytics?.blanketPOUtilization ?? []
   const matchExceptions = analytics?.matchExceptions
   const paymentAging = analytics?.paymentAging
+
+  if (!canViewReports) return (
+    <div className="p-12 flex flex-col items-center gap-2 text-center">
+      <SolarDuotoneIcon icon={AlertCircleIcon} size={28} strokeWidth={1.5} className="text-muted-foreground/40" />
+      <p className="text-sm font-medium text-muted-foreground">You don't have access to Reports</p>
+      <p className="text-xs text-muted-foreground/70">Ask an organization Admin to grant you reports.view.</p>
+    </div>
+  )
 
   if (isLoading) return (
     <div className="p-6 flex items-center gap-2 text-sm text-muted-foreground">

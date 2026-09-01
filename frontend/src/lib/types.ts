@@ -525,6 +525,8 @@ export interface GRNLineItem {
   tax_rate: number
   tax_components?: TaxComponent[]
   unit: string | null
+  rejected_quantity: number | null
+  rejection_reason: string | null
   created_at: string
 }
 
@@ -562,6 +564,8 @@ export interface ServiceConfirmationLineItem {
   tax_rate: number
   tax_components?: TaxComponent[]
   unit: string | null
+  rejected_quantity: number | null
+  rejection_reason: string | null
   created_at: string
 }
 

@@ -8,6 +8,27 @@ export function setActiveOrgId(orgId: string | null) {
   activeOrgId = orgId
 }
 
+// Registered by AuthContext so this module (which holds no React state) can
+// recover from a stale accessToken -- e.g. the token expired while the tab
+// was backgrounded and a window-focus refetch fires before the scheduled
+// silent-refresh timer (throttled in background tabs) catches up. Returns
+// the freshly refreshed token, or null if refresh failed (session is dead).
+let unauthorizedHandler: (() => Promise<string | null>) | null = null
+export function setUnauthorizedHandler(handler: (() => Promise<string | null>) | null) {
+  unauthorizedHandler = handler
+}
+
+// Coalesce concurrent 401s (several queries can fail around the same time)
+// into a single refresh call instead of hammering /api/auth/refresh.
+let refreshInFlight: Promise<string | null> | null = null
+function recoverToken(): Promise<string | null> {
+  if (!unauthorizedHandler) return Promise.resolve(null)
+  if (!refreshInFlight) {
+    refreshInFlight = unauthorizedHandler().finally(() => { refreshInFlight = null })
+  }
+  return refreshInFlight
+}
+
 async function readJson<T>(res: Response): Promise<T> {
   const text = await res.text()
   if (!text) return {} as T
@@ -36,7 +57,8 @@ export class ApiError extends Error {
 
 async function request<T>(
   path: string,
-  options: RequestInit & { token?: string; orgIdOverride?: string } = {}
+  options: RequestInit & { token?: string; orgIdOverride?: string },
+  isRetry = false
 ): Promise<T> {
   const { token, orgIdOverride, ...fetchOptions } = options
   const orgId = orgIdOverride ?? activeOrgId
@@ -50,6 +72,12 @@ async function request<T>(
     headers,
     credentials: "include",
   })
+
+  if (res.status === 401 && token && !isRetry) {
+    const freshToken = await recoverToken()
+    if (freshToken) return request<T>(path, { ...options, token: freshToken }, true)
+  }
+
   const json = await readJson<{ error?: string; code?: string; details?: unknown } & T>(res)
   if (!res.ok) throw new ApiError(json.error ?? `API error ${res.status}`, json.code, json.details)
   return json as T

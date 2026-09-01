@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express"
 import { getSupabaseAdmin } from "../utils/supabaseAdmin"
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth"
-import { requireOrg, OrgScopedRequest, resolveListScope } from "../middleware/org"
+import { requireOrg, OrgScopedRequest, resolveListScope, resolveVendorId } from "../middleware/org"
 import { writeAudit, resolveActingAs } from "../services/audit"
 import { gateOnCreate, isManagerOrAdmin } from "../services/approvalGate"
 import { resolveExchangeRateToBase } from "../services/exchangeRates.service"
@@ -173,11 +173,16 @@ router.post("/create", requireAuth, requireOrg, async (req: Request, res: Respon
   }
 })
 
+const CONTRACT_STATUS_VALUES = ["pending_approval", "draft", "internal_review", "pending_final_approval", "active", "expired", "terminated"]
+
 // POST /api/contracts/update-status
 router.post("/update-status", requireAuth, async (req: Request, res: Response) => {
   try {
     const { id, status } = req.body
     if (!id || !status) return res.status(400).json({ error: "id and status are required" })
+    if (!CONTRACT_STATUS_VALUES.includes(status)) {
+      return res.status(400).json({ error: `status must be one of: ${CONTRACT_STATUS_VALUES.join(", ")}` })
+    }
 
     const { data: existing, error: getError } = await db()
       .from("contracts")
@@ -186,12 +191,42 @@ router.post("/update-status", requireAuth, async (req: Request, res: Response) =
       .single()
     if (getError) throw getError
 
-    // The pending_approval -> draft transition is the Manager/Admin approval
-    // gate itself (gateOnCreate, approvalGate.ts) -- only they may resolve it.
-    if (existing.status === "pending_approval" && status === "draft") {
-      const actorId = (req as AuthenticatedRequest).user.id
-      if (!(await isManagerOrAdmin(actorId, existing.org_id))) {
-        return res.status(403).json({ error: "You are not authorized to approve this contract" })
+    const actorId = (req as AuthenticatedRequest).user.id
+    if (!(await isManagerOrAdmin(actorId, existing.org_id))) {
+      return res.status(403).json({ error: "You are not authorized to change this contract's status" })
+    }
+
+    // "active" is the point this contract becomes binding -- it must have
+    // actually cleared final approval first, not just have someone with the
+    // right role flip the status directly. Internal review is optional
+    // (risk-tiered) so its absence alone doesn't block; an unresolved round
+    // of either workflow does.
+    if (status === "active") {
+      const { data: approvalRounds } = await db()
+        .from("contract_approvals")
+        .select("round, status")
+        .eq("contract_id", id)
+        .order("round", { ascending: false })
+      if (!approvalRounds || approvalRounds.length === 0) {
+        return res.status(400).json({ error: "This contract must complete final approval before it can be made active" })
+      }
+      const latestApprovalRound = approvalRounds[0].round
+      const latestApprovals = approvalRounds.filter((r: any) => r.round === latestApprovalRound)
+      if (latestApprovals.some((r: any) => r.status !== "approved")) {
+        return res.status(400).json({ error: "This contract has a final approval round that is not yet fully approved" })
+      }
+
+      const { data: reviewRounds } = await db()
+        .from("contract_reviewers")
+        .select("round, status")
+        .eq("contract_id", id)
+        .order("round", { ascending: false })
+      if (reviewRounds && reviewRounds.length > 0) {
+        const latestReviewRound = reviewRounds[0].round
+        const latestReviews = reviewRounds.filter((r: any) => r.round === latestReviewRound)
+        if (latestReviews.some((r: any) => r.status !== "approved")) {
+          return res.status(400).json({ error: "This contract has an internal review round that is not yet fully approved" })
+        }
       }
     }
 
@@ -225,11 +260,36 @@ router.post("/update-status", requireAuth, async (req: Request, res: Response) =
   }
 })
 
+// Editable fields only -- org_id, vendor_id, status, created_by, and every
+// audit/derived column stay off-limits to a free-form update. Status has
+// its own dedicated, gated endpoint (/update-status) above.
+const CONTRACT_UPDATABLE_FIELDS = [
+  "title", "contract_type", "parent_id", "effective_date", "expiry_date",
+  "total_value", "currency", "auto_renew", "renewal_notice_days", "notes", "risk_tier",
+]
+
 // POST /api/contracts/update
 router.post("/update", requireAuth, async (req: Request, res: Response) => {
   try {
-    const { id, ...fields } = req.body
+    const { id, ...rawFields } = req.body
     if (!id) return res.status(400).json({ error: "id is required" })
+
+    const { data: existing, error: getError } = await db().from("contracts").select("org_id").eq("id", id).maybeSingle()
+    if (getError) throw getError
+    if (!existing) return res.status(404).json({ error: "Contract not found" })
+
+    const actorId = (req as AuthenticatedRequest).user.id
+    if (!(await isManagerOrAdmin(actorId, existing.org_id))) {
+      return res.status(403).json({ error: "You are not authorized to edit this contract" })
+    }
+
+    const fields: Record<string, unknown> = {}
+    for (const key of CONTRACT_UPDATABLE_FIELDS) {
+      if (key in rawFields) fields[key] = rawFields[key]
+    }
+    if (Object.keys(fields).length === 0) {
+      return res.status(400).json({ error: "No editable fields were provided" })
+    }
 
     const { data, error } = await db()
       .from("contracts")
@@ -255,10 +315,26 @@ router.post("/mark-signed", requireAuth, async (req: Request, res: Response) => 
 
     const { data: existing, error: getError } = await db()
       .from("contracts")
-      .select("status, org_id")
+      .select("status, org_id, vendor_id")
       .eq("id", id)
       .single()
     if (getError) throw getError
+
+    const { id: userId, role } = (req as AuthenticatedRequest).user
+    if (role === "vendor") {
+      const vendorId = await resolveVendorId(userId)
+      if (!vendorId || vendorId !== existing.vendor_id) {
+        return res.status(403).json({ error: "You are not authorized to sign this contract" })
+      }
+      // A vendor may only mark its own side signed, never the internal side.
+      if (signed_by_internal !== undefined) {
+        return res.status(403).json({ error: "Only an internal reviewer can record the internal signature" })
+      }
+    } else {
+      if (!(await isManagerOrAdmin(userId, existing.org_id))) {
+        return res.status(403).json({ error: "You are not authorized to sign this contract" })
+      }
+    }
 
     const { error: rpcError } = await db().rpc("mark_contract_signed", {
       p_contract_id:       id,
@@ -302,12 +378,22 @@ router.post("/mark-signed", requireAuth, async (req: Request, res: Response) => 
 // POST /api/contracts/add-amendment
 router.post("/add-amendment", requireAuth, async (req: Request, res: Response) => {
   try {
-    const { contract_id, title, description, effective_date, created_by } = req.body
+    const { contract_id, title, description, effective_date } = req.body
 
-    if (!contract_id || !title || !created_by) {
+    if (!contract_id || !title) {
       return res.status(400).json({
-        error: "contract_id, title, and created_by are required",
+        error: "contract_id and title are required",
       })
+    }
+
+    const { data: contractRow, error: contractLookupError } = await db()
+      .from("contracts").select("org_id").eq("id", contract_id).maybeSingle()
+    if (contractLookupError) throw contractLookupError
+    if (!contractRow) return res.status(404).json({ error: "Contract not found" })
+
+    const actorId = (req as AuthenticatedRequest).user.id
+    if (!(await isManagerOrAdmin(actorId, contractRow.org_id))) {
+      return res.status(403).json({ error: "You are not authorized to amend this contract" })
     }
 
     const { data: amendmentId, error: rpcError } = await db().rpc("add_contract_amendment", {
@@ -315,7 +401,7 @@ router.post("/add-amendment", requireAuth, async (req: Request, res: Response) =
       p_title:          title,
       p_description:    description    ?? null,
       p_effective_date: effective_date ?? null,
-      p_created_by:     created_by,
+      p_created_by:     actorId,
     })
     if (rpcError) throw rpcError
 
@@ -330,18 +416,15 @@ router.post("/add-amendment", requireAuth, async (req: Request, res: Response) =
     // replace -- this is a new, additive creation-event audit entry (same
     // pattern as purchase-requests/create and invoices/submit), not a replacement
     // for lost coverage.
-    const { data: contract } = await db().from("contracts").select("org_id").eq("id", contract_id).maybeSingle()
-    if (contract?.org_id) {
-      await writeAudit({
-        entityType: "contract",
-        entityId: contract_id,
-        action: "amendment_added",
-        newValue: { amendment_id: amendmentId, title },
-        performedBy: created_by,
-        orgId: contract.org_id,
-        actingAs: await resolveActingAs(created_by, contract.org_id),
-      })
-    }
+    await writeAudit({
+      entityType: "contract",
+      entityId: contract_id,
+      action: "amendment_added",
+      newValue: { amendment_id: amendmentId, title },
+      performedBy: actorId,
+      orgId: contractRow.org_id,
+      actingAs: await resolveActingAs(actorId, contractRow.org_id),
+    })
 
     res.json({ data })
   } catch (err: any) {

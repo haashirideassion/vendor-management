@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from "../utils/supabaseAdmin"
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth"
 import { requireOrg, OrgScopedRequest, resolveVendorId, resolveListScope } from "../middleware/org"
 import { writeAudit, resolveActingAs } from "../services/audit"
+import { isManagerOrAdmin } from "../services/approvalGate"
 import { resolveExchangeRateToBase } from "../services/exchangeRates.service"
 import { attachTaxComponents, insertTaxComponents, sumTaxComponents } from "../services/taxComponents.service"
 
@@ -40,7 +41,7 @@ router.post("/vendor-list-by-purchase-request", requireAuth, async (req: Request
 
     const { data, error } = await db()
       .from("purchase_orders")
-      .select("id, po_number")
+      .select("id, po_number, total_value, currency")
       .eq("purchase_request_id", purchase_request_id)
       .eq("vendor_id", vendorId)
 
@@ -153,6 +154,26 @@ router.post("/create", requireAuth, requireOrg, async (req: Request, res: Respon
 
     if (!vendor_id || total_value === undefined || !created_by) {
       return res.status(400).json({ error: "vendor_id, total_value, and created_by are required" })
+    }
+
+    // total_value is the authoritative figure a vendor gets paid against --
+    // it must reflect the line items actually being ordered, not whatever a
+    // client happens to submit alongside them. Skipped for a Blanket PO with
+    // no line items of its own (its total_value is a spending cap, not a
+    // sum of goods/services).
+    if (Array.isArray(line_items) && line_items.length > 0) {
+      const computedTotal = line_items.reduce((sum: number, item: any) => {
+        const qty = Number(item.quantity ?? 0)
+        const price = Number(item.unit_price ?? 0)
+        const taxRate = Number(sumTaxComponents(item.tax_components, item.tax_rate ?? 0))
+        return sum + qty * price * (1 + taxRate / 100)
+      }, 0)
+      if (Math.abs(computedTotal - Number(total_value)) > 1) {
+        return res.status(400).json({
+          error: `total_value (${Number(total_value).toFixed(2)}) does not match the sum of the line items (${computedTotal.toFixed(2)})`,
+          code: "TOTAL_MISMATCH",
+        })
+      }
     }
 
     const poType: string = po_type ?? "standard"
@@ -325,6 +346,11 @@ router.post("/issue", requireAuth, async (req: Request, res: Response) => {
       .single()
     if (getError) throw getError
 
+    const actorId = (req as AuthenticatedRequest).user.id
+    if (!(await isManagerOrAdmin(actorId, existing.org_id))) {
+      return res.status(403).json({ error: "You are not authorized to issue this purchase order" })
+    }
+
     const { data, error } = await db()
       .from("purchase_orders")
       .update({ status: "issued", issue_date: new Date().toISOString().split("T")[0] })
@@ -355,11 +381,16 @@ router.post("/issue", requireAuth, async (req: Request, res: Response) => {
   }
 })
 
+const PO_STATUS_VALUES = ["draft", "issued", "partially_received", "fully_received", "cancelled", "closed"]
+
 // POST /api/purchase-orders/update-status
 router.post("/update-status", requireAuth, async (req: Request, res: Response) => {
   try {
     const { id, status } = req.body
     if (!id || !status) return res.status(400).json({ error: "id and status are required" })
+    if (!PO_STATUS_VALUES.includes(status)) {
+      return res.status(400).json({ error: `status must be one of: ${PO_STATUS_VALUES.join(", ")}` })
+    }
 
     const { data: existing, error: getError } = await db()
       .from("purchase_orders")
@@ -367,6 +398,26 @@ router.post("/update-status", requireAuth, async (req: Request, res: Response) =
       .eq("id", id)
       .single()
     if (getError) throw getError
+
+    const actorId = (req as AuthenticatedRequest).user.id
+    if (!(await isManagerOrAdmin(actorId, existing.org_id))) {
+      return res.status(403).json({ error: "You are not authorized to change this purchase order's status" })
+    }
+
+    // A PO with delivery already recorded can't be cancelled out from under
+    // it -- there would be nothing left for that GRN/Service Confirmation
+    // (and any invoice raised against it) to reconcile against. The
+    // frontend already disables this action once fully received; this is
+    // the server-side backstop a direct API call could otherwise bypass.
+    if (status === "cancelled") {
+      const [{ count: grnCount }, { count: scCount }] = await Promise.all([
+        db().from("grns").select("id", { count: "exact", head: true }).eq("po_id", id).eq("status", "verified"),
+        db().from("service_confirmations").select("id", { count: "exact", head: true }).eq("po_id", id).eq("status", "verified"),
+      ])
+      if ((grnCount ?? 0) > 0 || (scCount ?? 0) > 0) {
+        return res.status(400).json({ error: "This purchase order already has a verified delivery recorded against it and can no longer be cancelled" })
+      }
+    }
 
     const { data, error } = await db()
       .from("purchase_orders")

@@ -154,12 +154,17 @@ const cookieOpts = {
 
 // ─── POST /api/auth/register ─────────────────────────────────────────────────
 router.post("/register", authLimiter, async (req: Request, res: Response) => {
-  const { email, password, fullName, role = "vendor" } = req.body as {
+  const { email, password, fullName } = req.body as {
     email?: string
     password?: string
     fullName?: string
-    role?: string
   }
+  // This is the "Vendor" tab of the signup screen -- every real internal
+  // (non-vendor) account is created via org-members/invite or
+  // superadmin.ts's /organizations/create-with-admin, never here. A
+  // client-supplied role used to be trusted outright, letting a self-signup
+  // request role:"admin" and flip account_type to internal.
+  const role = "vendor"
 
   if (!email || !password || !fullName) {
     res.status(400).json({ error: "email, password, and fullName are required" })
