@@ -57,7 +57,7 @@ router.post("/list", requireAuth, requireOrg, async (req: Request, res: Response
     const { orgId } = req as OrgScopedRequest
     const { data: members, error } = await db()
       .from("organization_members")
-      .select("id, profile_id, status, is_primary, created_at, profile:profile_id(id, full_name, email)")
+      .select("id, profile_id, status, is_primary, created_at, reports_to, profile:profile_id(id, full_name, email)")
       .eq("org_id", orgId)
     if (error) throw error
 
@@ -114,6 +114,7 @@ router.post("/list", requireAuth, requireOrg, async (req: Request, res: Response
       roleNames: roleNamesByMember.get(m.id) ?? [],
       teamAssignments: teamAssignmentsByProfile.get(m.profile_id) ?? [],
       directRoleNames: directRoleNamesByProfile.get(m.profile_id) ?? [],
+      reportsTo: m.reports_to,
     }))
     res.json({ data })
   } catch (err: any) {
@@ -312,9 +313,10 @@ router.post("/roles/delete-custom", requireAuth, requireOrg, async (req: Request
 // all three org-scope roles regardless of what's requested; tiered orgs use
 // the roleIds provided.
 router.post("/invite", requireAuth, requireOrg, async (req: Request, res: Response) => {
-  const { email, fullName, roleIds, assignments } = req.body as {
+  const { email, fullName, roleIds, assignments, reportsTo } = req.body as {
     email?: string; fullName?: string; roleIds?: string[]
     assignments?: { teamId: string | null; roleId: string }[]
+    reportsTo?: string | null
   }
   const { orgId } = req as OrgScopedRequest
   const actorId = (req as AuthenticatedRequest).user.id
@@ -328,6 +330,15 @@ router.post("/invite", requireAuth, requireOrg, async (req: Request, res: Respon
   }
   if (!(await isOrgAdmin(actorId, orgId))) {
     return res.status(403).json({ error: "Only an organization Admin can invite members" })
+  }
+
+  // A brand-new member can't be part of any existing cycle (nothing could
+  // have pointed to them before they existed), so this only needs to check
+  // the chosen manager is a real member of this same org -- no walk-the-
+  // chain cycle check needed here the way /set-manager needs one.
+  if (reportsTo) {
+    const { data: managerRow } = await db().from("organization_members").select("id").eq("id", reportsTo).eq("org_id", orgId).maybeSingle()
+    if (!managerRow) return res.status(400).json({ error: "Selected manager is not a member of this organization" })
   }
 
   let profileId: string | null = null
@@ -411,7 +422,7 @@ router.post("/invite", requireAuth, requireOrg, async (req: Request, res: Respon
 
     const { data: newMember, error: memberError } = await db()
       .from("organization_members")
-      .insert({ org_id: orgId, profile_id: profileId, org_role: legacyOrgRole, status: "invited", is_primary: false })
+      .insert({ org_id: orgId, profile_id: profileId, org_role: legacyOrgRole, status: "invited", is_primary: false, reports_to: reportsTo ?? null })
       .select("id")
       .single()
     if (memberError) throw memberError
@@ -520,6 +531,76 @@ router.post("/update-roles", requireAuth, requireOrg, async (req: Request, res: 
   } catch (err: any) {
     console.error("[org-members/update-roles]", err.message)
     res.status(500).json({ error: "Failed to update member roles" })
+  }
+})
+
+// POST /api/org-members/set-manager — set or clear who a member reports to,
+// for the Org Chart view (OrgTeam.tsx). Rejects a self-reference and any
+// cycle (A -> B -> A) by walking the candidate manager's own reports_to
+// chain up to the root -- the DB's CHECK constraint (092) only catches the
+// direct self-reference case, not a multi-hop cycle.
+router.post("/set-manager", requireAuth, requireOrg, async (req: Request, res: Response) => {
+  try {
+    const { memberId, reportsTo } = req.body as { memberId?: string; reportsTo?: string | null }
+    const { orgId } = req as OrgScopedRequest
+    const actorId = (req as AuthenticatedRequest).user.id
+    if (!memberId) return res.status(400).json({ error: "memberId is required" })
+    if (!(await isOrgAdmin(actorId, orgId))) {
+      return res.status(403).json({ error: "Only an organization Admin can set a member's manager" })
+    }
+    if (reportsTo === memberId) {
+      return res.status(400).json({ error: "A member cannot report to themselves" })
+    }
+
+    const { data: member, error: memberError } = await db()
+      .from("organization_members")
+      .select("id")
+      .eq("id", memberId)
+      .eq("org_id", orgId)
+      .maybeSingle()
+    if (memberError) throw memberError
+    if (!member) return res.status(404).json({ error: "Member not found in this organization" })
+
+    if (reportsTo) {
+      const { data: manager, error: managerError } = await db()
+        .from("organization_members")
+        .select("id, reports_to")
+        .eq("id", reportsTo)
+        .eq("org_id", orgId)
+        .maybeSingle()
+      if (managerError) throw managerError
+      if (!manager) return res.status(404).json({ error: "Manager not found in this organization" })
+
+      let cursor: string | null = manager.reports_to
+      const seen = new Set<string>([memberId])
+      while (cursor) {
+        if (seen.has(cursor)) break // already-broken chain elsewhere -- stop rather than loop forever
+        if (cursor === memberId) {
+          return res.status(400).json({ error: "That would create a reporting cycle" })
+        }
+        seen.add(cursor)
+        const { data: next } = await db().from("organization_members").select("reports_to").eq("id", cursor).maybeSingle()
+        cursor = next?.reports_to ?? null
+      }
+    }
+
+    const { error } = await db().from("organization_members").update({ reports_to: reportsTo ?? null }).eq("id", memberId)
+    if (error) throw error
+
+    await writeAudit({
+      entityType: "organization_member",
+      entityId: memberId,
+      action: "manager_changed",
+      newValue: { reports_to: reportsTo ?? null },
+      performedBy: actorId,
+      orgId,
+      actingAs: await resolveActingAs(actorId, orgId),
+    })
+
+    res.json({ data: { memberId, reportsTo: reportsTo ?? null } })
+  } catch (err: any) {
+    console.error("[org-members/set-manager]", err.message)
+    res.status(500).json({ error: "Failed to update reporting line" })
   }
 })
 

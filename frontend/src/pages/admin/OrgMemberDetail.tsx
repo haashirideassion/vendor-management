@@ -6,6 +6,7 @@ import {
   useOrgMemberRestrictions, useSetOrgMemberRestriction,
   useOrgMemberDelegations, useDelegateOrgRole, useRevokeOrgRoleDelegation,
   useOrgLegalEntityScopeOptions, useOrgMemberLegalEntityScope, useSetOrgMemberLegalEntityScope,
+  useSetOrgMemberManager,
 } from "@/hooks/useOrgMembers"
 import { useOrg } from "@/contexts/OrgContext"
 import { AnimatedPage } from "@/components/shared/AnimatedPage"
@@ -17,6 +18,8 @@ import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogBody } from "@/components/ui/dialog"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Label } from "@/components/ui/label"
 import { ArrowLeft01Icon } from "@/components/shared/SolarIcon"
 import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
 import { toast } from "sonner"
@@ -50,6 +53,7 @@ export function OrgMemberDetail() {
   const resendInvite = useResendOrgMemberInvite()
   const { data: legalEntityOptions = [] } = useOrgLegalEntityScopeOptions()
   const setLegalEntityScope = useSetOrgMemberLegalEntityScope()
+  const setManager = useSetOrgMemberManager()
 
   const [editingRoles, setEditingRoles] = useState(false)
   const [editAssignmentRows, setEditAssignmentRows] = useState<AssignmentRow[]>([{ teamId: null, roleId: null }])
@@ -57,6 +61,8 @@ export function OrgMemberDetail() {
   const [delegating, setDelegating] = useState(false)
   const [scoping, setScoping] = useState(false)
   const [scopeSelection, setScopeSelection] = useState<string[] | null>(null)
+  const [settingManager, setSettingManager] = useState(false)
+  const [managerSelection, setManagerSelection] = useState<string | null>(null)
 
   const { data: restrictionsData } = useOrgMemberRestrictions(restricting ? member?.id : undefined)
   const setRestriction = useSetOrgMemberRestriction()
@@ -168,6 +174,23 @@ export function OrgMemberDetail() {
     setScoping(true)
   }
 
+  function openSettingManager() {
+    if (!member) return
+    setManagerSelection(member.reportsTo)
+    setSettingManager(true)
+  }
+
+  async function handleSaveManager() {
+    if (!member) return
+    try {
+      await setManager.mutateAsync({ memberId: member.id, reportsTo: managerSelection })
+      toast.success("Reporting line updated")
+      setSettingManager(false)
+    } catch (e: unknown) {
+      toast.error((e as Error).message ?? "Failed to update reporting line")
+    }
+  }
+
   async function handleSaveScope() {
     if (!member) return
     try {
@@ -202,6 +225,12 @@ export function OrgMemberDetail() {
     ...member.directRoleNames.map((r) => `${r} (no team)`),
   ].join(", ") || "—"
 
+  const manager = member.reportsTo ? members.find((m) => m.id === member.reportsTo) : undefined
+  // Anyone but this member themself -- the backend still rejects a cycle
+  // (this member appearing somewhere above the picked manager), this list
+  // just keeps the obvious self-reference out of the picker.
+  const managerOptions = members.filter((m) => m.id !== member.id)
+
   return (
     <AnimatedPage>
       <div className="p-6 space-y-6">
@@ -234,6 +263,7 @@ export function OrgMemberDetail() {
             {member.status === "active" && (
               <>
                 {!isSolo && <Button size="sm" variant="outline" onClick={openEditRoles}>Edit Roles</Button>}
+                <Button size="sm" variant="outline" onClick={openSettingManager}>Reports To</Button>
                 {!member.isPrimary && (
                   <>
                     <Button size="sm" variant="outline" onClick={() => setRestricting(true)}>Restrictions</Button>
@@ -260,6 +290,10 @@ export function OrgMemberDetail() {
             <div>
               <p className="text-xs text-muted-foreground mb-0.5">Roles</p>
               <p className="font-medium">{member.roleNames.join(", ") || "—"}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground mb-0.5">Reports To</p>
+              <p className="font-medium">{manager?.profile?.full_name ?? "— (org chart root)"}</p>
             </div>
             {!isSolo && (
               <div>
@@ -307,6 +341,33 @@ export function OrgMemberDetail() {
         isGranting={delegateRole.isPending}
         isRevoking={revokeDelegation.isPending}
       />
+
+      <Dialog open={settingManager} onOpenChange={setSettingManager}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Reports To — {member.profile?.full_name}</DialogTitle></DialogHeader>
+          <DialogBody className="space-y-1.5">
+            <Label>Manager</Label>
+            <Select
+              value={managerSelection ?? "none"}
+              onValueChange={(v) => setManagerSelection(v === "none" ? null : v)}
+            >
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No manager (org chart root)</SelectItem>
+                {managerOptions.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>{m.profile?.full_name ?? m.profile?.email}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSettingManager(false)}>Cancel</Button>
+            <Button onClick={handleSaveManager} disabled={setManager.isPending}>
+              {setManager.isPending ? "Saving…" : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={scoping} onOpenChange={setScoping}>
         <DialogContent>

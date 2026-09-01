@@ -593,6 +593,11 @@ export function VendorDetail() {
                               {formatDistanceToNow(new Date(r.updated_at ?? r.created_at), { addSuffix: true })}
                             </span>
                           </div>
+                          {/* One blended rating per (vendor, rater) pair, ever
+                              (migration 075) -- not tied to any specific PO/GRN/
+                              Service Confirmation/Invoice, even though the rater
+                              may have opened this from one of those pages. */}
+                          <p className="text-[11px] text-muted-foreground mt-0.5">Overall vendor rating — not tied to a specific order</p>
                           <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
                             {RATING_DIMENSIONS.map((dim) => (
                               <span key={dim} className="text-[11px] text-muted-foreground">

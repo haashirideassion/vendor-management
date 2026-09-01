@@ -20,9 +20,14 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogBody } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { EyeIcon } from "@/components/shared/SolarIcon"
+import { OrgChartView } from "@/components/shared/OrgChartView"
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { EyeIcon, Settings01Icon } from "@/components/shared/SolarIcon"
 import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
 import type { OrgMember } from "@/hooks/useOrgMembers"
 import { toast } from "sonner"
@@ -69,6 +74,7 @@ export function OrgTeam() {
   const [email, setEmail] = useState("")
   const [fullName, setFullName] = useState("")
   const [assignmentRows, setAssignmentRows] = useState<AssignmentRow[]>([{ teamId: null, roleId: null }])
+  const [inviteReportsTo, setInviteReportsTo] = useState<string | null>(null)
   const [managingTeams, setManagingTeams] = useState(false)
   const [newTeamName, setNewTeamName] = useState("")
   const [managingRoles, setManagingRoles] = useState(false)
@@ -76,6 +82,7 @@ export function OrgTeam() {
   const [managingMatchTolerance, setManagingMatchTolerance] = useState(false)
   const [managingContractApprovalThresholds, setManagingContractApprovalThresholds] = useState(false)
   const [managingBaseCurrency, setManagingBaseCurrency] = useState(false)
+  const [view, setView] = useState<"list" | "chart">("list")
 
   const isSolo = assignable?.roleMode === "solo"
   const roles = assignable?.roles ?? []
@@ -84,6 +91,7 @@ export function OrgTeam() {
     setEmail("")
     setFullName("")
     setAssignmentRows([{ teamId: null, roleId: null }])
+    setInviteReportsTo(null)
   }
 
   async function handleInvite() {
@@ -95,6 +103,7 @@ export function OrgTeam() {
         email: email.trim(), fullName: fullName.trim(),
         roleIds: isSolo ? [] : [...new Set(assignments.map((a) => a.roleId))],
         assignments: isSolo ? undefined : assignments,
+        reportsTo: inviteReportsTo,
       })
       toast.success(result.inviteSent ? `Invite sent to ${result.email}` : `${result.email} added to this organization`)
       setInviting(false)
@@ -175,18 +184,57 @@ export function OrgTeam() {
 
   return (
     <AnimatedPage className="space-y-6">
-      {isViewerAdmin && (
-        <div className="flex items-center justify-end gap-2">
-          {!isSolo && <Button variant="outline" onClick={() => setManagingTeams(true)}>Manage Teams</Button>}
-          {!isSolo && <Button variant="outline" onClick={() => setManagingRoles(true)}>Manage Roles</Button>}
-          {!isSolo && <Button variant="outline" onClick={() => setManagingApprovalPolicy(true)}>Approval Policy</Button>}
-          <Button variant="outline" onClick={() => setManagingMatchTolerance(true)}>Match Tolerance</Button>
-          <Button variant="outline" onClick={() => setManagingContractApprovalThresholds(true)}>Contract Approval Thresholds</Button>
-          <Button variant="outline" onClick={() => setManagingBaseCurrency(true)}>Base Currency</Button>
-          <Button onClick={() => setInviting(true)}>Invite Member</Button>
+      <div className="flex items-center justify-between gap-2">
+        <div className="inline-flex rounded-lg border p-0.5 bg-muted/40">
+          <Button
+            size="sm"
+            variant={view === "list" ? "default" : "ghost"}
+            className="h-7 px-3 text-xs"
+            onClick={() => setView("list")}
+          >
+            List
+          </Button>
+          <Button
+            size="sm"
+            variant={view === "chart" ? "default" : "ghost"}
+            className="h-7 px-3 text-xs"
+            onClick={() => setView("chart")}
+          >
+            Org Chart
+          </Button>
         </div>
-      )}
+        {isViewerAdmin && (
+          <div className="flex items-center justify-end gap-2 flex-wrap">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="gap-1.5">
+                  <SolarDuotoneIcon icon={Settings01Icon} size={14} strokeWidth={1.5} primaryColor="currentColor" secondaryColor="currentColor" />
+                  Settings
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                {!isSolo && <DropdownMenuItem onClick={() => setManagingTeams(true)}>Manage Teams</DropdownMenuItem>}
+                {!isSolo && <DropdownMenuItem onClick={() => setManagingRoles(true)}>Manage Roles</DropdownMenuItem>}
+                {!isSolo && <DropdownMenuItem onClick={() => setManagingApprovalPolicy(true)}>Approval Policy</DropdownMenuItem>}
+                <DropdownMenuItem onClick={() => setManagingMatchTolerance(true)}>Match Tolerance</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setManagingContractApprovalThresholds(true)}>Contract Approval Thresholds</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setManagingBaseCurrency(true)}>Base Currency</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button onClick={() => setInviting(true)}>Invite Member</Button>
+          </div>
+        )}
+      </div>
 
+      {view === "chart" ? (
+        <div className="rounded-xl border bg-card">
+          {isLoading ? (
+            <p className="text-center text-muted-foreground py-12 text-sm">Loading…</p>
+          ) : (
+            <OrgChartView members={members} />
+          )}
+        </div>
+      ) : (
       <div className="rounded-xl border bg-card">
         <Table>
           <TableHeader>
@@ -196,15 +244,16 @@ export function OrgTeam() {
               <TableHead>Status</TableHead>
               <TableHead>Roles</TableHead>
               {!isSolo && <TableHead>Teams</TableHead>}
+              <TableHead>Reports To</TableHead>
               <TableHead className="w-20" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading && (
-              <TableRow><TableCell colSpan={isSolo ? 5 : 6} className="text-center text-muted-foreground py-8">Loading…</TableCell></TableRow>
+              <TableRow><TableCell colSpan={isSolo ? 6 : 7} className="text-center text-muted-foreground py-8">Loading…</TableCell></TableRow>
             )}
             {!isLoading && members.length === 0 && (
-              <TableRow><TableCell colSpan={isSolo ? 5 : 6} className="text-center text-muted-foreground py-8">No members yet.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={isSolo ? 6 : 7} className="text-center text-muted-foreground py-8">No members yet.</TableCell></TableRow>
             )}
             {members.map((m) => (
               <TableRow key={m.id}>
@@ -213,6 +262,9 @@ export function OrgTeam() {
                 <TableCell><Badge variant="outline" className={STATUS_COLORS[m.status]}>{m.status}</Badge></TableCell>
                 <TableCell>{m.roleNames.join(", ") || "—"}</TableCell>
                 {!isSolo && <TableCell className="text-muted-foreground text-sm">{renderTeams(m)}</TableCell>}
+                <TableCell className="text-muted-foreground text-sm">
+                  {m.reportsTo ? (members.find((mgr) => mgr.id === m.reportsTo)?.profile?.full_name ?? "—") : "—"}
+                </TableCell>
                 <TableCell>
                   <Button asChild size="sm" variant="ghost" className="h-8 px-2 gap-1.5 text-xs">
                     <Link to={`/admin/team/${m.id}`}>
@@ -226,6 +278,7 @@ export function OrgTeam() {
           </TableBody>
         </Table>
       </div>
+      )}
 
       <Dialog open={inviting} onOpenChange={(o) => { setInviting(o); if (!o) resetInviteForm() }}>
         <DialogContent>
@@ -239,6 +292,23 @@ export function OrgTeam() {
               <Label>Email</Label>
               <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="jane@company.com" />
             </div>
+            {members.length > 0 && (
+              <div className="space-y-1.5">
+                <Label>Reports To</Label>
+                <Select
+                  value={inviteReportsTo ?? "none"}
+                  onValueChange={(v) => setInviteReportsTo(v === "none" ? null : v)}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No manager (org chart root)</SelectItem>
+                    {members.map((m) => (
+                      <SelectItem key={m.id} value={m.id}>{m.profile?.full_name ?? m.profile?.email}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             {isSolo ? (
               <p className="text-xs text-muted-foreground">
                 This organization is in solo mode — the new member is automatically granted full (Admin + Manager + Associate) access.

@@ -19,6 +19,9 @@ export interface OrgMember {
   // the two systems coexist -- see teamAssignment.service.ts.
   teamAssignments: OrgTeamAssignment[]
   directRoleNames: string[]
+  // Org Chart support (migration 092) -- id of the member's manager, or
+  // null if they have none (a chart root).
+  reportsTo: string | null
 }
 export interface AssignableRole { id: string; name: string; description: string | null; is_system?: boolean }
 
@@ -81,7 +84,7 @@ export function useInviteOrgMember() {
   const { accessToken } = useAuth()
   const { activeOrg } = useOrg()
   return useMutation({
-    mutationFn: async (input: { email: string; fullName: string; roleIds: string[]; assignments?: TeamRoleAssignment[] }) => {
+    mutationFn: async (input: { email: string; fullName: string; roleIds: string[]; assignments?: TeamRoleAssignment[]; reportsTo?: string | null }) => {
       const { data } = await api.post<{ data: { memberId: string; email: string; inviteSent: boolean } }>(
         "/api/org-members/invite", input, accessToken
       )
@@ -98,6 +101,19 @@ export function useUpdateOrgMemberRoles() {
   return useMutation({
     mutationFn: async (input: { memberId: string; roleIds: string[]; assignments?: TeamRoleAssignment[] }) => {
       const { data } = await api.post<{ data: unknown }>("/api/org-members/update-roles", input, accessToken)
+      return data
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["org-members", activeOrg?.id] }),
+  })
+}
+
+export function useSetOrgMemberManager() {
+  const qc = useQueryClient()
+  const { accessToken } = useAuth()
+  const { activeOrg } = useOrg()
+  return useMutation({
+    mutationFn: async (input: { memberId: string; reportsTo: string | null }) => {
+      const { data } = await api.post<{ data: unknown }>("/api/org-members/set-manager", input, accessToken)
       return data
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["org-members", activeOrg?.id] }),
