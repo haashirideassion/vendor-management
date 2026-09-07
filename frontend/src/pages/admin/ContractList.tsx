@@ -38,16 +38,23 @@ import { SolarDuotoneIcon } from "@/components/shared/SolarIcon"
 import { FileUploadZone } from "@/components/shared/FileUploadZone"
 import { useUploadAttachments } from "@/hooks/useAttachments"
 
+const asEmptyIfMissing = (v: unknown) => (v === undefined || v === null) ? "" : v
+
 const createSchema = z.object({
-  vendor_id:           z.string().uuid("Select a vendor"),
-  contract_type:       z.string().min(1, "Select a contract type"),
+  vendor_id:           z.preprocess(asEmptyIfMissing, z.string().min(1, "Select a vendor").uuid("Select a valid vendor")),
+  contract_type:       z.preprocess(asEmptyIfMissing, z.string().min(1, "Select a contract type")),
   title:               z.string().min(1, "Title is required"),
   parent_id:           z.string().optional(),
-  effective_date:      z.string().optional(),
-  expiry_date:         z.string().optional(),
+  effective_date:      z.string().min(1, "Effective date is required"),
+  expiry_date:         z.string().min(1, "Expiry date is required"),
   total_value:         z.preprocess(
-    (v) => (v === "" || v === undefined || v === null) ? undefined : v,
-    z.coerce.number().positive().optional()
+    asEmptyIfMissing,
+    z.string().min(1, "Total value is required").transform((v, ctx) => {
+      const n = Number(v)
+      if (Number.isNaN(n)) { ctx.addIssue({ code: "custom", message: "Total value must be a number" }); return z.NEVER }
+      if (n <= 0) { ctx.addIssue({ code: "custom", message: "Total value must be greater than 0" }); return z.NEVER }
+      return n
+    })
   ),
   currency:            z.string().default("INR"),
   auto_renew:          z.boolean().default(false),
@@ -358,19 +365,28 @@ export function ContractList() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label>Effective Date</Label>
+                  <Label>Effective Date <span className="text-destructive">*</span></Label>
                   <Input type="date" {...form.register("effective_date")} />
+                  {form.formState.errors.effective_date && (
+                    <p className="text-xs text-destructive">{form.formState.errors.effective_date.message}</p>
+                  )}
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Expiry Date</Label>
+                  <Label>Expiry Date <span className="text-destructive">*</span></Label>
                   <Input type="date" {...form.register("expiry_date")} />
+                  {form.formState.errors.expiry_date && (
+                    <p className="text-xs text-destructive">{form.formState.errors.expiry_date.message}</p>
+                  )}
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label>Total Value</Label>
-                  <Input type="number" min={0} step="0.01" {...form.register("total_value")} placeholder="Optional" />
+                  <Label>Total Value <span className="text-destructive">*</span></Label>
+                  <Input type="number" min={0} step="0.01" {...form.register("total_value")} placeholder="0.00" />
+                  {form.formState.errors.total_value && (
+                    <p className="text-xs text-destructive">{form.formState.errors.total_value.message}</p>
+                  )}
                 </div>
                 <div className="space-y-1.5">
                   <Label>Notice Period (days)</Label>

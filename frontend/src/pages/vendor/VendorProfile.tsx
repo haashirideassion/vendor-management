@@ -35,7 +35,7 @@ const schema = z.object({
   legal_name: z.string().nullable().optional(),
   contact_name: z.string().min(2, "Required"),
   contact_email: z.email("Invalid email"),
-  contact_phone: z.string().nullable().optional(),
+  contact_phone: z.string().min(1, "Phone number is required"),
   tax_gst_number: z.string().nullable().optional(),
   pan_number: z.string().nullable().optional(),
   registration_number: z.string().nullable().optional(),
@@ -47,12 +47,12 @@ type FormData = z.infer<typeof schema>
 
 type FieldId = keyof FormData
 
-const fields: { id: FieldId; label: string }[] = [
-  { id: "company_name", label: "Company name" },
+const fields: { id: FieldId; label: string; required?: boolean }[] = [
+  { id: "company_name", label: "Company name", required: true },
   { id: "legal_name", label: "Legal name (if different)" },
-  { id: "contact_name", label: "Contact name" },
-  { id: "contact_email", label: "Contact email" },
-  { id: "contact_phone", label: "Phone" },
+  { id: "contact_name", label: "Contact name", required: true },
+  { id: "contact_email", label: "Contact email", required: true },
+  { id: "contact_phone", label: "Phone", required: true },
 ]
 
 const bankFields: { id: FieldId; label: string }[] = [
@@ -91,7 +91,7 @@ export function VendorProfile() {
           legal_name: vendor.legal_name,
           contact_name: vendor.contact_name,
           contact_email: vendor.contact_email,
-          contact_phone: vendor.contact_phone,
+          contact_phone: vendor.contact_phone ?? "",
           tax_gst_number: vendor.tax_gst_number,
           pan_number: vendor.pan_number,
           registration_number: vendor.registration_number,
@@ -209,10 +209,10 @@ export function VendorProfile() {
               </div>
             </CardHeader>
             <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-              {fields.map(({ id, label }) => (
+              {fields.map(({ id, label, required }) => (
                 <div key={id} className="flex flex-col gap-1.5">
                   <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    {label}
+                    {label}{required && <span className="text-destructive"> *</span>}
                   </Label>
                   {editing ? (
                     <>

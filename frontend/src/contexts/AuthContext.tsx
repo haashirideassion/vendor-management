@@ -134,6 +134,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  useEffect(() => {
+    function handlePageShow(event: PageTransitionEvent) {
+      if (!event.persisted) return
+      // event.persisted means the browser restored this exact page (DOM +
+      // JS heap, including whatever `user`/`accessToken` state existed at
+      // unload) from the back-forward cache instead of re-running any mount
+      // logic -- e.g. clicking Forward back to the Dashboard after a Logout.
+      // Re-validate against the server before letting a possibly-stale
+      // authenticated view stay on screen; `loading` hides it behind the
+      // same spinner AuthGuard already shows during the initial check.
+      setLoading(true)
+      silentRefresh().finally(() => setLoading(false))
+    }
+    window.addEventListener("pageshow", handlePageShow)
+    return () => window.removeEventListener("pageshow", handlePageShow)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   async function login(email: string, password: string): Promise<{ user: AuthUser; accessToken: string }> {
     async function attempt(isRetry = false): Promise<{ user: AuthUser; accessToken: string }> {
       const encryptedPassword = await encryptPassword(password)

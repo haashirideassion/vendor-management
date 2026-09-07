@@ -85,7 +85,7 @@ export function useInviteOrgMember() {
   const { activeOrg } = useOrg()
   return useMutation({
     mutationFn: async (input: { email: string; fullName: string; roleIds: string[]; assignments?: TeamRoleAssignment[]; reportsTo?: string | null }) => {
-      const { data } = await api.post<{ data: { memberId: string; email: string; inviteSent: boolean } }>(
+      const { data } = await api.post<{ data: { memberId: string; email: string; inviteSent: boolean; newAccountCreated: boolean } }>(
         "/api/org-members/invite", input, accessToken
       )
       return data

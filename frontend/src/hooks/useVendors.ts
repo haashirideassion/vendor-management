@@ -108,7 +108,7 @@ export function useInvitePortalUser() {
 
   return useMutation({
     mutationFn: async (vendorId: string) => {
-      const { data } = await api.post<{ data: { vendorUserId: string; email: string; inviteSent: boolean } }>(
+      const { data } = await api.post<{ data: { vendorUserId: string; email: string; inviteSent: boolean; newAccountCreated: boolean } }>(
         "/api/vendors/invite-portal-user",
         { vendor_id: vendorId },
         accessToken

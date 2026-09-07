@@ -274,7 +274,7 @@ export function Reports() {
           <div className="flex items-end justify-between gap-4 flex-wrap">
             <div>
               <h2 className="text-base font-semibold tracking-tight">Procurement</h2>
-              <p className="text-sm text-muted-foreground mt-0.5">Spend, contracts, and purchase request pipeline.</p>
+              <p className="text-sm text-muted-foreground mt-0.5">Spend, contracts, and quotation pipeline.</p>
             </div>
             {/* Scopes the period-based figures below (spend/status/exceptions/
                 payments) to a date range -- contract expiry, Blanket PO
@@ -494,7 +494,7 @@ export function Reports() {
               <CardHeader className="pb-3 border-b">
                 <CardTitle className="text-sm font-semibold flex items-center gap-2">
                   <SolarDuotoneIcon icon={ChartBarIncreasingIcon} size={16} strokeWidth={1.5} className="text-muted-foreground" />
-                  Purchase Request Pipeline
+                  Quotation Pipeline
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-5">

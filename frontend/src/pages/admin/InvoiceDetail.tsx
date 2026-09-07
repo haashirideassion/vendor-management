@@ -232,7 +232,7 @@ export function InvoiceDetail() {
                 )}
                 {invoice.purchase_request_id && (
                   <div>
-                    <p className="text-xs text-muted-foreground mb-0.5">Purchase Request</p>
+                    <p className="text-xs text-muted-foreground mb-0.5">Quotation</p>
                     <p className="font-medium">{invoice.purchase_request?.title ?? "—"}</p>
                   </div>
                 )}

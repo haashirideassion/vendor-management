@@ -140,7 +140,7 @@ export function VendorDashboard() {
               <p className="text-sm text-orange-900 dark:text-orange-300">
                 {vendor.verification_status === "rejected"
                   ? "Your compliance verification was rejected. Please contact your client organization for details."
-                  : "Your compliance verification is pending. You won't be eligible for new purchase requests until it's verified."}
+                  : "Your compliance verification is pending. You won't be eligible for new quotations until it's verified."}
               </p>
             </div>
             <VerificationStatusBadge status={vendor.verification_status} className="shrink-0" />
@@ -306,7 +306,7 @@ export function VendorDashboard() {
             <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
                 <SolarDuotoneIcon icon={Activity01Icon} size={16} strokeWidth={1.5} className="text-primary" />
-                <CardTitle className="text-base">Purchase Requests</CardTitle>
+                <CardTitle className="text-base">Quotations</CardTitle>
               </div>
             </CardHeader>
             <CardContent>

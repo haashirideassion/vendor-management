@@ -473,12 +473,18 @@ router.post("/invite", requireAuth, async (req: Request, res: Response) => {
       if (inviteError) throw inviteError
       createdNewAuthUser = true
       profileId = invited.user.id
-      inviteSent = true
-      await sendEmail({
+      // inviteSent reflects actual delivery, not just that the auth invite
+      // link was generated -- sendEmail() never throws, it returns
+      // {success:false} on invalid/suppressed/rate-limited/SMTP-failed sends,
+      // so without checking this the UI would claim "Invite sent" even when
+      // no email went out.
+      const emailResult = await sendEmail({
         to: normalizedEmail,
         subject: `You've been invited to join ${vendor?.company_name ?? "your vendor team"} on CogniVend`,
         html: inviteHtml({ fullName: fullName.trim(), entityName: vendor?.company_name ?? "your vendor team", entityLabel: "a team member", inviteLink: invited.properties.action_link }),
       })
+      inviteSent = emailResult.success
+      if (!inviteSent) console.error(`[vendor-users/invite] record created for ${normalizedEmail} but invitation email failed to send`)
     }
 
     const { data: newVendorUser, error: vuError } = await db()
@@ -511,7 +517,7 @@ router.post("/invite", requireAuth, async (req: Request, res: Response) => {
       orgId: null,
     })
 
-    res.status(201).json({ data: { vendorUserId, email: normalizedEmail, inviteSent } })
+    res.status(201).json({ data: { vendorUserId, email: normalizedEmail, inviteSent, newAccountCreated: createdNewAuthUser } })
   } catch (err: any) {
     console.error("[vendor-users/invite]", err.message)
     try {

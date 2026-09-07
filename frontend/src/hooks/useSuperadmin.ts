@@ -96,6 +96,7 @@ export interface CreateOrganizationWithAdminResult {
   organization: PlatformOrganization
   adminEmail: string
   inviteSent: boolean
+  newAccountCreated: boolean
 }
 
 export function useCreateOrganizationWithAdmin() {

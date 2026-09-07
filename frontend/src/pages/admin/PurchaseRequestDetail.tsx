@@ -171,9 +171,9 @@ export function PurchaseRequestDetail() {
       await reviewApproval.mutateAsync({ id: pendingApproval.id, status: "approved", notes, entityType: "purchase_request", entityId: id })
       await updateStatus.mutateAsync({ id, status: "approved", notes })
       setDialog(null); setNotes("")
-      toast.success("Purchase request approved.")
+      toast.success("Quotation approved.")
     } catch {
-      toast.error("Failed to approve purchase request. Please try again.")
+      toast.error("Failed to approve quotation. Please try again.")
     }
   }
 
@@ -183,9 +183,9 @@ export function PurchaseRequestDetail() {
       await reviewApproval.mutateAsync({ id: pendingApproval.id, status: "rejected", notes, entityType: "purchase_request", entityId: id })
       await updateStatus.mutateAsync({ id, status: "rejected", notes })
       setDialog(null); setNotes("")
-      toast.success("Purchase request rejected.")
+      toast.success("Quotation rejected.")
     } catch {
-      toast.error("Failed to reject purchase request. Please try again.")
+      toast.error("Failed to reject quotation. Please try again.")
     }
   }
 
@@ -203,7 +203,7 @@ export function PurchaseRequestDetail() {
     return (
       <AnimatedPage>
         <div className="p-6">
-          <p className="text-sm text-muted-foreground">Purchase request not found.</p>
+          <p className="text-sm text-muted-foreground">Quotation not found.</p>
         </div>
       </AnimatedPage>
     )
@@ -218,7 +218,7 @@ export function PurchaseRequestDetail() {
         <div>
           <Link to="/admin/purchase-requests" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-3">
             <SolarDuotoneIcon icon={ArrowLeft01Icon} size={13} strokeWidth={1.5} />
-            Purchase Requests
+            Quotations
           </Link>
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -426,7 +426,7 @@ export function PurchaseRequestDetail() {
             {posSent && (
               <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 text-sm text-blue-800">
                 <SolarDuotoneIcon icon={InformationCircleIcon} size={15} strokeWidth={1.5} className="shrink-0" />
-                <span>Purchase orders have already been sent for this purchase request. Selection is locked.</span>
+                <span>Purchase orders have already been sent for this quotation. Selection is locked.</span>
               </div>
             )}
 
@@ -616,10 +616,10 @@ export function PurchaseRequestDetail() {
       {/* Approve dialog */}
       <Dialog open={dialog === "approve"} onOpenChange={() => setDialog(null)}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Approve Purchase Request</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Approve Quotation</DialogTitle></DialogHeader>
           <div className="space-y-3 pt-2">
             <p className="text-sm text-muted-foreground">
-              Approving will allow a Purchase Order to be issued for this purchase request.
+              Approving will allow a Purchase Order to be issued for this quotation.
             </p>
             <Textarea placeholder="Approval notes (optional)…" value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
           </div>
@@ -635,7 +635,7 @@ export function PurchaseRequestDetail() {
       {/* Reject dialog */}
       <Dialog open={dialog === "reject"} onOpenChange={() => setDialog(null)}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Reject Purchase Request</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Reject Quotation</DialogTitle></DialogHeader>
           <div className="space-y-3 pt-2">
             <Textarea placeholder="Reason for rejection…" value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
           </div>

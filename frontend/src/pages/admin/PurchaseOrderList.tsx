@@ -205,7 +205,7 @@ export function PurchaseOrderList() {
                 <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">PO Number</TableHead>
                 <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Type</TableHead>
                 <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Vendor</TableHead>
-                <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Purchase Request</TableHead>
+                <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Quotation</TableHead>
                 <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Value</TableHead>
                 <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Status</TableHead>
                 <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Issued</TableHead>
@@ -304,13 +304,13 @@ export function PurchaseOrderList() {
             <div className="grid grid-cols-2 gap-3">
               {!isBlanket && (
                 <div className="space-y-1.5">
-                  <Label>Purchase Request (optional)</Label>
+                  <Label>Quotation (optional)</Label>
                   <Select
                     defaultValue={defaultPurchaseRequestId}
                     onValueChange={handlePurchaseRequestChange}
                   >
-                    <SelectTrigger><SelectValue placeholder="Select purchase request" /></SelectTrigger>
-                    <SelectContent>
+                    <SelectTrigger><SelectValue placeholder="Select quotation" /></SelectTrigger>
+                    <SelectContent position="popper">
                       {purchaseRequests.map((e) => <SelectItem key={e.id} value={e.id}>{e.title}</SelectItem>)}
                     </SelectContent>
                   </Select>

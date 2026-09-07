@@ -133,7 +133,11 @@ export function VendorDetail() {
     if (!id) return
     try {
       const result = await invitePortalUser.mutateAsync(id)
-      toast.success(result.inviteSent ? `Invite sent to ${result.email}` : `${result.email} already had an account — linked to this vendor's portal`)
+      if (result.newAccountCreated && !result.inviteSent) {
+        toast.error(`${result.email} was added, but the invitation email could not be sent. Please try inviting again or share access another way.`)
+      } else {
+        toast.success(result.inviteSent ? `Invite sent to ${result.email}` : `${result.email} already had an account — linked to this vendor's portal`)
+      }
     } catch (e: unknown) { toast.error((e as Error).message) }
   }
 
@@ -216,8 +220,8 @@ export function VendorDetail() {
           <div className="px-6 py-2.5 border-b bg-amber-50/60 dark:bg-amber-950/20 flex items-center gap-2 text-sm text-amber-700 dark:text-amber-400">
             <SolarDuotoneIcon icon={Alert01Icon} size={15} strokeWidth={1.5} className="shrink-0" />
             {vendor.verification_status === "rejected"
-              ? "This vendor's compliance verification was rejected — it can't be used for new purchase requests until superadmin re-verifies it."
-              : "This vendor is awaiting superadmin compliance verification — it can't be used for new purchase requests until verified."}
+              ? "This vendor's compliance verification was rejected — it can't be used for new quotations until superadmin re-verifies it."
+              : "This vendor is awaiting superadmin compliance verification — it can't be used for new quotations until verified."}
           </div>
         )}
 
@@ -660,7 +664,7 @@ export function VendorDetail() {
                     Team members with access to your organization
                   </CardTitle>
                   <p className="text-xs text-muted-foreground pt-1">
-                    Read-only — this vendor's own Admin/Manager assign which of their staff can see your organization's purchase requests.
+                    Read-only — this vendor's own Admin/Manager assign which of their staff can see your organization's quotations.
                   </p>
                 </CardHeader>
                 <CardContent className="pt-4">

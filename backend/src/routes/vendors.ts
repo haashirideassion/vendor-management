@@ -663,6 +663,12 @@ router.post("/update", requireAuth, async (req: Request, res: Response) => {
       bank_name, bank_account_number, bank_routing_number,
     } = req.body
 
+    // contact_phone is mandatory at onboarding (Step1CompanyInfo) -- enforce
+    // the same rule here so the vendor's own edit screen can't clear it.
+    if (!contact_phone || !String(contact_phone).trim()) {
+      return res.status(400).json({ error: "Phone number is required" })
+    }
+
     const { data, error } = await db()
       .from("vendors")
       .update({
@@ -1094,12 +1100,16 @@ router.post("/invite-portal-user", requireAuth, requireOrg, async (req: Request,
         if (inviteError) throw inviteError
         createdNewAuthUser = true
         profileId = invited.user.id
-        inviteSent = true
-        await sendEmail({
+        // inviteSent reflects actual delivery, not just that the auth invite
+        // link was generated -- sendEmail() never throws, it returns
+        // {success:false} on invalid/suppressed/rate-limited/SMTP-failed sends.
+        const emailResult = await sendEmail({
           to: normalizedEmail,
           subject: `You've been invited to join ${vendor.company_name} on CogniVend`,
           html: inviteHtml({ fullName: vendor.contact_name, entityName: vendor.company_name, entityLabel: "vendor portal admin", inviteLink: invited.properties.action_link }),
         })
+        inviteSent = emailResult.success
+        if (!inviteSent) console.error(`[vendors/invite] record created for ${normalizedEmail} but invitation email failed to send`)
       }
 
       const { data: newVendorUser, error: vuError } = await db()
@@ -1128,7 +1138,7 @@ router.post("/invite-portal-user", requireAuth, requireOrg, async (req: Request,
         actingAs: orgAccess === "group_admin" ? "group_admin" : null,
       })
 
-      res.status(201).json({ data: { vendorUserId, email: normalizedEmail, inviteSent } })
+      res.status(201).json({ data: { vendorUserId, email: normalizedEmail, inviteSent, newAccountCreated: createdNewAuthUser } })
     } catch (err: any) {
       try {
         if (vendorUserId) await db().from("vendor_users").delete().eq("id", vendorUserId)

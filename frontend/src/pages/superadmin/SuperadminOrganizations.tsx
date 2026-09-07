@@ -56,11 +56,15 @@ function OrganizationsPanel({ creating, onCreatingChange }: { creating: boolean;
       const result = await createOrg.mutateAsync({
         orgName: name.trim(), orgCode: slugify(name), adminName: adminName.trim(), adminEmail: adminEmail.trim(),
       })
-      toast.success(
-        result.inviteSent
-          ? `Organization created. Invite sent to ${result.adminEmail}.`
-          : `Organization created. ${result.adminEmail} already has an account and was added as admin.`
-      )
+      if (result.newAccountCreated && !result.inviteSent) {
+        toast.error(`Organization created, but the admin invitation email could not be sent to ${result.adminEmail}. Please try inviting again or share access another way.`)
+      } else {
+        toast.success(
+          result.inviteSent
+            ? `Organization created. Invite sent to ${result.adminEmail}.`
+            : `Organization created. ${result.adminEmail} already has an account and was added as admin.`
+        )
+      }
       onCreatingChange(false)
       resetForm()
     } catch (e: unknown) {

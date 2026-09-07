@@ -180,7 +180,7 @@ export function useInviteVendorUser() {
   const { accessToken } = useAuth()
   return useMutation({
     mutationFn: async (input: { email: string; fullName: string; roleIds: string[]; assignments?: TeamRoleAssignment[] }) => {
-      const { data } = await api.post<{ data: { vendorUserId: string; email: string; inviteSent: boolean } }>(
+      const { data } = await api.post<{ data: { vendorUserId: string; email: string; inviteSent: boolean; newAccountCreated: boolean } }>(
         "/api/vendor-users/invite", input, accessToken
       )
       return data

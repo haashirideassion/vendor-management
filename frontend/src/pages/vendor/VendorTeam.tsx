@@ -74,7 +74,11 @@ export function VendorTeam() {
         roleIds: [...new Set(assignments.map((a) => a.roleId))],
         assignments,
       })
-      toast.success(result.inviteSent ? `Invite sent to ${result.email}` : `${result.email} added to your team`)
+      if (result.newAccountCreated && !result.inviteSent) {
+        toast.error(`${result.email} was added, but the invitation email could not be sent. Please try inviting again or share access another way.`)
+      } else {
+        toast.success(result.inviteSent ? `Invite sent to ${result.email}` : `${result.email} added to your team`)
+      }
       setInviting(false)
       resetInviteForm()
     } catch (e: unknown) {

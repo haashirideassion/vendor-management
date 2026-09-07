@@ -31,7 +31,7 @@ import {
   SidebarExpandIcon,
 } from "@/components/shared/SolarIcon"
 
-type NavLink = { type: "link"; label: string; to: string; icon: typeof File01Icon }
+type NavLink = { type: "link"; label: string; to: string; icon: typeof File01Icon; headerLabel?: string }
 type NavGroup = { type: "group"; label: string }
 type NavEntry = NavLink | NavGroup
 
@@ -40,7 +40,7 @@ const navEntries: NavEntry[] = [
   { type: "link", label: "Categories", to: "/admin/categories", icon: Tag01Icon },
   { type: "link", label: "Reports", to: "/admin/reports", icon: BarChartIcon },
   { type: "group", label: "Procurement" },
-  { type: "link", label: "Purchase Requests", to: "/admin/purchase-requests", icon: Briefcase01Icon },
+  { type: "link", label: "Quotation", to: "/admin/purchase-requests", icon: Briefcase01Icon, headerLabel: "Quotations" },
   { type: "link", label: "Purchase Orders", to: "/admin/purchase-orders", icon: Invoice01Icon },
   { type: "link", label: "GRNs & Confirmations", to: "/admin/grns", icon: DeliveryBox01Icon },
   { type: "link", label: "Invoices", to: "/admin/invoices", icon: Invoice02Icon },
@@ -165,7 +165,8 @@ export function AdminLayout() {
   const { pathname } = useLocation()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [collapsed, setCollapsed] = useSidebarCollapse()
-  const currentLabel = navLinks.find((n) => pathname.startsWith(n.to))?.label ?? "Admin"
+  const currentNavLink = navLinks.find((n) => pathname.startsWith(n.to))
+  const currentLabel = currentNavLink?.headerLabel ?? currentNavLink?.label ?? "Admin"
   const { data: isPlatformAdmin } = usePlatformAdminStatus()
   // Platform admins reach the app through the superadmin routes regardless
   // of org membership, so the empty state is scoped to everyone else.

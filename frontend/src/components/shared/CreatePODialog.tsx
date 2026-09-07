@@ -125,7 +125,7 @@ export function CreatePODialog({
                     </SelectContent>
                   </Select>
                 ) : (
-                  <p className="text-sm text-muted-foreground">No vendors on this purchase request.</p>
+                  <p className="text-sm text-muted-foreground">No vendors on this quotation.</p>
                 )}
                 {form.formState.errors.vendor_id && (
                   <p className="text-xs text-destructive">{form.formState.errors.vendor_id.message}</p>

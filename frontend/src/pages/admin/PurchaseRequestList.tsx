@@ -149,7 +149,7 @@ export function PurchaseRequestList() {
         .filter(Boolean)
     )
     if (pickedTypes.size > 1) {
-      toast.error("Selected categories mix goods and services — please split this into separate purchase requests.")
+      toast.error("Selected categories mix goods and services — please split this into separate quotations.")
       return
     }
 
@@ -211,7 +211,7 @@ export function PurchaseRequestList() {
           {canCreatePurchaseRequest && (
             <Button size="sm" className="h-8 gap-1.5 text-xs ml-auto" onClick={() => setCreating(true)}>
               <SolarDuotoneIcon icon={Add01Icon} size={14} strokeWidth={2} primaryColor="currentColor" secondaryColor="currentColor" />
-              New Purchase Request
+              New Quotation
             </Button>
           )}
         </div>
@@ -242,7 +242,7 @@ export function PurchaseRequestList() {
               ) : purchaseRequests.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-12">
-                    <p className="text-sm font-medium text-muted-foreground">No purchase requests found</p>
+                    <p className="text-sm font-medium text-muted-foreground">No quotations found</p>
                     {hasFilters && <p className="text-xs text-muted-foreground/70 mt-1">Try adjusting your filters</p>}
                   </TableCell>
                 </TableRow>
@@ -290,7 +290,7 @@ export function PurchaseRequestList() {
           totalPages={totalPages}
           totalItems={totalItems}
           onPageChange={setPage}
-          itemLabel="purchase request"
+          itemLabel="quotation"
         />
       </div>
 
@@ -298,7 +298,7 @@ export function PurchaseRequestList() {
       <Dialog open={creating} onOpenChange={(open) => { if (!open) closeDialog() }}>
         <DialogContent size="4xl">
           <DialogHeader>
-            <DialogTitle>New Purchase Request</DialogTitle>
+            <DialogTitle>New Quotation</DialogTitle>
           </DialogHeader>
           <DialogBody>
             <form id="create-purchase-request" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-2">
@@ -531,7 +531,7 @@ export function PurchaseRequestList() {
                 ? "Creating…"
                 : uploadAttachments.isPending
                 ? "Uploading…"
-                : "Create Purchase Request"}
+                : "Create Quotation"}
             </Button>
           </DialogFooter>
         </DialogContent>

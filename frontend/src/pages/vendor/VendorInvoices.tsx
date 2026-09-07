@@ -48,7 +48,7 @@ const submitSchema = z
   })
   .refine(
     (d) => !!(d.contract_id || d.purchase_request_id),
-    { message: "Select a Contract or a Purchase Request", path: ["contract_id"] }
+    { message: "Select a Contract or a Quotation", path: ["contract_id"] }
   )
 
 type SubmitForm = z.infer<typeof submitSchema>
@@ -332,8 +332,8 @@ export function VendorInvoices() {
 
               {/* Purchase Request option */}
               <div className="p-3 space-y-1.5">
-                <Label className="text-sm font-medium">Related Purchase Request</Label>
-                <p className="text-xs text-muted-foreground">Select if this invoice is against a specific purchase request.</p>
+                <Label className="text-sm font-medium">Related Quotation</Label>
+                <p className="text-xs text-muted-foreground">Select if this invoice is against a specific quotation.</p>
                 <Select
                   value={form.watch("purchase_request_id") ?? ""}
                   onValueChange={(v) => {
@@ -343,14 +343,14 @@ export function VendorInvoices() {
                   disabled={purchaseRequestsLoading || !!watchedContractId}
                 >
                   <SelectTrigger className={watchedContractId ? "opacity-50" : ""}>
-                    <SelectValue placeholder={purchaseRequestsLoading ? "Loading purchase requests…" : "Select a purchase request"} />
+                    <SelectValue placeholder={purchaseRequestsLoading ? "Loading quotations…" : "Select a quotation"} />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent position="popper">
                     {watchedPurchaseRequestId && (
                       <SelectItem value="__clear__">— Clear selection —</SelectItem>
                     )}
                     {vendorPurchaseRequests.length === 0 && !purchaseRequestsLoading ? (
-                      <SelectItem value="__none__" disabled>No purchase requests found</SelectItem>
+                      <SelectItem value="__none__" disabled>No quotations found</SelectItem>
                     ) : (
                       vendorPurchaseRequests.map((e) => (
                         <SelectItem key={e.id} value={e.id}>{e.title}</SelectItem>

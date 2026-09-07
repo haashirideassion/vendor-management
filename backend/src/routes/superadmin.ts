@@ -295,18 +295,22 @@ router.post("/organizations/create-with-admin", requireAuth, requireSuperAdmin, 
       if (inviteError) throw inviteError
       createdNewAuthUser = true
       profileId = invited.user.id
-      inviteSent = true
 
       // No manual profiles insert here: the on_auth_user_created trigger
       // (supabase/migrations/003_triggers.sql) fires synchronously on the
       // auth.users insert this API call makes, and already creates the
       // profiles row from the same user_metadata passed above (full_name,
       // role) -- inserting again here would just collide on profiles_pkey.
-      await sendEmail({
+      // inviteSent reflects actual delivery, not just that the auth invite
+      // link was generated -- sendEmail() never throws, it returns
+      // {success:false} on invalid/suppressed/rate-limited/SMTP-failed sends.
+      const emailResult = await sendEmail({
         to: email,
         subject: `You've been invited to join ${orgName.trim()} on CogniVend`,
         html: inviteHtml({ fullName: adminName.trim(), entityName: orgName.trim(), entityLabel: "the organization admin", inviteLink: invited.properties.action_link }),
       })
+      inviteSent = emailResult.success
+      if (!inviteSent) console.error(`[superadmin] record created for ${email} but invitation email failed to send`)
     }
 
     // org_role is kept populated for now (not dropped until the RLS cutover
@@ -347,7 +351,7 @@ router.post("/organizations/create-with-admin", requireAuth, requireSuperAdmin, 
       },
     ])
 
-    res.status(201).json({ data: { organization: org, adminEmail: email, inviteSent } })
+    res.status(201).json({ data: { organization: org, adminEmail: email, inviteSent, newAccountCreated: createdNewAuthUser } })
   } catch (err: any) {
     console.error("[superadmin/organizations/create-with-admin]", err.message)
     try {

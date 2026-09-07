@@ -277,7 +277,7 @@ export function VendorRFQDetail() {
 
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold">Purchase Request Details</CardTitle>
+            <CardTitle className="text-sm font-semibold">Quotation Details</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
@@ -453,7 +453,7 @@ export function VendorRFQDetail() {
               <Separator />
               <div className="space-y-3">
                 {(rfq?.purchase_request?.line_items ?? []).length > 0 && (
-                  <p className="text-xs text-muted-foreground">Pre-filled from purchase request scope — add pricing to each item.</p>
+                  <p className="text-xs text-muted-foreground">Pre-filled from quotation scope — add pricing to each item.</p>
                 )}
                 <div className="flex items-center justify-between">
                   <Label className="text-sm font-semibold">Line Items</Label>

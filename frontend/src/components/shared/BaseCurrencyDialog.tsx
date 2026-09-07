@@ -29,7 +29,7 @@ export function BaseCurrencyDialog({
         <DialogHeader><DialogTitle>Base Currency</DialogTitle></DialogHeader>
         <DialogBody className="space-y-3">
           <p className="text-xs text-muted-foreground">
-            Approval thresholds and reporting totals are all denominated in this currency. Purchase Requests/POs/invoices/contracts in other currencies are converted into it automatically using a live exchange rate, snapshotted at the moment each one is created — changing this later does not retroactively recompute existing transactions.
+            Approval thresholds and reporting totals are all denominated in this currency. Quotations/POs/invoices/contracts in other currencies are converted into it automatically using a live exchange rate, snapshotted at the moment each one is created — changing this later does not retroactively recompute existing transactions.
           </p>
           <Select value={currency} onValueChange={setCurrency}>
             <SelectTrigger><SelectValue /></SelectTrigger>

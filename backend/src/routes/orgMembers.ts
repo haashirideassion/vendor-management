@@ -391,15 +391,19 @@ router.post("/invite", requireAuth, requireOrg, async (req: Request, res: Respon
       if (inviteError) throw inviteError
       createdNewAuthUser = true
       profileId = invited.user.id
-      inviteSent = true
       // No manual profiles insert here -- on_auth_user_created fires
       // synchronously and creates the row (same pattern as
       // superadmin.ts's create-with-admin).
-      await sendEmail({
+      // inviteSent reflects actual delivery, not just that the auth invite
+      // link was generated -- sendEmail() never throws, it returns
+      // {success:false} on invalid/suppressed/rate-limited/SMTP-failed sends.
+      const emailResult = await sendEmail({
         to: normalizedEmail,
         subject: `You've been invited to join ${org.name} on CogniVend`,
         html: inviteHtml({ fullName: fullName.trim(), entityName: org.name, entityLabel: "a team member", inviteLink: invited.properties.action_link }),
       })
+      inviteSent = emailResult.success
+      if (!inviteSent) console.error(`[org-members/invite] record created for ${normalizedEmail} but invitation email failed to send`)
     }
 
     // A profile can hold a second organization_members row at a different
@@ -425,7 +429,16 @@ router.post("/invite", requireAuth, requireOrg, async (req: Request, res: Respon
       .insert({ org_id: orgId, profile_id: profileId, org_role: legacyOrgRole, status: "invited", is_primary: false, reports_to: reportsTo ?? null })
       .select("id")
       .single()
-    if (memberError) throw memberError
+    if (memberError) {
+      // 23505 = unique_violation on organization_members_org_id_profile_id_key --
+      // a concurrent invite (or a stale client re-submitting) already added this
+      // profile to this org. Report it as a clean conflict rather than letting
+      // the raw DB error surface as a 500.
+      if (memberError.code === "23505") {
+        return res.status(409).json({ error: "This person is already a member of this organization" })
+      }
+      throw memberError
+    }
     memberId = newMember.id
 
     const { error: rolesInsertError } = await db()
@@ -453,7 +466,7 @@ router.post("/invite", requireAuth, requireOrg, async (req: Request, res: Respon
       actingAs: await resolveActingAs(actorId, orgId),
     })
 
-    res.status(201).json({ data: { memberId, email: normalizedEmail, inviteSent } })
+    res.status(201).json({ data: { memberId, email: normalizedEmail, inviteSent, newAccountCreated: createdNewAuthUser } })
   } catch (err: any) {
     console.error("[org-members/invite]", err.message)
     try {

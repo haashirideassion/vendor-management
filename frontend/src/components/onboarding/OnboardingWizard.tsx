@@ -102,6 +102,13 @@ export function OnboardingWizard() {
   const [step, setStep] = useState(() => {
     try { return Number(sessionStorage.getItem(`${STORAGE_KEY}_step`) ?? 0) } catch { return 0 }
   })
+  // Set when a step is entered via a Review-screen "Edit" link, so that
+  // step's Continue returns straight to Review instead of resuming the
+  // normal Step 1 -> 5 progression. Persisted alongside step/data so a
+  // mid-edit refresh doesn't strand the user in the linear flow.
+  const [cameFromReview, setCameFromReview] = useState(() => {
+    try { return sessionStorage.getItem(`${STORAGE_KEY}_fromReview`) === "1" } catch { return false }
+  })
   const [data, setData] = useState<Partial<OnboardingData>>(() => {
     try {
       const saved = sessionStorage.getItem(STORAGE_KEY)
@@ -148,12 +155,18 @@ export function OnboardingWizard() {
     try {
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(data))
       sessionStorage.setItem(`${STORAGE_KEY}_step`, String(step))
+      sessionStorage.setItem(`${STORAGE_KEY}_fromReview`, cameFromReview ? "1" : "0")
     } catch { /* storage unavailable */ }
-  }, [data, step])
+  }, [data, step, cameFromReview])
 
   function next(partial: Partial<OnboardingData>) {
     setData((prev) => ({ ...prev, ...partial }))
-    setStep((s) => s + 1)
+    if (cameFromReview) {
+      setCameFromReview(false)
+      setStep(4)
+    } else {
+      setStep((s) => s + 1)
+    }
   }
 
   function back() {
@@ -161,6 +174,7 @@ export function OnboardingWizard() {
   }
 
   function goToStep(s: number) {
+    setCameFromReview(true)
     setStep(s)
   }
 
@@ -260,6 +274,7 @@ export function OnboardingWizard() {
       try {
         sessionStorage.removeItem(STORAGE_KEY)
         sessionStorage.removeItem(`${STORAGE_KEY}_step`)
+        sessionStorage.removeItem(`${STORAGE_KEY}_fromReview`)
         sessionStorage.removeItem(VENDOR_INVITE_TOKEN_KEY)
       } catch { /* ignore */ }
       toast.success("Application submitted successfully!")
@@ -275,11 +290,13 @@ export function OnboardingWizard() {
     try {
       sessionStorage.removeItem(STORAGE_KEY)
       sessionStorage.removeItem(`${STORAGE_KEY}_step`)
+      sessionStorage.removeItem(`${STORAGE_KEY}_fromReview`)
       sessionStorage.removeItem(VENDOR_INVITE_TOKEN_KEY)
     } catch { /* ignore */ }
     setData({})
     setLocalDocs([])
     setStep(0)
+    setCameFromReview(false)
     navigate("/vendor/profile")
   }
 
@@ -314,7 +331,7 @@ export function OnboardingWizard() {
           <Step5Documents
             localDocs={localDocs}
             onDocsChange={setLocalDocs}
-            onNext={() => setStep(4)}
+            onNext={() => { setCameFromReview(false); setStep(4) }}
             onBack={back}
           />
         )}

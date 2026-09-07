@@ -50,11 +50,15 @@ export function VendorOnboardDialog({ open, onOpenChange, actingOrgId, groupId, 
         actingOrgId,
       })
       const invite = await invitePortalUser.mutateAsync(result.id)
-      toast.success(
-        invite.inviteSent
-          ? `Vendor created — invite sent to ${invite.email}`
-          : `Vendor created — ${invite.email} already had an account, linked to this vendor's portal`
-      )
+      if (invite.newAccountCreated && !invite.inviteSent) {
+        toast.error(`Vendor created, but the invitation email could not be sent to ${invite.email}. Please try inviting again from the vendor's page.`)
+      } else {
+        toast.success(
+          invite.inviteSent
+            ? `Vendor created — invite sent to ${invite.email}`
+            : `Vendor created — ${invite.email} already had an account, linked to this vendor's portal`
+        )
+      }
       handleClose()
     } catch (e: unknown) {
       toast.error((e as Error).message ?? "Failed to onboard vendor")

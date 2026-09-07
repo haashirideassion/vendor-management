@@ -75,7 +75,7 @@ export function useCreateContract() {
       queryClient.invalidateQueries({ queryKey: ["contracts"] })
       toast.success("Contract created")
     },
-    onError: () => toast.error("Failed to create contract"),
+    onError: (err: unknown) => toast.error((err as Error).message ?? "Failed to create contract"),
   })
 }
 

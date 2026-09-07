@@ -91,9 +91,9 @@ export function useCreatePurchaseRequest() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["purchase_requests"] })
       queryClient.invalidateQueries({ queryKey: ["rfqs"] })
-      toast.success("Purchase request created")
+      toast.success("Quotation created")
     },
-    onError: () => toast.error("Failed to create purchase request"),
+    onError: () => toast.error("Failed to create quotation"),
   })
 }
 
@@ -127,7 +127,7 @@ export function useUpdatePurchaseRequestStatus() {
       queryClient.invalidateQueries({ queryKey: ["purchase_requests"] })
       queryClient.invalidateQueries({ queryKey: ["purchase_requests", id] })
     },
-    onError: () => toast.error("Failed to update purchase request status"),
+    onError: () => toast.error("Failed to update quotation status"),
   })
 }
 
@@ -152,8 +152,8 @@ export function useUpdatePurchaseRequest() {
     onSuccess: (_, { id }) => {
       queryClient.invalidateQueries({ queryKey: ["purchase_requests"] })
       queryClient.invalidateQueries({ queryKey: ["purchase_requests", id] })
-      toast.success("Purchase request updated")
+      toast.success("Quotation updated")
     },
-    onError: () => toast.error("Failed to update purchase request"),
+    onError: () => toast.error("Failed to update quotation"),
   })
 }
