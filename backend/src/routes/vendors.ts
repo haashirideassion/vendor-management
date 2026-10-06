@@ -5,7 +5,7 @@ import { requireAuth, AuthenticatedRequest } from "../middleware/auth"
 import { requireOrg, OrgScopedRequest, resolveVendorId } from "../middleware/org"
 import { getDefaultOrgId } from "../utils/org"
 import { writeAudit } from "../services/audit"
-import { sendEmail, inviteHtml } from "../services/email.service"
+import { issueInvite, sendInviteEmail } from "../services/invitations"
 import { findOrgRoleHolderIds, notifyUsers } from "../services/approvalGate"
 import { ensureDefaultLegalEntity } from "../services/legalEntity.service"
 import { resolveOrgMemberLegalEntityScope, vendorIdsForLegalEntities } from "../services/legalEntityScope.service"
@@ -1083,34 +1083,10 @@ router.post("/invite-portal-user", requireAuth, requireOrg, async (req: Request,
     let vendorUserId: string | null = null
 
     try {
-      const { data: existingProfile } = await db().from("profiles").select("id").eq("email", normalizedEmail).maybeSingle()
-
+      const issued = await issueInvite({ email: normalizedEmail, fullName: vendor.contact_name, role: "vendor" })
+      profileId = issued.profileId
+      createdNewAuthUser = issued.isNew
       let inviteSent = false
-      if (existingProfile) {
-        profileId = existingProfile.id
-      } else {
-        const { data: invited, error: inviteError } = await db().auth.admin.generateLink({
-          type: "invite",
-          email: normalizedEmail,
-          options: {
-            redirectTo: `${process.env.FRONTEND_URL}/accept-invite`,
-            data: { full_name: vendor.contact_name, role: "vendor" },
-          },
-        })
-        if (inviteError) throw inviteError
-        createdNewAuthUser = true
-        profileId = invited.user.id
-        // inviteSent reflects actual delivery, not just that the auth invite
-        // link was generated -- sendEmail() never throws, it returns
-        // {success:false} on invalid/suppressed/rate-limited/SMTP-failed sends.
-        const emailResult = await sendEmail({
-          to: normalizedEmail,
-          subject: `You've been invited to join ${vendor.company_name} on CogniVend`,
-          html: inviteHtml({ fullName: vendor.contact_name, entityName: vendor.company_name, entityLabel: "vendor portal admin", inviteLink: invited.properties.action_link }),
-        })
-        inviteSent = emailResult.success
-        if (!inviteSent) console.error(`[vendors/invite] record created for ${normalizedEmail} but invitation email failed to send`)
-      }
 
       const { data: newVendorUser, error: vuError } = await db()
         .from("vendor_users")
@@ -1127,6 +1103,13 @@ router.post("/invite-portal-user", requireAuth, requireOrg, async (req: Request,
           .insert({ vendor_user_id: vendorUserId, role_id: adminRole.id })
         if (rolesError) throw rolesError
       }
+
+      const emailResult = await sendInviteEmail({
+        to: normalizedEmail, fullName: vendor.contact_name, entityName: vendor.company_name,
+        entityLabel: "vendor portal admin", actionLink: issued.actionLink,
+      })
+      inviteSent = emailResult.success
+      if (!inviteSent) console.error("[vendors/invite-portal-user] record created but invitation email failed to send:", emailResult.reason)
 
       await writeAudit({
         entityType: "vendor_user",

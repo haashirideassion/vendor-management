@@ -1,6 +1,7 @@
 import request from "supertest"
 import app from "../server"
 import * as supabaseAdmin from "../utils/supabaseAdmin"
+import { sendEmail } from "../services/email.service"
 
 jest.mock("../services/crypto.service", () => ({
   getKeyPair: jest.fn().mockReturnValue({ publicKeyPem: "mock-pem" }),
@@ -8,17 +9,20 @@ jest.mock("../services/crypto.service", () => ({
 }))
 
 jest.mock("../services/email.service", () => ({
-  sendEmail: jest.fn().mockResolvedValue(undefined),
+  sendEmail: jest.fn().mockResolvedValue({ success: true }),
   signupConfirmationHtml: jest.fn().mockReturnValue("<html>confirm</html>"),
   vendorSubmittedAdminHtml: jest.fn().mockReturnValue("<html>admin</html>"),
   passwordResetHtml: jest.fn().mockReturnValue("<html>reset</html>"),
-}), { virtual: true })
+}))
 
 const mockAdminAuth = {
   admin: {
     createUser: jest.fn(),
     updateUserById: jest.fn(),
     generateLink: jest.fn(),
+    getUserById: jest.fn(),
+    deleteUser: jest.fn().mockResolvedValue({}),
+    signOut: jest.fn().mockResolvedValue({ error: null }),
   },
   getUser: jest.fn(),
   signOut: jest.fn(),
@@ -44,7 +48,7 @@ jest.spyOn(supabaseAdmin, "getSupabaseClient").mockReturnValue({
 
 function buildChain(result: any) {
   const chain: any = {}
-  const methods = ["select", "insert", "update", "eq", "maybeSingle", "single"]
+  const methods = ["select", "insert", "update", "delete", "eq", "maybeSingle", "single"]
   methods.forEach((m) => { chain[m] = jest.fn().mockReturnValue(chain) })
   chain.maybeSingle = jest.fn().mockResolvedValue(result)
   chain.single = jest.fn().mockResolvedValue(result)
@@ -89,7 +93,7 @@ describe("POST /api/auth/register", () => {
   })
 
   it("returns 409 when Supabase reports an existing user", async () => {
-    mockAdminAuth.admin.createUser.mockResolvedValue({
+    mockAdminAuth.admin.generateLink.mockResolvedValue({
       data: { user: null },
       error: { message: "User already registered" },
     })
@@ -103,26 +107,44 @@ describe("POST /api/auth/register", () => {
     expect(res.status).toBe(409)
   })
 
-  it("creates a Supabase Auth user and profile", async () => {
-    mockAdminAuth.admin.createUser.mockResolvedValue({
-      data: { user: authUser },
+  it("creates an UNVERIFIED account and emails the verification link", async () => {
+    mockAdminAuth.admin.generateLink.mockResolvedValue({
+      data: { user: authUser, properties: { action_link: "https://x.supabase.co/auth/v1/verify?token=abc&type=signup" } },
       error: null,
     })
     mockFrom.mockReturnValue(buildChain({ data: {}, error: null }))
 
     const res = await request(app).post("/api/auth/register").send({
-      email: "new@b.com",
+      email: "New@B.com",
       password: "password123",
       fullName: "New User",
     })
 
     expect(res.status).toBe(201)
-    expect(res.body.ok).toBe(true)
-    expect(mockAdminAuth.admin.createUser).toHaveBeenCalledWith(expect.objectContaining({
+    expect(res.body.verificationRequired).toBe(true)
+    expect(mockAdminAuth.admin.createUser).not.toHaveBeenCalled()
+    expect(mockAdminAuth.admin.generateLink).toHaveBeenCalledWith(expect.objectContaining({
+      type: "signup",
       email: "new@b.com",
-      password: "password123",
-      email_confirm: true,
+      options: expect.objectContaining({ redirectTo: "http://localhost:5173/verify-email" }),
     }))
+    expect(sendEmail).toHaveBeenCalledWith(expect.objectContaining({ to: "new@b.com" }))
+  })
+
+  it("rolls the account back and returns 502 when the verification email cannot be sent", async () => {
+    mockAdminAuth.admin.generateLink.mockResolvedValue({
+      data: { user: authUser, properties: { action_link: "https://x/verify" } },
+      error: null,
+    })
+    mockFrom.mockReturnValue(buildChain({ data: {}, error: null }))
+    ;(sendEmail as jest.Mock).mockResolvedValueOnce({ success: false, reason: "smtp_error" })
+
+    const res = await request(app).post("/api/auth/register").send({
+      email: "new@b.com", password: "password123", fullName: "New User",
+    })
+
+    expect(res.status).toBe(502)
+    expect(mockAdminAuth.admin.deleteUser).toHaveBeenCalledWith("uid-1")
   })
 })
 
@@ -145,6 +167,16 @@ describe("POST /api/auth/login", () => {
 
     expect(res.status).toBe(401)
     expect(res.body.error).toMatch(/Invalid email or password/)
+  })
+
+  it("returns 403 email_not_verified for an unverified account", async () => {
+    mockClientAuth.signInWithPassword.mockResolvedValue({
+      data: { session: null, user: null },
+      error: { message: "Email not confirmed", code: "email_not_confirmed" },
+    })
+    const res = await request(app).post("/api/auth/login").send({ email: "a@b.com", password: "password123" })
+    expect(res.status).toBe(403)
+    expect(res.body.code).toBe("email_not_verified")
   })
 
   it("returns accessToken and sets cookie on valid login", async () => {
@@ -217,11 +249,76 @@ describe("POST /api/auth/forgot-password", () => {
   })
 })
 
-describe("POST /api/auth/verify-email", () => {
-  it("is a no-op for Supabase Auth-backed accounts", async () => {
-    const res = await request(app).post("/api/auth/verify-email").send({})
+describe("forgot-password delivery", () => {
+  it("sends the email BEFORE responding (serverless freezes after the response)", async () => {
+    mockAdminAuth.admin.generateLink.mockResolvedValue({
+      data: { properties: { action_link: "https://x/recover" } }, error: null,
+    })
+    let sentBeforeResponse = false
+    ;(sendEmail as jest.Mock).mockImplementationOnce(async () => {
+      await new Promise((r) => setTimeout(r, 20))
+      sentBeforeResponse = true
+      return { success: true }
+    })
+    const res = await request(app).post("/api/auth/forgot-password").send({ email: "a@b.com" })
+    expect(res.status).toBe(200)
+    expect(sentBeforeResponse).toBe(true)
+  })
+
+  it("gives the same answer for an unknown address and sends nothing", async () => {
+    mockAdminAuth.admin.generateLink.mockResolvedValue({ data: null, error: { message: "User not found" } })
+    const res = await request(app).post("/api/auth/forgot-password").send({ email: "nobody@b.com" })
     expect(res.status).toBe(200)
     expect(res.body.ok).toBe(true)
+    expect(sendEmail).not.toHaveBeenCalled()
+  })
+})
+
+describe("POST /api/auth/reset-password", () => {
+  it("rejects a missing password", async () => {
+    const res = await request(app).post("/api/auth/reset-password").send({ token: "t" })
+    expect(res.status).toBe(400)
+  })
+
+  it("rejects a short password", async () => {
+    const res = await request(app).post("/api/auth/reset-password").send({ token: "t", password: "short" })
+    expect(res.status).toBe(400)
+    expect(res.body.error).toMatch(/at least 8/)
+  })
+
+  it("rejects an invalid, expired or already-used token", async () => {
+    mockAdminAuth.getUser.mockResolvedValue({ data: { user: null }, error: { message: "invalid JWT" } })
+    const res = await request(app).post("/api/auth/reset-password").send({ token: "bad", password: "password123" })
+    expect(res.status).toBe(400)
+    expect(mockAdminAuth.admin.updateUserById).not.toHaveBeenCalled()
+  })
+
+  it("updates the password and revokes all sessions so the token cannot be replayed", async () => {
+    mockAdminAuth.getUser.mockResolvedValue({ data: { user: authUser }, error: null })
+    mockAdminAuth.admin.updateUserById.mockResolvedValue({ error: null })
+    const res = await request(app).post("/api/auth/reset-password").send({ token: "good", password: "password123" })
+    expect(res.status).toBe(200)
+    expect(mockAdminAuth.admin.updateUserById).toHaveBeenCalledWith("uid-1", { password: "password123" })
+    expect(mockAdminAuth.admin.signOut).toHaveBeenCalledWith("good", "global")
+  })
+})
+
+describe("POST /api/auth/resend-verification", () => {
+  it("re-issues a link only for an unverified account", async () => {
+    mockFrom.mockReturnValue(buildChain({ data: { id: "uid-1", full_name: "T" }, error: null }))
+    mockAdminAuth.admin.getUserById.mockResolvedValue({ data: { user: { id: "uid-1", email_confirmed_at: null } } })
+    mockAdminAuth.admin.generateLink.mockResolvedValue({ data: { properties: { action_link: "https://x/verify" } }, error: null })
+    const res = await request(app).post("/api/auth/resend-verification").send({ email: "a@b.com" })
+    expect(res.status).toBe(200)
+    expect(sendEmail).toHaveBeenCalledTimes(1)
+  })
+
+  it("sends nothing, with the same response, when the account is already verified", async () => {
+    mockFrom.mockReturnValue(buildChain({ data: { id: "uid-1", full_name: "T" }, error: null }))
+    mockAdminAuth.admin.getUserById.mockResolvedValue({ data: { user: { id: "uid-1", email_confirmed_at: "2026-01-01" } } })
+    const res = await request(app).post("/api/auth/resend-verification").send({ email: "a@b.com" })
+    expect(res.status).toBe(200)
+    expect(sendEmail).not.toHaveBeenCalled()
   })
 })
 
@@ -241,7 +338,7 @@ describe("requireAuth middleware", () => {
   it("loads the user and role from Supabase", async () => {
     const { requireAuth } = await import("../middleware/auth")
     mockClientAuth.getUser.mockResolvedValue({ data: { user: authUser }, error: null })
-    mockFrom.mockReturnValue(buildChain({ data: { role: "admin" }, error: null }))
+    mockFrom.mockReturnValue(buildChain({ data: { account_type: "internal" }, error: null }))
     const mockReq: any = { headers: { authorization: "Bearer access-token" } }
     const mockRes: any = { status: jest.fn().mockReturnThis(), json: jest.fn() }
     const mockNext = jest.fn()
@@ -249,6 +346,6 @@ describe("requireAuth middleware", () => {
     await requireAuth(mockReq, mockRes, mockNext)
 
     expect(mockNext).toHaveBeenCalled()
-    expect(mockReq.user).toMatchObject({ id: "uid-1", role: "admin" })
+    expect(mockReq.user).toMatchObject({ id: "uid-1", role: "internal" })
   })
 })

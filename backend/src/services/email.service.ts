@@ -1,73 +1,129 @@
 /**
- * services/email.service.js
+ * services/email.service.ts
  * ============================================================
- * Production-ready Hostinger SMTP email service for CogniVend.
+ * Transactional SMTP email service for CogniVend.
+ *
+ * All configuration comes from environment variables (see
+ * backend/.env.example). Nothing here is provider-specific.
  * ============================================================
  */
 
-import nodemailer from "nodemailer";
+import nodemailer, { Transporter } from "nodemailer";
 import { validate } from "email-validator";
 
 /* ============================================================
-   SMTP Transporter — Lazy Singleton
+   Configuration
 ============================================================ */
 
-let _transporter: any = null;
+export type SmtpSecurity = "ssl" | "starttls" | "none";
 
-const getTransporter = () => {
-    if (!_transporter) {
-        const host = process.env.SMTP_HOST || "smtp.hostinger.com";
-        const port = parseInt(process.env.SMTP_PORT || "587", 10);
-        const user = process.env.SMTP_USER;
-        const pass = process.env.SMTP_PASS;
+export interface SmtpConfig {
+    host: string;
+    port: number;
+    user: string;
+    pass: string;
+    security: SmtpSecurity;
+    rejectUnauthorized: boolean;
+}
 
-        if (!user || !pass) {
-            console.warn("⚠️ SMTP_USER / SMTP_PASS not set");
-        }
+/**
+ * Reads SMTP settings from the environment. Returns the list of missing
+ * variables instead of silently falling back to defaults, so a bad
+ * deployment is reported rather than discovered as "emails never arrive".
+ */
+export const readSmtpConfig = (): { config?: SmtpConfig; missing: string[] } => {
+    const missing: string[] = [];
+    const host = process.env.SMTP_HOST?.trim();
+    const user = process.env.SMTP_USER?.trim();
+    const pass = process.env.SMTP_PASS;
+    if (!host) missing.push("SMTP_HOST");
+    if (!user) missing.push("SMTP_USER");
+    if (!pass) missing.push("SMTP_PASS");
 
-        _transporter = nodemailer.createTransport({
-            host,
+    const port = parseInt(process.env.SMTP_PORT || "587", 10);
+    if (!Number.isInteger(port) || port <= 0) missing.push("SMTP_PORT");
+
+    // SMTP_SECURE: "ssl" (implicit TLS, usually 465), "starttls" (usually 587)
+    // or "none". Defaults to the conventional mode for the chosen port.
+    const requested = (process.env.SMTP_SECURE || "").trim().toLowerCase();
+    let security: SmtpSecurity = port === 465 ? "ssl" : "starttls";
+    if (requested === "ssl" || requested === "true") security = "ssl";
+    else if (requested === "starttls" || requested === "false") security = "starttls";
+    else if (requested === "none") security = "none";
+
+    if (missing.length > 0) return { missing };
+    return {
+        missing,
+        config: {
+            host: host!,
             port,
-            secure: port === 465,
-            auth: { user, pass },
-            tls: { rejectUnauthorized: false }
-        });
+            user: user!,
+            pass: pass!,
+            security,
+            // Certificate validation stays ON unless explicitly disabled for a
+            // known self-signed dev relay.
+            rejectUnauthorized: process.env.SMTP_TLS_REJECT_UNAUTHORIZED !== "false",
+        },
+    };
+};
 
-        _transporter.verify((err: any) => {
-            if (err) console.error("❌ SMTP connection failed:", err.message);
-            else console.log("✅ SMTP transporter ready");
-        });
+let _transporter: Transporter | null = null;
+
+const getTransporter = (): Transporter => {
+    if (_transporter) return _transporter;
+    const { config, missing } = readSmtpConfig();
+    if (!config) {
+        throw Object.assign(new Error(`SMTP is not configured (missing: ${missing.join(", ")})`), { code: "SMTP_NOT_CONFIGURED" });
     }
-
+    _transporter = nodemailer.createTransport({
+        host: config.host,
+        port: config.port,
+        secure: config.security === "ssl",
+        requireTLS: config.security === "starttls",
+        ignoreTLS: config.security === "none",
+        auth: { user: config.user, pass: config.pass },
+        tls: { rejectUnauthorized: config.rejectUnauthorized },
+        // Bounded timeouts: on a serverless host a hung socket would otherwise
+        // run until the function is killed and the request just times out.
+        connectionTimeout: 10_000,
+        greetingTimeout: 10_000,
+        socketTimeout: 20_000,
+    });
     return _transporter;
 };
 
-/* ============================================================
-   Config
-============================================================ */
+/** Test hook: forget the cached transporter after env changes. */
+export const resetTransporter = () => { _transporter = null; };
+
+/** Opens a connection and authenticates, without sending anything. */
+export const verifySmtp = async (): Promise<{ ok: boolean; error?: string }> => {
+    try {
+        await getTransporter().verify();
+        return { ok: true };
+    } catch (err: any) {
+        return { ok: false, error: err.code || err.message };
+    }
+};
 
 const getFrom = () => {
-    const smtpFrom = process.env.SMTP_FROM;
-    if (smtpFrom) {
-        const match = smtpFrom.match(/^(?:"?([^"]*)"?\s)?<([^>]+)>$/);
-        if (match) {
-            return {
-                name: match[1] || "CogniVend",
-                email: match[2]
-            };
-        }
+    // Preferred: SMTP_FROM_EMAIL + SMTP_FROM_NAME. Legacy: SMTP_FROM="Name <addr>".
+    const email = process.env.SMTP_FROM_EMAIL?.trim();
+    if (email) return { email, name: process.env.SMTP_FROM_NAME?.trim() || "CogniVend" };
+
+    const legacy = process.env.SMTP_FROM;
+    if (legacy) {
+        const match = legacy.match(/^\s*"?([^"<]*?)"?\s*<([^>]+)>\s*$/);
+        if (match) return { name: match[1] || "CogniVend", email: match[2] };
+        if (validate(legacy.trim())) return { name: "CogniVend", email: legacy.trim() };
     }
-    return {
-        email: process.env.SES_FROM_EMAIL || process.env.SMTP_USER || "noreply-cognivend@ideassionlive.in",
-        name: process.env.SES_FROM_NAME || "CogniVend"
-    };
+    return { email: process.env.SMTP_USER || "", name: process.env.SMTP_FROM_NAME?.trim() || "CogniVend" };
 };
 
 const RATE_LIMIT = parseInt(process.env.EMAIL_RATE_LIMIT_PER_MIN || "30", 10);
 const MAX_RETRIES = 3;
 
 /* ============================================================
-   Token Bucket Rate Limiter
+   Token Bucket Rate Limiter (per process)
 ============================================================ */
 
 const rateLimiter = {
@@ -89,11 +145,11 @@ const rateLimiter = {
    Suppression List
 ============================================================ */
 
-const suppressionList = new Set();
+const suppressionList = new Set<string>();
 
 export const addToSuppressionList = (email: string) => {
     suppressionList.add(email.toLowerCase());
-    console.warn(`⚠️ Suppressed email: ${email}`);
+    console.warn("⚠️ Email address added to suppression list");
 };
 
 export const isSupPressed = (email: string) =>
@@ -105,37 +161,51 @@ export const isSupPressed = (email: string) =>
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+export const escapeHtml = (value: unknown): string =>
+    String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+
+// Plain-text alternative. Anchors become "label: url" so the action link is
+// still present for clients that only render text/plain.
 const stripHtml = (html: string) =>
     html
+        .replace(/<a\s[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi, (_m, href, label) => `${label.replace(/<[^>]+>/g, "").trim()}: ${href}`)
         .replace(/<br\s*\/?>/gi, "\n")
-        .replace(/<\/p>/gi, "\n\n")
+        .replace(/<\/(p|h2|h3|tr|li)>/gi, "\n\n")
         .replace(/<[^>]+>/g, "")
         .replace(/&amp;/g, "&")
         .replace(/&lt;/g, "<")
         .replace(/&gt;/g, ">")
         .replace(/&quot;/g, '"')
         .replace(/&#039;/g, "'")
+        .replace(/[ \t]+\n/g, "\n")
+        .replace(/\n{3,}/g, "\n\n")
         .trim();
 
 /* ============================================================
-   Retry Logic
+   Retry Logic — transient failures only
 ============================================================ */
 
-const sendWithRetry = async (mailOptions: any, attempt: number = 1) => {
+const isTransient = (err: any) =>
+    ["ECONNRESET", "ETIMEDOUT", "ESOCKET", "ECONNECTION", "EDNS"].includes(err.code) ||
+    // 4xx SMTP replies are temporary; 5xx (bad credentials 535, rejected
+    // recipient 550, ...) will not succeed on retry.
+    (typeof err.responseCode === "number" && err.responseCode >= 400 && err.responseCode < 500);
+
+const sendWithRetry = async (mailOptions: any, attempt: number = 1): Promise<any> => {
     try {
         return await getTransporter().sendMail(mailOptions);
     } catch (err: any) {
-        const retryable =
-            ["ECONNRESET", "ETIMEDOUT", "ESOCKET"].includes(err.code) ||
-            (err.responseCode && err.responseCode >= 400);
-
-        if (retryable && attempt < MAX_RETRIES) {
-            const backoff = Math.pow(2, attempt) * 1000;
-            console.warn(`⚠️ Retry ${attempt}/${MAX_RETRIES} in ${backoff}ms`);
+        if (isTransient(err) && attempt < MAX_RETRIES) {
+            const backoff = Math.pow(2, attempt) * 500;
+            console.warn(`⚠️ SMTP transient failure (${err.code || err.responseCode}), retry ${attempt}/${MAX_RETRIES - 1} in ${backoff}ms`);
             await sleep(backoff);
             return sendWithRetry(mailOptions, attempt + 1);
         }
-
         throw err;
     }
 };
@@ -144,52 +214,67 @@ const sendWithRetry = async (mailOptions: any, attempt: number = 1) => {
    Send Single Email
 ============================================================ */
 
-export const sendEmail = async ({ to, subject, html, text }: { to: string; subject: string; html: string; text?: string }) => {
-    if (!validate(to)) {
-        console.error("Invalid email:", to);
-        return { success: false };
+export interface SendEmailResult {
+    success: boolean;
+    messageId?: string;
+    /** Machine-readable reason when success is false. Never contains secrets. */
+    reason?: "invalid_recipient" | "suppressed" | "rate_limited" | "not_configured" | "smtp_error";
+}
+
+/**
+ * Never throws. Callers MUST inspect `success` -- invitation/verification
+ * endpoints use it to tell the sender whether the email actually went out.
+ */
+export const sendEmail = async ({ to, subject, html, text }: { to: string; subject: string; html: string; text?: string }): Promise<SendEmailResult> => {
+    if (!to || !validate(to)) {
+        console.error("[email] invalid recipient address");
+        return { success: false, reason: "invalid_recipient" };
     }
 
     if (isSupPressed(to)) {
-        console.warn("Suppressed:", to);
-        return { success: false };
+        console.warn("[email] recipient suppressed");
+        return { success: false, reason: "suppressed" };
     }
 
     if (!rateLimiter.acquire()) {
-        console.warn("Rate limited:", to);
-        return { success: false };
+        console.warn("[email] rate limited");
+        return { success: false, reason: "rate_limited" };
     }
 
+    const { missing } = readSmtpConfig();
     const { email: FROM_EMAIL, name: FROM_NAME } = getFrom();
+    if (missing.length > 0 || !FROM_EMAIL) {
+        console.error(`[email] SMTP not configured (missing: ${[...missing, ...(FROM_EMAIL ? [] : ["SMTP_FROM_EMAIL"])].join(", ")})`);
+        return { success: false, reason: "not_configured" };
+    }
 
     const mailOptions = {
-        from: `"${FROM_NAME}" <${FROM_EMAIL}>`,
+        from: { name: FROM_NAME, address: FROM_EMAIL },
         to,
         subject,
         html,
         text: text || stripHtml(html),
         replyTo: FROM_EMAIL,
-        headers: {
-            "X-Mailer": "CogniVend Mailer"
-        }
+        headers: { "X-Mailer": "CogniVend Mailer" },
     };
 
     try {
-        console.log("📤 Sending:", to);
         const response = await sendWithRetry(mailOptions);
-        console.log("✅ Delivered:", response.messageId);
+        console.log("[email] accepted by SMTP server:", response.messageId);
         return { success: true, messageId: response.messageId };
-    } catch (err) {
-        console.error("❌ Failed:", err.message);
-        return { success: false };
+    } catch (err: any) {
+        // The message body (which holds the link/token) is never logged.
+        console.error(`[email] send failed (${err.code || err.responseCode || "unknown"}): ${err.message}`);
+        return { success: false, reason: "smtp_error" };
     }
 };
+
 
 /* ============================================================
    Bulk Email — Sequential
 ============================================================ */
 
-export const sendBulkEmail = async ({ recipients, subject, html, text }) => {
+export const sendBulkEmail = async ({ recipients, subject, html, text }: { recipients: string[]; subject: string; html: string; text?: string }) => {
     const unique = [...new Set(recipients)];
     console.log(`Bulk send: ${unique.length}`);
 
@@ -217,7 +302,7 @@ export const isConfigured = () =>
    Email Templates
 ============================================================ */
 
-function layout(body) {
+function layout(body: string) {
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -255,7 +340,7 @@ function layout(body) {
 </html>`;
 }
 
-function btn(href, label) {
+function btn(href: string, label: string) {
     return `<p style="margin:28px 0;">
     <a href="${href}"
        style="background:#1e3a5f;color:#ffffff;text-decoration:none;
@@ -264,39 +349,56 @@ function btn(href, label) {
   </p>`;
 }
 
-export const signupConfirmationHtml = ({ fullName, confirmationLink }) =>
+// Displayed expiry only -- the real lifetimes are enforced by Supabase Auth
+// (Dashboard > Authentication > Email > OTP expiry; recovery links default
+// to 1h, invite/confirm links to 24h). Keep these env values in sync.
+const hours = (envName: string, fallback: number) => {
+    const n = parseInt(process.env[envName] || "", 10);
+    return Number.isFinite(n) && n > 0 ? n : fallback;
+};
+const humanHours = (h: number) => (h === 1 ? "1 hour" : h % 24 === 0 ? `${h / 24} day${h === 24 ? "" : "s"}` : `${h} hours`);
+
+export const signupConfirmationHtml = ({ fullName, confirmationLink, accountLabel }: { fullName: string; confirmationLink: string; accountLabel?: string }) =>
     layout(`
-    <h2 style="color:#1e3a5f;margin-top:0;">Confirm your email address</h2>
-    <p>Hi ${fullName},</p>
-    <p>Welcome to <strong>CogniVend</strong>! Please confirm your email address to activate your vendor account.</p>
-    ${btn(confirmationLink, "Confirm Email Address")}
+    <h2 style="color:#1e3a5f;margin-top:0;">Verify your email address</h2>
+    <p>Hi ${escapeHtml(fullName)},</p>
+    <p>Welcome to <strong>CogniVend</strong>! Please verify your email address to activate your ${escapeHtml(accountLabel ?? "account")}.</p>
+    ${btn(escapeHtml(confirmationLink), "Verify Email Address")}
     <p style="color:#666;font-size:13px;">
-      This link expires in 24 hours. If you did not create an account, you can safely ignore this email.
+      This link can be used once and expires in ${humanHours(hours("EMAIL_VERIFICATION_EXPIRY_HOURS", 24))}. If you did not create an account, you can safely ignore this email.
     </p>
   `);
 
-export const inviteHtml = ({ fullName, entityName, entityLabel, inviteLink }) =>
+export const inviteHtml = ({ fullName, entityName, entityLabel, inviteLink }: { fullName: string; entityName: string; entityLabel?: string; inviteLink: string }) =>
     layout(`
     <h2 style="color:#1e3a5f;margin-top:0;">You've been invited to CogniVend</h2>
-    <p>Hi ${fullName},</p>
-    <p>You've been invited to join <strong>${entityName}</strong>${entityLabel ? ` as ${entityLabel}` : ""} on CogniVend.</p>
-    ${btn(inviteLink, "Accept Invitation")}
+    <p>Hi ${escapeHtml(fullName)},</p>
+    <p>You've been invited to join <strong>${escapeHtml(entityName)}</strong>${entityLabel ? ` as ${escapeHtml(entityLabel)}` : ""} on CogniVend. Accepting verifies your email and lets you choose a password.</p>
+    ${btn(escapeHtml(inviteLink), "Accept Invitation")}
     <p style="color:#666;font-size:13px;">
-      This link expires in 24 hours. If you weren't expecting this invitation, you can safely ignore this email.
+      This link can be used once and expires in ${humanHours(hours("INVITE_EXPIRY_HOURS", 24))}. If you weren't expecting this invitation, you can safely ignore this email.
     </p>
   `);
 
-export const passwordResetHtml = ({ resetLink }) =>
+export const existingAccountAddedHtml = ({ fullName, entityName, entityLabel, loginLink }: { fullName: string; entityName: string; entityLabel?: string; loginLink: string }) =>
+    layout(`
+    <h2 style="color:#1e3a5f;margin-top:0;">You've been added to ${escapeHtml(entityName)}</h2>
+    <p>Hi ${escapeHtml(fullName)},</p>
+    <p>You've been added to <strong>${escapeHtml(entityName)}</strong>${entityLabel ? ` as ${escapeHtml(entityLabel)}` : ""} on CogniVend. Sign in with your existing account to get started.</p>
+    ${btn(escapeHtml(loginLink), "Sign In")}
+  `);
+
+export const passwordResetHtml = ({ resetLink }: { resetLink: string }) =>
     layout(`
     <h2 style="color:#1e3a5f;margin-top:0;">Reset your password</h2>
     <p>We received a request to reset the password for your CogniVend account.</p>
-    ${btn(resetLink, "Reset Password")}
+    ${btn(escapeHtml(resetLink), "Reset Password")}
     <p style="color:#666;font-size:13px;">
-      This link expires in 1 hour. If you did not request a password reset, you can safely ignore this email.
+      This link can be used once and expires in ${humanHours(hours("PASSWORD_RESET_EXPIRY_HOURS", 1))}. If you did not request a password reset, you can safely ignore this email.
     </p>
   `);
 
-export const vendorSubmittedVendorHtml = ({ contactName, companyName, dashboardUrl }) =>
+export const vendorSubmittedVendorHtml = ({ contactName, companyName, dashboardUrl }: any) =>
     layout(`
     <h2 style="color:#1e3a5f;margin-top:0;">Application received</h2>
     <p>Hi ${contactName},</p>
@@ -306,7 +408,7 @@ export const vendorSubmittedVendorHtml = ({ contactName, companyName, dashboardU
     <p>The CogniVend Procurement Team</p>
   `);
 
-export const vendorSubmittedAdminHtml = ({ companyName, contactName, contactEmail, reviewUrl }) =>
+export const vendorSubmittedAdminHtml = ({ companyName, contactName, contactEmail, reviewUrl }: any) =>
     layout(`
     <h2 style="color:#1e3a5f;margin-top:0;">New vendor application</h2>
     <table style="border-collapse:collapse;margin:16px 0;width:100%;">
@@ -326,7 +428,7 @@ export const vendorSubmittedAdminHtml = ({ companyName, contactName, contactEmai
     ${btn(reviewUrl, "Review Application")}
   `);
 
-export const vendorApprovedHtml = ({ contactName, companyName, vendorIdCode, contractAnniversary, dashboardUrl }) =>
+export const vendorApprovedHtml = ({ contactName, companyName, vendorIdCode, contractAnniversary, dashboardUrl }: any) =>
     layout(`
     <h2 style="color:#1e3a5f;margin-top:0;">Your application has been approved &#127881;</h2>
     <p>Hi ${contactName},</p>
@@ -356,14 +458,14 @@ export const vendorApprovedHtml = ({ contactName, companyName, vendorIdCode, con
     <p>Welcome aboard!<br/>The CogniVend Procurement Team</p>
   `);
 
-export const vendorStatusChangedHtml = ({ contactName, companyName, status, adminNotes, renewalUrl }) => {
-    const subjects = {
+export const vendorStatusChangedHtml = ({ contactName, companyName, status, adminNotes, renewalUrl }: any) => {
+    const subjects: Record<string, string> = {
         suspended: "Your vendor account has been suspended",
         rejected: "Vendor application update — CogniVend",
         action_required: "Action Required: Annual renewal due",
     };
 
-    const bodies = {
+    const bodies: Record<string, string> = {
         suspended: `
       <h2 style="color:#dc2626;margin-top:0;">Account Suspended</h2>
       <p>Hi ${contactName},</p>

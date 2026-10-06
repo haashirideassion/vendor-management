@@ -62,7 +62,7 @@ export function OrgSignupForm() {
           return
         }
         startCooldown()
-        toast.success("Organisation created! Sign in to continue setting it up.")
+        toast.success("Organisation created! Check your email to verify your address, then sign in to continue setting it up.")
         navigate("/login")
       }
       await attempt()

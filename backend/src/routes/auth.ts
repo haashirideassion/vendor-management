@@ -5,6 +5,7 @@ import { requireAuth, AuthenticatedRequest } from "../middleware/auth"
 import { getKeyPair, decryptPassword } from "../services/crypto.service"
 import { REFRESH_COOKIE_NAME, REFRESH_TTL_DAYS } from "../services/jwt.service"
 import { sendEmail, signupConfirmationHtml, vendorSubmittedAdminHtml, passwordResetHtml } from "../services/email.service"
+import { frontendLink } from "../utils/appUrl"
 
 const router = Router()
 
@@ -183,19 +184,34 @@ router.post("/register", authLimiter, async (req: Request, res: Response) => {
     return
   }
 
+  const normalizedEmail = email.trim().toLowerCase()
+  if (!ORG_EMAIL_RE.test(normalizedEmail)) {
+    res.status(400).json({ error: "email is not a valid email address" })
+    return
+  }
+
+  let createdUserId: string | null = null
   try {
-    const { error: createError } = await db().auth.admin.createUser({
-      email: email.toLowerCase(),
+    // Creates the account UNVERIFIED (email_confirmed_at stays null, so login
+    // is refused until the link is opened) and returns Supabase's single-use,
+    // expiring verification link for us to deliver over our own SMTP.
+    const { data: created, error: createError } = await db().auth.admin.generateLink({
+      type: "signup",
+      email: normalizedEmail,
       password: plainPassword,
-      email_confirm: true,
-      user_metadata: { full_name: fullName, role },
+      options: { data: { full_name: fullName, role }, redirectTo: frontendLink("/verify-email") },
     })
 
     if (createError) {
-      const status = createError.message.toLowerCase().includes("already") ? 409 : 500
-      res.status(status).json({ error: createError.message })
+      const already = createError.message.toLowerCase().includes("already")
+      res.status(already ? 409 : 500).json({
+        error: already
+          ? "An account with this email already exists. If you haven't verified it yet, use \"Resend verification email\"."
+          : "Registration failed. Please try again.",
+      })
       return
     }
+    createdUserId = created.user.id
 
     // handle_new_user() (020_rbac_backfill.sql) already inserts a fully-formed
     // profiles row -- including account_type, derived from this same
@@ -207,31 +223,48 @@ router.post("/register", authLimiter, async (req: Request, res: Response) => {
     // row and hard-failing every signup with a 500. Removed rather than
     // fixed-in-place: the trigger already does this job, correctly.
 
-    await sendEmail({
-      to: email,
-      subject: "Your CogniVend account is ready",
-      html: signupConfirmationHtml({ fullName, confirmationLink: `${process.env.FRONTEND_URL}/login` }),
-      text: `Your CogniVend account is ready. Please login at ${process.env.FRONTEND_URL}/login`,
+    const mail = await sendEmail({
+      to: normalizedEmail,
+      subject: "Verify your CogniVend email address",
+      html: signupConfirmationHtml({ fullName, confirmationLink: created.properties.action_link, accountLabel: "vendor account" }),
     })
+    if (!mail.success) {
+      // Don't leave an account nobody was told about: undo it so the user can
+      // simply try registering again once email delivery works.
+      await rollbackUnverifiedUser(createdUserId!)
+      res.status(502).json({ error: "We couldn't send the verification email. Please try again in a few minutes." })
+      return
+    }
 
-    await sendEmail({
-      to: process.env.ADMIN_EMAIL!,
-      subject: `New vendor signup: ${fullName}`,
-      html: vendorSubmittedAdminHtml({
-        companyName: "Pending onboarding",
-        contactName: fullName,
-        contactEmail: email,
-        reviewUrl: `${process.env.FRONTEND_URL}/admin/vendors`,
-      }),
-      text: `New vendor signup: ${fullName}. Please review at ${process.env.FRONTEND_URL}/admin/vendors`,
-    })
+    if (process.env.ADMIN_EMAIL) {
+      await sendEmail({
+        to: process.env.ADMIN_EMAIL,
+        subject: `New vendor signup: ${fullName}`,
+        html: vendorSubmittedAdminHtml({
+          companyName: "Pending onboarding",
+          contactName: fullName,
+          contactEmail: normalizedEmail,
+          reviewUrl: frontendLink("/admin/vendors"),
+        }),
+      })
+    }
 
-    res.status(201).json({ ok: true, message: "Account created. You can now sign in." })
+    res.status(201).json({ ok: true, verificationRequired: true, message: "Account created. Check your email to verify your address before signing in." })
   } catch (err: any) {
     console.error("[register]", err.message)
+    if (createdUserId) await rollbackUnverifiedUser(createdUserId!)
     res.status(500).json({ error: "Registration failed. Please try again." })
   }
 })
+
+async function rollbackUnverifiedUser(userId: string) {
+  try {
+    await db().from("profiles").delete().eq("id", userId)
+    await db().auth.admin.deleteUser(userId)
+  } catch (cleanupErr: any) {
+    console.error("[register] cleanup failed", cleanupErr.message)
+  }
+}
 
 const ORG_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -289,15 +322,19 @@ router.post("/register-organization", authLimiter, async (req: Request, res: Res
     if (orgError) throw orgError
     orgId = org.id
 
-    const { data: created, error: createError } = await db().auth.admin.createUser({
+    // Unverified until the emailed link is opened (see /register).
+    const { data: created, error: createError } = await db().auth.admin.generateLink({
+      type: "signup",
       email: normalizedEmail,
       password: plainPassword,
-      email_confirm: true,
-      user_metadata: { full_name: fullName.trim(), role: "admin" },
+      options: { data: { full_name: fullName.trim(), role: "admin" }, redirectTo: frontendLink("/verify-email") },
     })
     if (createError) {
-      const status = createError.message.toLowerCase().includes("already") ? 409 : 500
-      throw Object.assign(new Error(createError.message), { status })
+      const already = createError.message.toLowerCase().includes("already")
+      throw Object.assign(
+        new Error(already ? "An account with this email already exists. If you haven't verified it yet, use \"Resend verification email\"." : "Registration failed. Please try again."),
+        { status: already ? 409 : 500 },
+      )
     }
     profileId = created.user.id
     // handle_new_user() (020_rbac_backfill.sql) already inserts the profiles
@@ -329,14 +366,18 @@ router.post("/register-organization", authLimiter, async (req: Request, res: Res
       performed_by: profileId, org_id: orgId,
     })
 
-    await sendEmail({
+    // Sent last: if delivery fails the catch below removes the org, member and
+    // user again, so registration is all-or-nothing and can simply be retried.
+    const mail = await sendEmail({
       to: normalizedEmail,
-      subject: "Your CogniVend account is ready",
-      html: signupConfirmationHtml({ fullName: fullName.trim(), confirmationLink: `${process.env.FRONTEND_URL}/login` }),
-      text: `Your CogniVend account is ready. Please login at ${process.env.FRONTEND_URL}/login`,
+      subject: "Verify your CogniVend email address",
+      html: signupConfirmationHtml({ fullName: fullName.trim(), confirmationLink: created.properties.action_link, accountLabel: "organization account" }),
     })
+    if (!mail.success) {
+      throw Object.assign(new Error("We couldn't send the verification email. Please try again in a few minutes."), { status: 502 })
+    }
 
-    res.status(201).json({ ok: true, message: "Organization created. You can now sign in." })
+    res.status(201).json({ ok: true, verificationRequired: true, message: "Organization created. Check your email to verify your address before signing in." })
   } catch (err: any) {
     console.error("[register-organization]", err.message)
     try {
@@ -352,9 +393,45 @@ router.post("/register-organization", authLimiter, async (req: Request, res: Res
   }
 })
 
-// ─── POST /api/auth/verify-email ─────────────────────────────────────────────
-router.post("/verify-email", async (req: Request, res: Response) => {
-  res.json({ ok: true })
+// ─── POST /api/auth/resend-verification ──────────────────────────────────────
+// Email verification itself happens at Supabase's /auth/v1/verify endpoint
+// (the emailed link), which consumes the single-use token, stamps
+// email_confirmed_at and redirects to the frontend's /verify-email page. This
+// endpoint only re-issues a fresh link for a still-unverified account. The
+// response is identical whether or not the address exists (no enumeration).
+router.post("/resend-verification", authLimiter, async (req: Request, res: Response) => {
+  const { email } = req.body as { email?: string }
+  const generic = { ok: true, message: "If that account is awaiting verification, a new email has been sent." }
+  if (!email || !ORG_EMAIL_RE.test(email.trim())) {
+    res.status(400).json({ error: "A valid email address is required" })
+    return
+  }
+
+  try {
+    const normalizedEmail = email.trim().toLowerCase()
+    const profile = await db().from("profiles").select("id, full_name").eq("email", normalizedEmail).maybeSingle()
+    if (profile.data) {
+      const { data: authData } = await db().auth.admin.getUserById(profile.data.id)
+      if (authData?.user && !authData.user.email_confirmed_at) {
+        // A magic link on an unconfirmed address confirms it when opened, and
+        // replaces any earlier outstanding link.
+        const { data: link, error } = await db().auth.admin.generateLink({
+          type: "magiclink",
+          email: normalizedEmail,
+          options: { redirectTo: frontendLink("/verify-email") },
+        })
+        if (error) throw error
+        await sendEmail({
+          to: normalizedEmail,
+          subject: "Verify your CogniVend email address",
+          html: signupConfirmationHtml({ fullName: profile.data.full_name || normalizedEmail, confirmationLink: link.properties.action_link }),
+        })
+      }
+    }
+  } catch (err: any) {
+    console.error("[resend-verification]", err.message)
+  }
+  res.json(generic)
 })
 
 // ─── POST /api/auth/login ─────────────────────────────────────────────────────
@@ -381,6 +458,12 @@ router.post("/login", authLimiter, async (req: Request, res: Response) => {
     })
 
     if (error || !data.session || !data.user) {
+      // GoTrue only reports this after the password has been checked, so it
+      // doesn't reveal anything to someone who doesn't know the password.
+      if ((error as any)?.code === "email_not_confirmed" || error?.message?.toLowerCase().includes("email not confirmed")) {
+        res.status(403).json({ error: "Please verify your email address before signing in. Check your inbox for the verification link.", code: "email_not_verified" })
+        return
+      }
       if (error?.message?.toLowerCase().includes("email logins are disabled")) {
         res.status(503).json({ error: "Supabase email/password login is disabled for this project." })
         return
@@ -439,28 +522,31 @@ router.post("/logout", async (req: Request, res: Response) => {
 router.post("/forgot-password", authLimiter, async (req: Request, res: Response) => {
   const { email } = req.body as { email?: string }
 
-  // Always return ok to prevent user enumeration
-  res.json({ ok: true })
-
-  if (!email) return
-
+  // The work happens BEFORE the response: this API runs as a serverless
+  // function (vercel.json), which is frozen as soon as the response is sent --
+  // sending the reply first meant the reset email was routinely never sent.
+  // The reply is identical for every outcome, so there's no account enumeration.
   try {
-    const normalizedEmail = email.trim().toLowerCase()
-    const { data, error } = await db().auth.admin.generateLink({
-      type: "recovery",
-      email: normalizedEmail,
-      options: { redirectTo: `${process.env.FRONTEND_URL}/reset-password` },
-    })
-    if (error) throw error
+    if (email && ORG_EMAIL_RE.test(email.trim())) {
+      const normalizedEmail = email.trim().toLowerCase()
+      const { data, error } = await db().auth.admin.generateLink({
+        type: "recovery",
+        email: normalizedEmail,
+        options: { redirectTo: frontendLink("/reset-password") },
+      })
+      // "user not found" is expected for unknown addresses -- swallowed below.
+      if (error) throw error
 
-    await sendEmail({
-      to: normalizedEmail,
-      subject: "Reset your CogniVend password",
-      html: passwordResetHtml({ resetLink: data.properties.action_link }),
-    })
+      await sendEmail({
+        to: normalizedEmail,
+        subject: "Reset your CogniVend password",
+        html: passwordResetHtml({ resetLink: data.properties.action_link }),
+      })
+    }
   } catch (err: any) {
     console.error("[forgot-password]", err.message)
   }
+  res.json({ ok: true, message: "If an account exists for that email, a reset link has been sent." })
 })
 
 // ─── POST /api/auth/reset-password ───────────────────────────────────────────
@@ -490,7 +576,7 @@ router.post("/reset-password", async (req: Request, res: Response) => {
   try {
     const { data: authData, error: authError } = await db().auth.getUser(token)
     if (authError || !authData.user) {
-      res.status(400).json({ error: "Invalid reset link" })
+      res.status(400).json({ error: "This reset link is invalid or has expired" })
       return
     }
 
@@ -498,7 +584,19 @@ router.post("/reset-password", async (req: Request, res: Response) => {
       password: plainPassword,
     })
 
-    if (error) throw error
+    if (error) {
+      if ((error as any).code === "same_password") {
+        res.status(422).json({ error: "New password must be different from your current password" })
+        return
+      }
+      throw error
+    }
+
+    // Make the reset single-use: revoke every session (including the one the
+    // recovery token belongs to), so the same link/token can't be replayed to
+    // change the password again, and any attacker session is kicked out.
+    const { error: signOutError } = await db().auth.admin.signOut(token, "global")
+    if (signOutError) console.error("[reset-password] session revoke failed", signOutError.message)
 
     res.clearCookie(REFRESH_COOKIE_NAME, { path: "/", secure: isProd, sameSite: isProd ? "none" : "strict" })
     res.json({ ok: true })

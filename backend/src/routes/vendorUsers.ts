@@ -3,7 +3,7 @@ import { getSupabaseAdmin } from "../utils/supabaseAdmin"
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth"
 import { resolveVendorId, resolveVendorAllowedOrgIds, requireOrg, OrgScopedRequest } from "../middleware/org"
 import { writeAudit } from "../services/audit"
-import { sendEmail, inviteHtml } from "../services/email.service"
+import { issueInvite, sendInviteEmail, resendCooldownRemaining } from "../services/invitations"
 import { applyTeamRoleAssignments, validateTeamsBelongToTenant, type TeamRoleAssignment } from "../services/teamAssignment.service"
 
 const router = Router()
@@ -454,38 +454,16 @@ router.post("/invite", requireAuth, async (req: Request, res: Response) => {
   let vendorUserId: string | null = null
 
   try {
-    const { data: existingProfile } = await db().from("profiles").select("id").eq("email", normalizedEmail).maybeSingle()
+    const { data: vendor } = await db().from("vendors").select("company_name").eq("id", vendorId).single()
+    const vendorName = vendor?.company_name ?? "your vendor team"
 
+    // Link is bound to this email's auth user and the vendor_users row below
+    // ties that profile to THIS vendor only. The email is sent after all DB
+    // writes succeed, so a rejected invite never emails a link.
+    const issued = await issueInvite({ email: normalizedEmail, fullName: fullName.trim(), role: "vendor" })
+    profileId = issued.profileId
+    createdNewAuthUser = issued.isNew
     let inviteSent = false
-    if (existingProfile) {
-      profileId = existingProfile.id
-    } else {
-      const { data: vendor } = await db().from("vendors").select("company_name").eq("id", vendorId).single()
-
-      const { data: invited, error: inviteError } = await db().auth.admin.generateLink({
-        type: "invite",
-        email: normalizedEmail,
-        options: {
-          redirectTo: `${process.env.FRONTEND_URL}/accept-invite`,
-          data: { full_name: fullName.trim(), role: "vendor" },
-        },
-      })
-      if (inviteError) throw inviteError
-      createdNewAuthUser = true
-      profileId = invited.user.id
-      // inviteSent reflects actual delivery, not just that the auth invite
-      // link was generated -- sendEmail() never throws, it returns
-      // {success:false} on invalid/suppressed/rate-limited/SMTP-failed sends,
-      // so without checking this the UI would claim "Invite sent" even when
-      // no email went out.
-      const emailResult = await sendEmail({
-        to: normalizedEmail,
-        subject: `You've been invited to join ${vendor?.company_name ?? "your vendor team"} on CogniVend`,
-        html: inviteHtml({ fullName: fullName.trim(), entityName: vendor?.company_name ?? "your vendor team", entityLabel: "a team member", inviteLink: invited.properties.action_link }),
-      })
-      inviteSent = emailResult.success
-      if (!inviteSent) console.error(`[vendor-users/invite] record created for ${normalizedEmail} but invitation email failed to send`)
-    }
 
     const { data: newVendorUser, error: vuError } = await db()
       .from("vendor_users")
@@ -507,6 +485,12 @@ router.post("/invite", requireAuth, async (req: Request, res: Response) => {
       return res.status(400).json({ error: "One or more teams do not belong to this vendor" })
     }
     await applyTeamRoleAssignments({ scope: "vendor", tenantId: vendorId, profileId: profileId!, assignments: finalAssignments, replace: false })
+
+    const emailResult = await sendInviteEmail({
+      to: normalizedEmail, fullName: fullName.trim(), entityName: vendorName, entityLabel: "a team member", actionLink: issued.actionLink,
+    })
+    inviteSent = emailResult.success
+    if (!inviteSent) console.error("[vendor-users/invite] record created but invitation email failed to send:", emailResult.reason)
 
     await writeAudit({
       entityType: "vendor_user",
@@ -818,20 +802,22 @@ router.post("/resend", requireAuth, async (req: Request, res: Response) => {
 
     const { data: vendor } = await db().from("vendors").select("company_name").eq("id", vendorId).single()
 
-    const { data: relinked, error: linkError } = await db().auth.admin.generateLink({
-      type: "invite",
-      email: vendorUser.profile.email,
-      options: {
-        redirectTo: `${process.env.FRONTEND_URL}/accept-invite`,
-        data: { full_name: vendorUser.profile.full_name, role: "vendor" },
-      },
+    const wait = await resendCooldownRemaining(vendorUserId, "vendor_user_invite_resent")
+    if (wait > 0) {
+      res.setHeader("Retry-After", String(wait))
+      return res.status(429).json({ error: `An invitation was sent recently. Please wait ${wait}s before resending.` })
+    }
+
+    // Re-issuing supersedes the previous link; same pending row, no duplicates.
+    const issued = await issueInvite({ email: vendorUser.profile.email, fullName: vendorUser.profile.full_name, role: "vendor" })
+    const emailResult = await sendInviteEmail({
+      to: vendorUser.profile.email, fullName: vendorUser.profile.full_name, entityName: vendor?.company_name ?? "your vendor team",
+      entityLabel: "a team member", actionLink: issued.actionLink, reminder: true,
     })
-    if (linkError) throw linkError
-    await sendEmail({
-      to: vendorUser.profile.email,
-      subject: `Reminder: you've been invited to join ${vendor?.company_name ?? "your vendor team"} on CogniVend`,
-      html: inviteHtml({ fullName: vendorUser.profile.full_name, entityName: vendor?.company_name ?? "your vendor team", entityLabel: "a team member", inviteLink: relinked.properties.action_link }),
-    })
+    if (!emailResult.success) {
+      console.error("[vendor-users/resend] email failed:", emailResult.reason)
+      return res.status(502).json({ error: "The invitation email could not be sent. Please try again in a few minutes." })
+    }
 
     await writeAudit({ entityType: "vendor_user", entityId: vendorUserId, action: "vendor_user_invite_resent", newValue: {}, performedBy: actorId, orgId: null })
     res.json({ data: { vendorUserId, resent: true } })

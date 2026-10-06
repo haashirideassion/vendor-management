@@ -5,7 +5,7 @@ import { requireSuperAdmin } from "../middleware/superadmin"
 import { ServiceError, mergeGroups, removeOrgFromGroup, dissolveGroup } from "../services/groups"
 import { writeAudit } from "../services/audit"
 import { generateUniqueOrgCode, generateUniqueGroupCode } from "../utils/codeGenerator"
-import { sendEmail, inviteHtml } from "../services/email.service"
+import { issueInvite, sendInviteEmail } from "../services/invitations"
 import { ensureDefaultLegalEntity } from "../services/legalEntity.service"
 import { resolveOnboardingTargets } from "./vendors"
 import { findOrgRoleHolderIds, notifyUsers } from "../services/approvalGate"
@@ -273,45 +273,13 @@ router.post("/organizations/create-with-admin", requireAuth, requireSuperAdmin, 
     if (orgError) throw orgError
     orgId = org.id
 
-    const { data: existingProfile } = await db()
-      .from("profiles")
-      .select("id")
-      .eq("email", email)
-      .maybeSingle()
-
+    // No manual profiles insert: the on_auth_user_created trigger creates the
+    // profiles row when the auth user is created. The email is sent after the
+    // membership rows below succeed.
+    const issued = await issueInvite({ email, fullName: adminName.trim(), role: "admin" })
+    profileId = issued.profileId
+    createdNewAuthUser = issued.isNew
     let inviteSent = false
-
-    if (existingProfile) {
-      profileId = existingProfile.id
-    } else {
-      const { data: invited, error: inviteError } = await db().auth.admin.generateLink({
-        type: "invite",
-        email,
-        options: {
-          redirectTo: `${process.env.FRONTEND_URL}/accept-invite`,
-          data: { full_name: adminName.trim(), role: "admin" },
-        },
-      })
-      if (inviteError) throw inviteError
-      createdNewAuthUser = true
-      profileId = invited.user.id
-
-      // No manual profiles insert here: the on_auth_user_created trigger
-      // (supabase/migrations/003_triggers.sql) fires synchronously on the
-      // auth.users insert this API call makes, and already creates the
-      // profiles row from the same user_metadata passed above (full_name,
-      // role) -- inserting again here would just collide on profiles_pkey.
-      // inviteSent reflects actual delivery, not just that the auth invite
-      // link was generated -- sendEmail() never throws, it returns
-      // {success:false} on invalid/suppressed/rate-limited/SMTP-failed sends.
-      const emailResult = await sendEmail({
-        to: email,
-        subject: `You've been invited to join ${orgName.trim()} on CogniVend`,
-        html: inviteHtml({ fullName: adminName.trim(), entityName: orgName.trim(), entityLabel: "the organization admin", inviteLink: invited.properties.action_link }),
-      })
-      inviteSent = emailResult.success
-      if (!inviteSent) console.error(`[superadmin] record created for ${email} but invitation email failed to send`)
-    }
 
     // org_role is kept populated for now (not dropped until the RLS cutover
     // and legacy-drop migrations are verified) -- org_member_roles is the
@@ -338,6 +306,12 @@ router.post("/organizations/create-with-admin", requireAuth, requireSuperAdmin, 
       .from("org_member_roles")
       .insert({ org_member_id: newMember.id, role_id: adminRole.id })
     if (memberRoleError) throw memberRoleError
+
+    const emailResult = await sendInviteEmail({
+      to: email, fullName: adminName.trim(), entityName: orgName.trim(), entityLabel: "the organization admin", actionLink: issued.actionLink,
+    })
+    inviteSent = emailResult.success
+    if (!inviteSent) console.error("[superadmin] record created but invitation email failed to send:", emailResult.reason)
 
     await db().from("audit_log").insert([
       {

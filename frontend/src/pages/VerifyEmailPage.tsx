@@ -1,39 +1,65 @@
 import { useEffect, useState } from "react"
-import { useSearchParams, Link } from "react-router-dom"
+import { Link } from "react-router-dom"
 import { authFetch } from "@/contexts/AuthContext"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { toast } from "sonner"
+
+type Status = "verifying" | "success" | "error"
+
+// The emailed link points at Supabase's own /auth/v1/verify endpoint, which
+// consumes the single-use token, marks the email confirmed, then redirects here
+// with the outcome in the URL hash: either a session (access_token + type) on
+// success, or error / error_code / error_description on a bad link. That
+// session is deliberately discarded -- the app signs in through its own
+// /api/auth/login -- so we only read the outcome and scrub the hash.
+const SUCCESS_TYPES = new Set(["signup", "magiclink", "email", "invite"])
 
 export function VerifyEmailPage() {
-  const [searchParams] = useSearchParams()
-  const [status, setStatus] = useState<"verifying" | "success" | "error">("verifying")
+  const [status, setStatus] = useState<Status>("verifying")
   const [message, setMessage] = useState("")
+  const [email, setEmail] = useState("")
+  const [resending, setResending] = useState(false)
 
   useEffect(() => {
-    const token = searchParams.get("token")
-    const userId = searchParams.get("id")
+    const params = new URLSearchParams(window.location.hash.replace(/^#/, ""))
+    const errorCode = params.get("error_code") || params.get("error")
+    const type = params.get("type")
+    const hasToken = Boolean(params.get("access_token"))
+    window.history.replaceState(null, "", window.location.pathname)
 
-    if (!token || !userId) {
+    if (errorCode) {
       setStatus("error")
-      setMessage("Invalid verification link.")
-      return
+      setMessage(
+        errorCode === "otp_expired"
+          ? "This verification link has expired or has already been used."
+          : "This verification link is invalid.",
+      )
+    } else if (hasToken && type && SUCCESS_TYPES.has(type)) {
+      setStatus("success")
+    } else {
+      setStatus("error")
+      setMessage("This verification link is missing or invalid.")
     }
+  }, [])
 
-    authFetch("/api/auth/verify-email", { token, userId })
-      .then(async (res) => {
-        const json = await res.json()
-        if (res.ok) {
-          setStatus("success")
-        } else {
-          setStatus("error")
-          setMessage(json.error ?? "Verification failed.")
-        }
-      })
-      .catch(() => {
-        setStatus("error")
-        setMessage("An unexpected error occurred.")
-      })
-  }, [searchParams])
+  async function resend(e: React.FormEvent) {
+    e.preventDefault()
+    if (!email.trim()) return
+    setResending(true)
+    try {
+      const res = await authFetch("/api/auth/resend-verification", { email: email.trim() })
+      const json = await res.json().catch(() => ({}))
+      if (res.ok) toast.success(json.message ?? "If that account is awaiting verification, a new email has been sent.")
+      else toast.error(json.error ?? "Could not send a new verification email.")
+    } catch {
+      toast.error("An unexpected error occurred.")
+    } finally {
+      setResending(false)
+    }
+  }
 
   if (status === "verifying") {
     return (
@@ -71,11 +97,26 @@ export function VerifyEmailPage() {
         <CardTitle className="text-xl text-destructive">Verification failed</CardTitle>
         <CardDescription>{message}</CardDescription>
       </CardHeader>
-      <CardFooter>
-        <Link to="/signup" className="w-full">
-          <Button variant="outline" className="w-full">Back to sign up</Button>
-        </Link>
-      </CardFooter>
+      <form onSubmit={resend}>
+        <CardContent className="flex flex-col gap-2 pb-4">
+          <Label htmlFor="verify-email-address">Send me a new verification email</Label>
+          <Input
+            id="verify-email-address"
+            type="email"
+            placeholder="you@company.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+        </CardContent>
+        <CardFooter className="flex flex-col gap-2 pt-0">
+          <Button type="submit" className="w-full" disabled={resending || !email.trim()}>
+            {resending ? "Sending…" : "Resend verification email"}
+          </Button>
+          <Link to="/login" className="w-full">
+            <Button type="button" variant="outline" className="w-full">Back to sign in</Button>
+          </Link>
+        </CardFooter>
+      </form>
     </Card>
   )
 }

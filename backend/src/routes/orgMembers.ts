@@ -3,7 +3,7 @@ import { getSupabaseAdmin } from "../utils/supabaseAdmin"
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth"
 import { requireOrg, OrgScopedRequest } from "../middleware/org"
 import { writeAudit, resolveActingAs } from "../services/audit"
-import { sendEmail, inviteHtml } from "../services/email.service"
+import { issueInvite, sendInviteEmail, resendCooldownRemaining } from "../services/invitations"
 import { applyTeamRoleAssignments, validateTeamsBelongToTenant, type TeamRoleAssignment } from "../services/teamAssignment.service"
 
 const router = Router()
@@ -374,37 +374,15 @@ router.post("/invite", requireAuth, requireOrg, async (req: Request, res: Respon
       return res.status(400).json({ error: "At least one role must be assigned" })
     }
 
-    const { data: existingProfile } = await db().from("profiles").select("id").eq("email", normalizedEmail).maybeSingle()
-
+    // New person -> Supabase invite link (verifies the email and lets them set
+    // a password; the on_auth_user_created trigger creates their profiles row).
+    // Already-verified account -> no link, they get a "you've been added" email.
+    // The email itself is sent only after every DB write below has succeeded,
+    // so a rejected/duplicate invite never emails a link.
+    const issued = await issueInvite({ email: normalizedEmail, fullName: fullName.trim(), role: "admin" })
+    profileId = issued.profileId
+    createdNewAuthUser = issued.isNew
     let inviteSent = false
-    if (existingProfile) {
-      profileId = existingProfile.id
-    } else {
-      const { data: invited, error: inviteError } = await db().auth.admin.generateLink({
-        type: "invite",
-        email: normalizedEmail,
-        options: {
-          redirectTo: `${process.env.FRONTEND_URL}/accept-invite`,
-          data: { full_name: fullName.trim(), role: "admin" },
-        },
-      })
-      if (inviteError) throw inviteError
-      createdNewAuthUser = true
-      profileId = invited.user.id
-      // No manual profiles insert here -- on_auth_user_created fires
-      // synchronously and creates the row (same pattern as
-      // superadmin.ts's create-with-admin).
-      // inviteSent reflects actual delivery, not just that the auth invite
-      // link was generated -- sendEmail() never throws, it returns
-      // {success:false} on invalid/suppressed/rate-limited/SMTP-failed sends.
-      const emailResult = await sendEmail({
-        to: normalizedEmail,
-        subject: `You've been invited to join ${org.name} on CogniVend`,
-        html: inviteHtml({ fullName: fullName.trim(), entityName: org.name, entityLabel: "a team member", inviteLink: invited.properties.action_link }),
-      })
-      inviteSent = emailResult.success
-      if (!inviteSent) console.error(`[org-members/invite] record created for ${normalizedEmail} but invitation email failed to send`)
-    }
 
     // A profile can hold a second organization_members row at a different
     // org only when that org shares a Group with an org they're already
@@ -455,6 +433,14 @@ router.post("/invite", requireAuth, requireOrg, async (req: Request, res: Respon
       return res.status(400).json({ error: "One or more teams do not belong to this organization" })
     }
     await applyTeamRoleAssignments({ scope: "org", tenantId: orgId, profileId: profileId!, assignments: finalAssignments, replace: false })
+
+    // sendEmail() never throws -- inviteSent is the real delivery result, so
+    // the UI can tell the admin to use "Resend Invite" when it is false.
+    const emailResult = await sendInviteEmail({
+      to: normalizedEmail, fullName: fullName.trim(), entityName: org.name, entityLabel: "a team member", actionLink: issued.actionLink,
+    })
+    inviteSent = emailResult.success
+    if (!inviteSent) console.error("[org-members/invite] record created but invitation email failed to send:", emailResult.reason)
 
     await writeAudit({
       entityType: "organization_member",
@@ -747,20 +733,24 @@ router.post("/resend", requireAuth, requireOrg, async (req: Request, res: Respon
 
     const { data: org } = await db().from("organizations").select("name").eq("id", orgId).single()
 
-    const { data: relinked, error: linkError } = await db().auth.admin.generateLink({
-      type: "invite",
-      email: member.profile.email,
-      options: {
-        redirectTo: `${process.env.FRONTEND_URL}/accept-invite`,
-        data: { full_name: member.profile.full_name, role: "admin" },
-      },
+    const wait = await resendCooldownRemaining(memberId, "member_invite_resent")
+    if (wait > 0) {
+      res.setHeader("Retry-After", String(wait))
+      return res.status(429).json({ error: `An invitation was sent recently. Please wait ${wait}s before resending.` })
+    }
+
+    // Re-issuing the invite link supersedes the previous one (GoTrue keeps a
+    // single live token per user), and reuses the same pending member row, so
+    // no duplicate account or invitation is created.
+    const issued = await issueInvite({ email: member.profile.email, fullName: member.profile.full_name, role: "admin" })
+    const emailResult = await sendInviteEmail({
+      to: member.profile.email, fullName: member.profile.full_name, entityName: org.name,
+      entityLabel: "a team member", actionLink: issued.actionLink, reminder: true,
     })
-    if (linkError) throw linkError
-    await sendEmail({
-      to: member.profile.email,
-      subject: `Reminder: you've been invited to join ${org.name} on CogniVend`,
-      html: inviteHtml({ fullName: member.profile.full_name, entityName: org.name, entityLabel: "a team member", inviteLink: relinked.properties.action_link }),
-    })
+    if (!emailResult.success) {
+      console.error("[org-members/resend] email failed:", emailResult.reason)
+      return res.status(502).json({ error: "The invitation email could not be sent. Please try again in a few minutes." })
+    }
 
     await writeAudit({
       entityType: "organization_member", entityId: memberId, action: "member_invite_resent",

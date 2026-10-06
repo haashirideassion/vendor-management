@@ -107,9 +107,9 @@ function SidebarContent({
   const visibleItems = allNavItems.filter((item) => item.stages.includes(stage))
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-h-0">
       {/* Logo + vendor chip */}
-      <div className={cn("px-4 pt-5 pb-4", collapsed && "px-2")}>
+      <div className={cn("px-4 pt-5 pb-4 shrink-0", collapsed && "px-2")}>
         <div className={cn("flex items-center mb-4", collapsed ? "flex-col gap-2" : "justify-between")}>
           {collapsed ? (
             <AppLogo variant="color" className="h-8 w-8" />
@@ -139,7 +139,7 @@ function SidebarContent({
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-2.5 space-y-0.5">
+      <nav data-testid="vendor-sidebar-nav" className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-2.5 pb-3 space-y-0.5">
         {visibleItems.map(({ label, to, icon }) => {
           const active = pathname === to || (to !== "/vendor/dashboard" && pathname.startsWith(to))
           return (
@@ -215,11 +215,11 @@ export function VendorLayout() {
   const currentLabel = visibleItems.find((n) => pathname.startsWith(n.to))?.label ?? "Vendor Portal"
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="flex h-screen h-dvh overflow-hidden bg-background">
       {/* Desktop Sidebar */}
       <aside
         className={cn(
-          "hidden md:flex flex-col shrink-0 m-3 rounded-2xl bg-card border border-border/60 shadow-sm overflow-hidden transition-[width] duration-200",
+          "hidden md:flex flex-col shrink-0 min-h-0 m-3 rounded-2xl bg-card border border-border/60 shadow-sm overflow-hidden transition-[width] duration-200",
           collapsed ? "w-[76px]" : "w-[220px]"
         )}
       >
