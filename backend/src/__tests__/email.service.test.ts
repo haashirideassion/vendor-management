@@ -15,7 +15,7 @@ const SMTP_ENV = {
 }
 
 function setEnv(env: Record<string, string | undefined>) {
-  for (const k of ["SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS", "SMTP_SECURE", "SMTP_FROM", "SMTP_FROM_EMAIL", "SMTP_FROM_NAME", "SMTP_TLS_REJECT_UNAUTHORIZED"]) delete process.env[k]
+  for (const k of ["SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS", "SMTP_SECURE", "SMTP_FROM", "SMTP_FROM_EMAIL", "SMTP_FROM_NAME", "SMTP_TLS_REJECT_UNAUTHORIZED", "SMTP_USERNAME", "SMTP_PASSWORD"]) delete process.env[k]
   Object.assign(process.env, env)
   resetTransporter()
 }
@@ -34,6 +34,14 @@ describe("SMTP configuration", () => {
     setEnv({})
     expect(readSmtpConfig().missing).toEqual(["SMTP_HOST", "SMTP_USER", "SMTP_PASS"])
     expect(isConfigured()).toBe(false)
+  })
+
+  it("accepts SMTP_USERNAME / SMTP_PASSWORD as aliases for the credentials", () => {
+    setEnv({ SMTP_HOST: "h", SMTP_USERNAME: "alias-user", SMTP_PASSWORD: "alias-pass" })
+    const { config, missing } = readSmtpConfig()
+    expect(missing).toEqual([])
+    expect(config?.user).toBe("alias-user")
+    expect(config?.pass).toBe("alias-pass")
   })
 
   it("picks implicit TLS for 465 and STARTTLS for 587", () => {

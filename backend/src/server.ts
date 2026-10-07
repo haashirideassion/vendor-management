@@ -37,6 +37,12 @@ import vendorInviteLinksRoutes from "./routes/vendorInviteLinks"
 import legalEntitiesRoutes from "./routes/legalEntities"
 
 const app = express()
+
+// Behind Vercel's proxy every request otherwise appears to come from the
+// proxy's address: express-rate-limit (authLimiter on login/register/forgot-
+// password) would put all users in ONE bucket and start answering 429 after
+// 20 requests in 15 minutes, and it also logs ERR_ERL_UNEXPECTED_X_FORWARDED_FOR.
+app.set("trust proxy", 1)
 const PORT = process.env.PORT ?? 5000
 
 const allowedOrigins = [

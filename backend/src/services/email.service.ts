@@ -34,8 +34,10 @@ export interface SmtpConfig {
 export const readSmtpConfig = (): { config?: SmtpConfig; missing: string[] } => {
     const missing: string[] = [];
     const host = process.env.SMTP_HOST?.trim();
-    const user = process.env.SMTP_USER?.trim();
-    const pass = process.env.SMTP_PASS;
+    // SMTP_USERNAME / SMTP_PASSWORD are accepted as aliases: a deployment that
+    // only defines those names would otherwise look "unconfigured" in production.
+    const user = (process.env.SMTP_USER || process.env.SMTP_USERNAME)?.trim();
+    const pass = process.env.SMTP_PASS || process.env.SMTP_PASSWORD;
     if (!host) missing.push("SMTP_HOST");
     if (!user) missing.push("SMTP_USER");
     if (!pass) missing.push("SMTP_PASS");
@@ -85,9 +87,12 @@ const getTransporter = (): Transporter => {
         tls: { rejectUnauthorized: config.rejectUnauthorized },
         // Bounded timeouts: on a serverless host a hung socket would otherwise
         // run until the function is killed and the request just times out.
-        connectionTimeout: 10_000,
-        greetingTimeout: 10_000,
-        socketTimeout: 20_000,
+        // Kept well under Vercel's default 10s function limit so a slow SMTP
+        // handshake fails visibly (and is logged) instead of the whole request
+        // being killed with no log line and no email.
+        connectionTimeout: 6_000,
+        greetingTimeout: 6_000,
+        socketTimeout: 8_000,
     });
     return _transporter;
 };
@@ -196,15 +201,18 @@ const isTransient = (err: any) =>
     // recipient 550, ...) will not succeed on retry.
     (typeof err.responseCode === "number" && err.responseCode >= 400 && err.responseCode < 500);
 
-const sendWithRetry = async (mailOptions: any, attempt: number = 1): Promise<any> => {
+// Total time we allow ourselves for one email, retries included.
+const SEND_BUDGET_MS = parseInt(process.env.EMAIL_SEND_BUDGET_MS || "8000", 10);
+
+const sendWithRetry = async (mailOptions: any, attempt: number = 1, startedAt: number = Date.now()): Promise<any> => {
     try {
         return await getTransporter().sendMail(mailOptions);
     } catch (err: any) {
-        if (isTransient(err) && attempt < MAX_RETRIES) {
-            const backoff = Math.pow(2, attempt) * 500;
+        const backoff = Math.pow(2, attempt) * 500;
+        if (isTransient(err) && attempt < MAX_RETRIES && Date.now() - startedAt + backoff < SEND_BUDGET_MS) {
             console.warn(`⚠️ SMTP transient failure (${err.code || err.responseCode}), retry ${attempt}/${MAX_RETRIES - 1} in ${backoff}ms`);
             await sleep(backoff);
-            return sendWithRetry(mailOptions, attempt + 1);
+            return sendWithRetry(mailOptions, attempt + 1, startedAt);
         }
         throw err;
     }
@@ -296,7 +304,36 @@ export const sendBulkEmail = async ({ recipients, subject, html, text }: { recip
 ============================================================ */
 
 export const isConfigured = () =>
-    Boolean(process.env.SMTP_USER && process.env.SMTP_PASS && process.env.SES_FROM_EMAIL);
+    readSmtpConfig().missing.length === 0 && Boolean(getFrom().email);
+
+/**
+ * Safe-to-return picture of the email setup for production debugging:
+ * variable NAMES that are missing, non-secret settings, and a live SMTP
+ * handshake. Never includes the password or any token.
+ */
+export const smtpDiagnostics = async () => {
+    const { config, missing } = readSmtpConfig();
+    const from = getFrom();
+    const usedNames = {
+        user: process.env.SMTP_USER ? "SMTP_USER" : process.env.SMTP_USERNAME ? "SMTP_USERNAME" : null,
+        pass: process.env.SMTP_PASS ? "SMTP_PASS" : process.env.SMTP_PASSWORD ? "SMTP_PASSWORD" : null,
+    };
+    let frontendUrl: string | { error: string };
+    try { frontendUrl = (await import("../utils/appUrl")).getFrontendUrl(); }
+    catch (e: any) { frontendUrl = { error: e.message }; }
+    const t0 = Date.now();
+    const handshake = config ? await verifySmtp() : { ok: false, error: "not configured" };
+    return {
+        runtime: { nodeEnv: process.env.NODE_ENV ?? null, vercel: Boolean(process.env.VERCEL), vercelEnv: process.env.VERCEL_ENV ?? null, region: process.env.VERCEL_REGION ?? null },
+        configured: isConfigured(),
+        missing: [...missing, ...(from.email ? [] : ["SMTP_FROM_EMAIL (or SMTP_FROM)"])],
+        settings: config ? { host: config.host, port: config.port, security: config.security, tlsVerify: config.rejectUnauthorized, user: config.user } : null,
+        credentialVariables: usedNames,
+        from,
+        frontendUrl,
+        handshake: { ...handshake, ms: Date.now() - t0 },
+    };
+};
 
 /* ============================================================
    Email Templates

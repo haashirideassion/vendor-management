@@ -6,6 +6,7 @@ import { ServiceError, mergeGroups, removeOrgFromGroup, dissolveGroup } from "..
 import { writeAudit } from "../services/audit"
 import { generateUniqueOrgCode, generateUniqueGroupCode } from "../utils/codeGenerator"
 import { issueInvite, sendInviteEmail } from "../services/invitations"
+import { sendEmail, smtpDiagnostics } from "../services/email.service"
 import { ensureDefaultLegalEntity } from "../services/legalEntity.service"
 import { resolveOnboardingTargets } from "./vendors"
 import { findOrgRoleHolderIds, notifyUsers } from "../services/approvalGate"
@@ -1510,6 +1511,29 @@ router.post("/vendors/onboard-and-activate", requireAuth, requireSuperAdmin, asy
   } catch (err: any) {
     console.error("[superadmin/vendors/onboard-and-activate]", err.message)
     res.status(500).json({ error: err.message || "Failed to onboard vendor" })
+  }
+})
+
+// POST /api/superadmin/email/diagnostics — {testTo?}. Production email
+// debugging: reports which SMTP variables the RUNNING deployment can see
+// (names only, never values/secrets), performs a live SMTP handshake, and
+// optionally sends a real test message. Superadmin only.
+router.post("/email/diagnostics", requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
+  try {
+    const { testTo } = req.body as { testTo?: string }
+    const diagnostics = await smtpDiagnostics()
+    let testSend: unknown = undefined
+    if (testTo) {
+      testSend = await sendEmail({
+        to: testTo.trim(),
+        subject: "CogniVend SMTP test",
+        html: "<p>This is a test message from the CogniVend production deployment. SMTP is working.</p>",
+      })
+    }
+    res.json({ data: { ...diagnostics, testSend } })
+  } catch (err: any) {
+    console.error("[superadmin/email/diagnostics]", err.message)
+    res.status(500).json({ error: "Diagnostics failed" })
   }
 })
 
